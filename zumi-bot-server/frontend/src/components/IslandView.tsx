@@ -168,6 +168,7 @@ export function IslandView({
           {icons.map(({ agent, marks }) => {
             const open = agent.name === openName
             const label = marksLabel(marks)
+            // A native title on purpose: the strip sits at the window's right edge, where the app's own tip was cut off.
             return (
               <button
                 key={agent.name}
@@ -180,7 +181,8 @@ export function IslandView({
                 data-unread={marks.unread}
                 aria-pressed={open}
                 aria-label={label === '' ? displayName(agent.name) : `${displayName(agent.name)}, ${label}`}
-                data-tip={displayName(agent.name)}
+                title={displayName(agent.name)}
+                data-native-title
                 onClick={() => onIcon(agent.name)}
               >
                 <BotIcon icon={agent.icon} color={agent.color} builtIn={agent.builtIn} working={marks.working} size={30} />
