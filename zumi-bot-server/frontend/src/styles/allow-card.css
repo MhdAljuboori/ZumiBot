@@ -1,0 +1,97 @@
+/* The Allow card for a command Auto mode refused: it reuses the question card's frame (.approval.question). */
+
+.allow-card .question-icon {
+  font-size: 14px;
+}
+.allow-command {
+  max-height: 9em;
+  overflow: auto;
+}
+.allow-group-label {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.allow-parts,
+.allow-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.allow-part {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.allow-part .field-error,
+.allow-part-reason {
+  flex-basis: 100%;
+  margin-left: 24px;
+}
+.allow-prefix {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.allow-prefix[aria-invalid='true'] {
+  border-color: var(--error);
+}
+.allow-part-off,
+.allow-part-held code,
+.allow-rules code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.allow-part-off {
+  color: var(--fg-muted);
+}
+.allow-scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+/* Answered or older: one line, which wraps rather than overflowing a phone. */
+.allow-card.allow-done,
+.allow-card.allow-collapsed {
+  padding: 8px 12px;
+}
+.allow-done-line,
+.allow-collapsed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+.allow-collapsed {
+  justify-content: space-between;
+  color: var(--fg-muted);
+}
+.allow-done-cmd {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+@media (max-width: 799px) {
+  .allow-prefix {
+    font-size: 16px; /* under 16px iOS zooms the page on focus */
+  }
+  .allow-card .approval-actions .btn {
+    flex: 1;
+  }
+}

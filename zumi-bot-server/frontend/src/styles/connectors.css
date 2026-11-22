@@ -1,0 +1,16 @@
+/* Settings › Connectors. */
+
+/* Settings › Connectors: one card per connector, the switches as rows under its head. */
+.conn-note {
+  margin-bottom: 6px;
+}
+.conn-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
+}
+.conn-list .ext-row-sub code {
+  flex: 1 1 200px;
+  min-width: 0;
+}

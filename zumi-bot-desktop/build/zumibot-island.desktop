@@ -1,0 +1,11 @@
+# The island window's own entry (its WM_CLASS is zumibot-island, see ISLAND_DESKTOP_NAME in src/main/island.ts).
+# GNOME Shell files the island under it, so a hidden main window leaves ZumiBot with no window and a dock click
+# launches the second instance that shows it. Hidden from menus; opening it starts ZumiBot, which shows its window.
+[Desktop Entry]
+Type=Application
+Name=ZumiBot
+Exec=/opt/ZumiBot/zumibot %U
+Icon=zumibot
+Terminal=false
+NoDisplay=true
+StartupWMClass=zumibot-island

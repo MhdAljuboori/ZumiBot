@@ -1,0 +1,237 @@
+/* The dictation button and the voice request page. */
+
+/* The mic beside Send, sized like the attach button: red and pulsing while it records, dimmed while the mic is asked for. */
+.dictation-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.dictation-btn svg {
+  width: 16px;
+  height: 16px;
+}
+.dictation-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.dictation-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.dictation-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.dictation-btn[data-phase='starting'] {
+  animation: dictation-dim 1.2s ease-in-out infinite;
+}
+.dictation-btn[data-phase='listening'],
+.dictation-btn[data-phase='listening']:hover:not(:disabled) {
+  background: var(--error);
+  color: var(--bg);
+  animation: dictation-pulse 1.4s ease-in-out infinite;
+}
+.dictation-btn[data-phase='listening'] svg {
+  width: 14px;
+  height: 14px;
+}
+@keyframes dictation-dim {
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes dictation-pulse {
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--error) 25%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dictation-btn[data-phase] {
+    animation: none;
+  }
+}
+/* The voice request page: one centered column, a big Stop; compact in the island popup. */
+.voice-talk {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 24px 16px;
+  background: var(--bg);
+  color: var(--fg);
+}
+/* Inside the system bars as the page is; the controls pad the bottom themselves. */
+.voice-page {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+  background: var(--bg);
+}
+.voice-talk-back {
+  position: absolute;
+  top: 12px;
+  inset-inline-start: 12px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 20px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+.voice-talk-back:hover {
+  background: var(--bg-raised);
+  color: var(--fg);
+}
+.voice-face {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 28%;
+  background: transparent;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+.voice-face:disabled {
+  cursor: default;
+}
+.voice-face:not(:disabled):hover {
+  transform: scale(1.03);
+}
+.voice-face:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 6px;
+}
+.voice-face-dot {
+  position: absolute;
+  top: 2%;
+  inset-inline-end: 2%;
+  width: 16%;
+  height: 16%;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--bg);
+  animation: voice-dot 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .voice-face-dot {
+    animation: none;
+  }
+}
+@keyframes voice-dot {
+  50% {
+    transform: scale(0.8);
+    opacity: 0.75;
+  }
+}
+.voice-wave {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 36px;
+  width: min(280px, 80%);
+}
+.voice-wave span {
+  flex: none;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--fg-muted);
+  opacity: 0.85;
+  will-change: transform;
+}
+.voice-talk[data-phase='listening'] .voice-wave span {
+  background: var(--fg);
+}
+.voice-talk-status {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: 18px;
+  font-weight: 500;
+  text-align: center;
+}
+.voice-talk-note {
+  margin: 0;
+  max-width: 34em;
+  color: var(--fg-muted);
+  font-size: 14px;
+  text-align: center;
+}
+.voice-talk-note.error {
+  color: var(--error);
+}
+.voice-talk-controls {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.voice-talk-stop {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-raised);
+  color: var(--fg);
+  cursor: pointer;
+}
+.voice-talk-stop:hover {
+  background: var(--error);
+  color: var(--bg);
+}
+.voice-talk-stop svg {
+  width: 18px;
+  height: 18px;
+}
+.voice-talk-stop:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+.voice-talk-open {
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+.voice-talk-open:hover {
+  color: var(--link);
+}
+.voice-talk.compact {
+  padding: 14px 10px;
+  gap: 12px;
+}
+.voice-talk.compact .voice-talk-status {
+  font-size: 15px;
+}
+.voice-talk.compact .voice-wave {
+  height: 30px;
+}
+.voice-talk.compact .voice-talk-stop {
+  width: 38px;
+  height: 38px;
+}

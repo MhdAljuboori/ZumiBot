@@ -1,0 +1,4 @@
+
+> @zumibot/backend@1.17.0 typecheck
+> tsc --noEmit -p tsconfig.json
+

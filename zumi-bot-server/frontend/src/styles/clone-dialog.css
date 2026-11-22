@@ -1,0 +1,158 @@
+/* The clone room dialog, a sheet from the bottom on a phone. */
+
+/* ---- clone room dialog (a sheet from the bottom on a phone) ---- */
+.modal.clone-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.modal.clone-dialog:focus {
+  outline: none;
+}
+.clone-dialog .modal-title {
+  margin-bottom: 12px;
+}
+.clone-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.clone-label {
+  color: var(--fg-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.clone-name,
+.clone-text {
+  width: 100%;
+}
+.clone-keeps {
+  margin: 0 0 4px;
+  color: var(--fg-muted);
+  font-size: 12.5px;
+}
+.clone-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.clone-option {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--fg);
+  text-align: start;
+  cursor: pointer;
+}
+.clone-option:hover:not(:disabled):not([aria-pressed='true']) {
+  background: var(--bg-hover);
+}
+.clone-option[aria-pressed='true'] {
+  border-color: var(--sel-border);
+  background: var(--sel-bg);
+}
+.clone-option:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.clone-option:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.clone-option-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+.clone-option-sub {
+  color: var(--fg-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.clone-writing {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 2px;
+}
+.clone-writing-title {
+  font-weight: 600;
+}
+.clone-hint {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.clone-for {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.clone-for strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+/* No font size here: touch screens set fields to 16px further down, so iOS does not zoom in. */
+.clone-text {
+  flex: 1 1 auto;
+  min-height: 200px;
+  height: 45vh;
+  resize: vertical;
+  line-height: 1.5;
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+.clone-text-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.clone-count {
+  flex: none;
+  color: var(--fg-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.clone-count.over {
+  color: var(--error);
+  font-weight: 600;
+}
+.clone-error {
+  margin: 10px 0 0;
+  color: var(--error);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.clone-buttons {
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+@media (max-width: 799px) {
+  .clone-backdrop {
+    align-items: flex-end;
+  }
+  .modal.clone-dialog {
+    width: 100%;
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top));
+    border-width: 1px 0 0;
+    border-radius: 14px 14px 0 0;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  }
+  .clone-text {
+    height: 40dvh;
+  }
+}
+@media (max-width: 420px) {
+  .clone-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -1,0 +1,262 @@
+/* Question cards (AskUserQuestion) and plan cards (ExitPlanMode). */
+
+/* ---- question card (AskUserQuestion) ---- */
+
+.approval.question {
+  padding: 14px 16px;
+  gap: 10px;
+}
+.question-headrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.question-icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--tile-bg);
+  border: 1px solid var(--sel-border);
+  color: var(--sel-fg);
+  font-weight: 700;
+  font-size: 15px;
+}
+.question-head {
+  font-weight: 700;
+  font-size: 14.5px;
+  overflow-wrap: anywhere;
+}
+/* align-self: its parents are flex columns, which would stretch it into an empty-looking bar. */
+.question-chip {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 7px;
+  margin-bottom: 4px;
+}
+.question-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.question-tab {
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.question-tab:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.question-tab.on {
+  color: var(--fg);
+  border-color: var(--ring);
+}
+.question-tab[data-done='true'] {
+  color: var(--success);
+}
+.question-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.question-block + .question-block {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.question-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* A question can carry a whole review (findings, causes, changes), so it reads at reply size, not the card's 13px. */
+.question-text {
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+}
+.question-desc {
+  color: var(--fg-muted);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+/* Agents break a question's lines with plain newlines, not markdown hard breaks, so keep them. */
+:is(.question-text, .question-desc) .markdown :is(p, li) {
+  white-space: pre-line;
+}
+/* Top margin only, on blocks after the first: it collapses with the 10px above, and the first block stays flush. */
+:is(.question-text, .question-desc) .markdown > :is(p, ul, ol, .code-block, table, blockquote):not(:first-child) {
+  margin-top: 12px;
+}
+.question-option,
+.question-other-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.question-option.on,
+.question-other-row.on {
+  background: var(--sel-bg);
+  border-color: var(--sel-border);
+  box-shadow: 0 0 0 1px var(--sel-border);
+}
+.question-option.dim {
+  opacity: 0.45;
+}
+.question-option input,
+.question-other-row input {
+  flex: none;
+  margin-top: 2px;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--ring);
+}
+.question-option > span,
+.question-other-row > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.question-option small {
+  display: block;
+  color: var(--fg-muted);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+.question-preview {
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.question-other-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.question-number-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.question-other-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font: inherit;
+}
+/* Grows with its lines where field-sizing is supported; elsewhere rows={2} plus the resize handle. */
+textarea.question-other-input {
+  display: block;
+  resize: vertical;
+  field-sizing: content;
+  min-height: 3.6em;
+  max-height: 16em;
+  overflow-y: auto;
+}
+.question-other-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -1px;
+}
+/* The sent Other text keeps the line breaks it was typed with. */
+.question-other-row > span {
+  white-space: pre-wrap;
+}
+.question-unit {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.question-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.question-hint {
+  color: var(--fg-muted);
+  font-size: 12px;
+  margin-right: auto;
+}
+
+/* ---- plan card (ExitPlanMode) ---- */
+
+.plan-head {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+/* A long plan scrolls inside the card, so the thread around it stays reachable. */
+.plan-body {
+  max-height: min(60vh, 480px);
+  overflow: auto;
+  padding: 2px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+.plan-body:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -1px;
+}
+.plan-missing,
+.plan-path-row {
+  color: var(--fg-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.plan-path {
+  display: block;
+  font-family: var(--font-mono);
+}
+.plan-path-row .plan-path {
+  display: inline;
+}
+.plan-feedback {
+  margin: 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--border);
+  color: var(--fg-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.plan-feedback-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.plan-feedback-input {
+  resize: vertical;
+}

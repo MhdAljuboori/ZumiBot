@@ -1,0 +1,18 @@
+/* The engine "i" beside an agent. */
+
+/* The engine "i" beside the agent: its sentence opens as a small menu. */
+.engine-info {
+  padding: 0 7px;
+}
+/* The remote chip's text can be a long host:port: it ellipsizes (the .picker-text inside), the full text stays in its title and tap notice. */
+.engine-info.labelled {
+  padding: 0 9px;
+  max-width: min(220px, 48vw);
+}
+.engine-info-text {
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 8px 10px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  white-space: normal;
+}

@@ -1,0 +1,134 @@
+/* Tokens copied from the app's tokens.css (its default Blue color theme) so the page matches it in both themes. */
+:root {
+  --bg: light-dark(#ffffff, #13161c);
+  --bg-raised: light-dark(#f7f9fc, #191d25);
+  --fg: light-dark(#121620, #eef2f8);
+  --fg-muted: light-dark(#5a6478, #9aa3b5);
+  --border: light-dark(#e0e5ee, #262c36);
+  --accent: light-dark(#2563eb, #2f6bf0);
+  --accent-fg: #ffffff;
+  --ring: light-dark(#2563eb, #4a86ff);
+  --link: light-dark(#1d4ed8, #6ea1ff);
+  --error: light-dark(#c62828, #f07171);
+  --error-bg: light-dark(#fdecea, #2a1717);
+  color-scheme: light dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--bg);
+  color: var(--fg);
+  font:
+    14px/1.4 system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+}
+
+.card {
+  width: 100%;
+  max-width: 360px;
+  padding: 28px 24px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+h1 {
+  margin: 0 0 20px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+label {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+input {
+  width: 100%;
+  padding: 9px 10px;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+}
+input:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+#code {
+  letter-spacing: 0.2em;
+  font-variant-numeric: tabular-nums;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+#submit {
+  margin-top: 16px;
+  padding: 10px 12px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  border: 0;
+  border-radius: 8px;
+  font-weight: 600;
+}
+#submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.link {
+  align-self: center;
+  margin-top: 6px;
+  padding: 4px;
+  background: none;
+  border: 0;
+  color: var(--link);
+}
+.link:hover {
+  text-decoration: underline;
+}
+
+.error {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  background: var(--error-bg);
+  color: var(--error);
+  border-radius: 8px;
+}
+
+/* A finger needs bigger targets, and iOS zooms in on a field with text under 16px. */
+@media (pointer: coarse) {
+  input {
+    padding: 11px 12px;
+    font-size: 16px;
+  }
+  #submit {
+    padding: 12px;
+  }
+}

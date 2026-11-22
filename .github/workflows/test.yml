@@ -1,0 +1,49 @@
+# Runs the unit tests (`npm test`, every vitest project) on Linux, native Windows and macOS, on every push and pull
+# request.
+#
+# Windows runs the same suite: fake CLIs there are a tiny launcher exe built with the .NET Framework csc.exe every
+# Windows has (backend/tests/support/fakeBin.ts), and tests of a Linux-only feature skip themselves or are excluded in
+# backend/vitest.config.ts. macOS runs it too, since the desktop app ships there (what differs on a Mac:
+# docs/architecture/install.md, Tests on macOS). Tests that need a tool the runner lacks (rsync, bwrap, podman, a
+# Chromium) skip on their own.
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: npm test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      # Pinned by commit, like every dependency in this repo (actions/checkout v5.1.0).
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+
+      # actions/setup-node v5.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: '22'
+          cache: npm
+
+      # --ignore-scripts: no test needs an install script, and it keeps Electron's postinstall from downloading a binary.
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - run: npm run typecheck
+
+      # Some tests run the built bundle (backend/dist: server.mjs and the bridges it starts).
+      - run: npm run build:server
+
+      # Git Bash, so the hook tests (vault guard, pause hook) find sh as they do on a Windows install with Git.
+      - run: npm test
+        shell: bash

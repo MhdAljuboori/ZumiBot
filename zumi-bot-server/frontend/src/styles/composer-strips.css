@@ -1,0 +1,82 @@
+/* Strips over the composer: the message being replied to, and dictation progress. */
+
+/* The message the next one replies to, above the composer box. */
+.reply-strip {
+  --quote: var(--fg-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 6px 8px;
+  padding: 6px 6px 6px 10px;
+  border-left: 3px solid var(--quote);
+  border-radius: 4px 10px 10px 4px;
+  background: var(--bg-raised);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+.reply-strip > svg {
+  color: var(--quote);
+}
+.reply-strip-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.reply-strip-name {
+  color: var(--quote);
+  font-weight: 600;
+}
+.reply-strip-text {
+  overflow: hidden;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.reply-strip .attach-remove {
+  margin-right: 0;
+}
+
+/* The dictation's progress, in the reply strip's place and shape. */
+.dictation-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 6px 8px;
+  padding: 6px 10px;
+  border-left: 3px solid var(--fg-muted);
+  border-radius: 4px 10px 10px 4px;
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+.dictation-dot {
+  color: var(--error);
+  font-size: 10px;
+}
+.dictation-time {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+.dictation-note {
+  color: var(--fg);
+}
+.dictation-lang {
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.dictation-lang:hover {
+  background: var(--bg-hover);
+}
+.dictation-lang:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}

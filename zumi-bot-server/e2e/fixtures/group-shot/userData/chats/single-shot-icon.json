@@ -1,0 +1,4 @@
+[
+  { "type": "user", "id": "s1", "text": "Any ideas for a new icon?", "ts": 1792680000000 },
+  { "type": "assistant", "id": "s2", "text": "A wink works well at small sizes.", "ts": 1792680300000 }
+]

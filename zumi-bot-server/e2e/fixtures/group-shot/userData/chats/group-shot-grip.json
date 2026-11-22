@@ -1,0 +1,49 @@
+[
+  {
+    "type": "user",
+    "id": "u1",
+    "text": "@odd-format can you sketch the grip card layout? Then @icon-agent turns it into a card.",
+    "ts": 1792700000000
+  },
+  {
+    "type": "assistant",
+    "id": "a1",
+    "text": "Here is the layout:\n\n- **Header:** grip name and size\n- **Body:** material, finish and a photo\n\nOver to @icon-agent for the card. (Writing `@icon-agent` in code stays plain text.)",
+    "ts": 1792700060000,
+    "agent": "odd-format"
+  },
+  {
+    "type": "tool",
+    "id": "toolu_shot_1",
+    "name": "Read",
+    "input": { "file_path": "/tmp/grip-layout.md" },
+    "result": "Header: grip name and size",
+    "isError": false,
+    "blocked": false,
+    "ts": 1792700120000,
+    "doneTs": 1792700124000,
+    "agent": "icon-agent"
+  },
+  {
+    "type": "assistant",
+    "id": "a2",
+    "text": "Card created from the layout by @odd-format. @odd-agent, can you check the wording?",
+    "ts": 1792700130000,
+    "agent": "icon-agent"
+  },
+  {
+    "type": "assistant",
+    "id": "a3",
+    "text": "Wording looks right. One fix: say *matte finish*, not *mat finish*.",
+    "ts": 1792700200000,
+    "agent": "odd-agent"
+  },
+  { "type": "user", "id": "u2", "text": "Thanks @odd-agent. @lister, anything to add?", "ts": 1792700500000 },
+  {
+    "type": "assistant",
+    "id": "a4",
+    "text": "Only one: keep the photo square so it lines up with @icon-agent's other cards.",
+    "ts": 1792700600000,
+    "agent": "lister"
+  }
+]

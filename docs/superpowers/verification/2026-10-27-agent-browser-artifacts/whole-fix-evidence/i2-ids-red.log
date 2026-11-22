@@ -1,0 +1,92 @@
+
+ RUN  v5.0.5 /home/mhdaljuboori/Developments/AI/ZumiBot
+
+ ❯ |backend| tests/core/attachmentContent.test.ts (8 tests | 3 failed) 16ms
+   ❯ attachment content (8)
+     × withNote appends the exact note 7ms
+     × withNote with empty text is the note alone 1ms
+     × withNotes leaves items without attachments identical (toBe) 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |backend| tests/core/attachmentContent.test.ts > attachment content > withNote appends the exact note
+AssertionError: expected 'look\n\n<attachments>\n- a.png (image…' to be 'look\n\n<attachments>\n- a.png (image…' // Object.is equality
+
+- Expected
++ Received
+
+  look
+
+  <attachments>
+- - a.png (image, attached below): /x/a.png [file ID: i1]
++ - a.png (image, attached below): /x/a.png
+- - b.pdf: /x/b.pdf [file ID: f1]
++ - b.pdf: /x/b.pdf
+  </attachments>
+
+ ❯ tests/core/attachmentContent.test.ts:12:36
+     10|   it('withNote appends the exact note', () => {
+     11|     const refs = refsOf([img, doc], pathOf)
+     12|     expect(withNote('look', refs)).toBe('look\n\n<attachments>\n- a.pn…
+       |                                    ^
+     13|   })
+     14|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  |backend| tests/core/attachmentContent.test.ts > attachment content > withNote with empty text is the note alone
+AssertionError: expected '<attachments>\n- b.pdf: /x/b.pdf\n</a…' to be '<attachments>\n- b.pdf: /x/b.pdf [fil…' // Object.is equality
+
+- Expected
++ Received
+
+  <attachments>
+- - b.pdf: /x/b.pdf [file ID: f1]
++ - b.pdf: /x/b.pdf
+  </attachments>
+
+ ❯ tests/core/attachmentContent.test.ts:16:49
+     14|
+     15|   it('withNote with empty text is the note alone', () => {
+     16|     expect(withNote('', refsOf([doc], pathOf))).toBe('<attachments>\n-…
+       |                                                 ^
+     17|   })
+     18|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  |backend| tests/core/attachmentContent.test.ts > attachment content > withNotes leaves items without attachments identical (toBe)
+AssertionError: expected { type: 'user', id: 'u2', …(3) } to deeply equal { type: 'user', id: 'u2', …(3) }
+
+- Expected
++ Received
+
+@@ -10,10 +10,10 @@
+    ],
+    "id": "u2",
+    "text": "see
+
+  <attachments>
+- - b.pdf: /x/b.pdf [file ID: f1]
++ - b.pdf: /x/b.pdf
+  </attachments>",
+    "ts": 3,
+    "type": "user",
+  }
+
+ ❯ tests/core/attachmentContent.test.ts:31:20
+     29|     expect(out[0]).toBe(plain)
+     30|     expect(out[1]).toBe(asst)
+     31|     expect(out[2]).toEqual({ ...withAtt, text: 'see\n\n<attachments>\n…
+       |                    ^
+     32|   })
+     33|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 5 passed (8)
+   Start at  09:43:03
+   Duration  163ms (transform 44%, tests 30%, import 18%, worker 7%)
+

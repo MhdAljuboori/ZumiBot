@@ -1,0 +1,28 @@
+---
+// A real app screenshot in both themes: `<Shot name="chatting-composer" alt="..." />`. The images are made by
+// `shots/run.mjs` (see `shots/list.mjs`). Only the one matching `:root[data-theme]` shows (rules in `brand.css`).
+import { Image } from 'astro:assets'
+import type { ImageMetadata } from 'astro'
+
+interface Props {
+  name: string
+  alt: string
+}
+
+const { name, alt } = Astro.props
+const images = import.meta.glob<{ default: ImageMetadata }>('../assets/shots/*.png', { eager: true })
+
+// An unknown name must fail the build, not ship a broken image.
+const pick = (theme: 'light' | 'dark') => {
+  const found = images[`../assets/shots/${name}-${theme}.png`]
+  if (!found) throw new Error(`Shot "${name}": src/assets/shots/${name}-${theme}.png is missing. Add it to shots/list.mjs and run npm run docs:shots.`)
+  return found.default
+}
+const light = pick('light')
+const dark = pick('dark')
+---
+
+<figure class="zb-shot">
+  <Image src={light} alt={alt} class="zb-shot-light" />
+  <Image src={dark} alt={alt} class="zb-shot-dark" />
+</figure>

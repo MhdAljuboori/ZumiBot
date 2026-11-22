@@ -1,0 +1,562 @@
+/* A workflow run: step states, visits, items, costs, approvals. */
+
+/* Run view: the canvas read-only, each step marked by its state, and the visits of the selected step beside it. */
+.wf-node-state {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--bg);
+  letter-spacing: 0;
+}
+.wf-node-state svg {
+  width: 11px;
+  height: 11px;
+}
+.wf-node-state.done {
+  background: var(--success);
+}
+.wf-node-state.waiting {
+  background: var(--warning);
+}
+.wf-node-state.failed {
+  background: var(--error);
+}
+.wf-node-state.stopped {
+  background: var(--fg-muted);
+}
+.wf-node-state.paused {
+  background: var(--fg-muted);
+}
+.wf-node-state.running {
+  background: none;
+}
+.wf-node-state .spinner {
+  width: 13px;
+  height: 13px;
+}
+.wf-node[data-state='running'] {
+  border-color: var(--accent);
+}
+.wf-node[data-state='waiting'] {
+  border-color: var(--warning);
+  box-shadow: 0 0 0 1px var(--warning);
+}
+.wf-node[data-state='failed'] {
+  border-color: var(--error);
+  box-shadow: 0 0 0 1px var(--error);
+}
+.wf-node[data-state='done'] {
+  border-color: color-mix(in srgb, var(--success) 60%, var(--border));
+}
+.wf-node[data-state='stopped'] {
+  opacity: 0.75;
+}
+/* Wraps: in an 800 px window the main area is about 430 px, too narrow for back, title, tags and tabs on one row. */
+.wf-run-head {
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding-block: 10px;
+}
+.wf-run-back {
+  flex: none;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.wf-run-title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.wf-run-head .wf-stop {
+  color: var(--error);
+}
+.wf-visit-status {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--bg-selected);
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.wf-visit-status.running {
+  color: var(--accent-text);
+}
+.wf-visit-status.waiting {
+  color: var(--warning);
+}
+.wf-visit-status.done {
+  color: var(--success);
+}
+.wf-visit-status.failed {
+  color: var(--error);
+}
+.wf-visits {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+.wf-visit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-raised);
+  min-width: 0;
+}
+.wf-visit[data-status='failed'] {
+  border-color: color-mix(in srgb, var(--error) 55%, var(--border));
+}
+.wf-visit[data-status='waiting'] {
+  border-color: color-mix(in srgb, var(--warning) 60%, var(--border));
+}
+.wf-visit-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+}
+.wf-visit-ic {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--tile-bg);
+  color: var(--sel-fg);
+}
+.wf-visit-ic .glyph {
+  width: 14px;
+  height: 14px;
+}
+.wf-visit-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  unicode-bidi: plaintext;
+}
+.wf-visit-n {
+  color: var(--fg-muted);
+}
+.wf-visit-time {
+  margin-left: auto;
+  color: var(--fg-muted);
+}
+.wf-visit-cost {
+  margin-left: auto;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+.wf-visit-time + .wf-visit-cost {
+  margin-left: 0;
+}
+.wf-run-head .wf-run-cost {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+.wf-run-head .wf-run-progress {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 340px;
+  overflow: hidden;
+  color: var(--accent-text);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  unicode-bidi: plaintext;
+}
+.wf-items-count {
+  font-variant-numeric: tabular-nums;
+}
+.wf-timeline-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.wf-timeline-progress:hover {
+  background: var(--bg-hover);
+}
+.wf-timeline-progress:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.wf-timeline-progress-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  unicode-bidi: plaintext;
+}
+.wf-timeline-progress-caret {
+  flex: none;
+  color: var(--fg-muted);
+}
+/* position: relative makes each item's offsetTop count from the list, which the running item's scroll uses. */
+.wf-items {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  max-height: 420px;
+  margin: 6px 0 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.wf-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  min-width: 0;
+}
+.wf-item + .wf-item {
+  border-top: 1px solid var(--border);
+}
+.wf-item[data-status='running'],
+.wf-item[data-status='waiting'] {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.wf-item[data-status='pending'] .wf-item-text {
+  color: var(--fg-muted);
+}
+.wf-item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+}
+.wf-item-n {
+  flex: none;
+  min-width: 1.6em;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+.wf-item-dot.pending {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--border);
+}
+.wf-item-text {
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.wf-item-cost {
+  flex: none;
+  color: var(--fg-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.wf-item .wf-visit-text {
+  max-height: 180px;
+}
+.wf-costs {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wf-cost-row,
+.wf-cost-total {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 6px;
+  font-size: 13px;
+}
+.wf-cost-row {
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.wf-cost-row:hover {
+  background: var(--bg-hover);
+}
+.wf-cost-row:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.wf-cost-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  unicode-bidi: plaintext;
+}
+.wf-cost-n {
+  flex: none;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.wf-cost-usd {
+  flex: none;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.wf-cost-total {
+  margin-top: 2px;
+  border-top: 1px solid var(--border);
+  font-weight: 600;
+}
+.wf-visit-part .rt-label,
+.wf-visit-reason .rt-label {
+  margin: 0 0 4px;
+}
+/* The label row with Expand: the button's negative margin keeps the row as short as the label alone. */
+.wf-visit-part > .wf-field-head {
+  margin-bottom: 4px;
+}
+.wf-inspect > .wf-visit-part > .wf-field-head {
+  margin-bottom: 8px;
+}
+.wf-visit-part .wf-field-head .rt-label {
+  margin: 0;
+}
+.wf-visit-part .wf-expand {
+  margin-block: -5px;
+}
+.wf-expand-body .wf-expand-read {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  padding: 16px 20px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.wf-expand-read:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.wf-visit-text {
+  max-height: 260px;
+  overflow: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.wf-visit-text .markdown > :first-child {
+  margin-top: 0;
+}
+.wf-visit-text .markdown > :last-child {
+  margin-bottom: 0;
+}
+.wf-visit-reason {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.wf-visit-answer {
+  font-size: 13px;
+}
+.wf-visit-error {
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--error) 45%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  color: var(--error);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.wf-visit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.wf-visit-actions:empty {
+  display: none;
+}
+.wf-visit-actions .btn {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: var(--bg-selected);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.wf-approval {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--warning) 55%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warning) 8%, var(--bg));
+}
+.wf-approval-q {
+  font-size: 13.5px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.wf-approval-text {
+  resize: vertical;
+  font-size: 13px;
+}
+.wf-approval-buttons {
+  display: flex;
+  gap: 8px;
+}
+.wf-approval-buttons .btn {
+  height: 34px;
+  min-width: 92px;
+  border-radius: 9px;
+  font-weight: 600;
+}
+.wf-approve {
+  border-color: var(--success);
+  background: var(--success);
+  color: var(--success-fg);
+}
+.wf-approve:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--success) 86%, #000);
+} /* .btn's hover fill would hide --success-fg */
+.wf-reject {
+  color: var(--error);
+}
+.wf-goto {
+  align-self: flex-start;
+  margin-top: 10px;
+  padding: 0;
+  color: var(--warning);
+  text-align: left;
+}
+.wf-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wf-phone-approval {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wf-phone-approval-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+.wf-chat-bar {
+  flex: none;
+  padding: 7px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-raised);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+.wf-chat-bar-link {
+  color: var(--fg-muted);
+  text-decoration: none;
+}
+.wf-chat-bar-link:hover {
+  color: var(--fg);
+  text-decoration: underline;
+}
+.wf-chat-bar-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* Phone: back and Stop on top, the run's title and tags under. min-height 0 drops .rt-head's 60 px floor, which is
+   only right for one row. */
+.wf-run-view.wf-phone .wf-run-head {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-height: 0;
+  padding: 8px 16px 12px;
+}
+.wf-run-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 34px;
+}
+.wf-run-bar .wf-run-back {
+  flex: 0 1 auto;
+  max-width: none;
+  min-height: 34px;
+  margin-right: auto;
+  padding: 0;
+  color: var(--fg-muted);
+  font-size: 14px;
+  text-decoration: none;
+}
+.wf-run-bar .wf-run-back:hover {
+  color: var(--fg);
+}
+.wf-run-bar .wf-run-back:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.wf-run-bar .wf-stop {
+  flex: none;
+  height: 34px;
+}
+.wf-run-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+}
+.wf-run-info .wf-run-title {
+  flex: 0 1 auto;
+  margin-right: 2px;
+  font-size: 18px;
+}
+.wf-run-info .wf-run-progress {
+  flex-basis: 100%;
+  max-width: none;
+}

@@ -1,0 +1,159 @@
+<style>
+  .cb { --bg:#121212; --sb:#0e0e0e; --rail:#090909; --raised:#1f1f1f; --hover:#262626; --sel:#2b2b2b; --fg:#f5f5f5; --mut:#a3a3a3; --bd:#2a2a2a; --ok:#50ad43; --warn:#ffb700; --err:#f07171; --red:#f0714f; --blue:#4695fb; --purple:#b38aff;
+    display:flex; height:620px; background:var(--bg); color:var(--fg); font:13px/1.4 system-ui,sans-serif; border:1px solid var(--bd); border-radius:10px; overflow:hidden; margin-bottom:10px; }
+  .cb * { box-sizing:border-box; }
+  .cb svg { width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .rail { width:56px; flex:none; background:var(--rail); border-right:1px solid var(--bd); display:flex; flex-direction:column; align-items:center; padding:12px 0; gap:8px; }
+  .rail .logo { width:30px; height:30px; border-radius:8px; background:#c9a7ff; display:grid; place-items:center; margin-bottom:10px; }
+  .rail .logo i { width:4px; height:6px; background:#121212; border-radius:2px; margin:0 2px; display:inline-block; }
+  .rail .rb { width:38px; height:38px; border-radius:10px; display:grid; place-items:center; color:var(--mut); position:relative; }
+  .rail .rb.on { background:var(--sel); color:var(--fg); }
+  .rail .rb .tip { position:absolute; left:46px; top:8px; background:#000; border:1px solid var(--bd); color:var(--fg); padding:2px 8px; border-radius:6px; font-size:12px; white-space:nowrap; }
+  .rail .badge { position:absolute; top:4px; right:4px; width:8px; height:8px; border-radius:50%; background:var(--warn); border:2px solid var(--rail); }
+  .sb { width:290px; flex:none; background:var(--sb); border-right:1px solid var(--bd); display:flex; flex-direction:column; }
+  .sbh { height:56px; display:flex; align-items:center; gap:8px; padding:0 12px 0 16px; border-bottom:1px solid var(--bd); }
+  .sbh h4 { margin:0; font-size:12px; letter-spacing:.06em; text-transform:uppercase; }
+  .cnt { background:var(--hover); color:var(--mut); border-radius:99px; padding:1px 7px; font-size:11px; font-weight:600; }
+  .hb { width:28px; height:28px; border:1px solid var(--bd); background:var(--raised); border-radius:8px; display:grid; place-items:center; color:var(--fg); }
+  .hb svg { width:14px; height:14px; }
+  .grow { flex:1; }
+  .list { padding:8px; display:flex; flex-direction:column; gap:2px; }
+  .ri { display:flex; gap:10px; padding:9px 10px; border-radius:8px; align-items:flex-start; }
+  .ri.on { background:var(--sel); }
+  .ri .ic { width:30px; height:30px; flex:none; border-radius:8px; background:var(--raised); display:grid; place-items:center; color:var(--mut); }
+  .ri .ic svg { width:15px; height:15px; }
+  .ri .t { font-weight:600; display:flex; align-items:center; gap:6px; }
+  .ri .s { color:var(--mut); font-size:12px; }
+  .dot { width:7px; height:7px; border-radius:50%; display:inline-block; }
+  .off { opacity:.5; }
+  .main { flex:1; min-width:0; display:flex; flex-direction:column; }
+  .mh { height:56px; display:flex; align-items:center; gap:10px; padding:0 20px; border-bottom:1px solid var(--bd); }
+  .mh h3 { margin:0; font-size:15px; }
+  .tog { width:30px; height:17px; border-radius:99px; background:var(--ok); position:relative; }
+  .tog:after { content:''; position:absolute; right:2px; top:2px; width:13px; height:13px; border-radius:50%; background:#fff; }
+  .btn { border:1px solid var(--bd); background:var(--raised); color:var(--fg); border-radius:8px; padding:5px 11px; font-size:12px; display:inline-flex; align-items:center; gap:6px; }
+  .btn.pri { background:var(--fg); color:#121212; border-color:var(--fg); font-weight:600; }
+  .btn svg { width:13px; height:13px; }
+  .body { flex:1; overflow:hidden; padding:18px 24px; display:flex; flex-direction:column; gap:16px; }
+  .lab { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--mut); font-weight:700; margin-bottom:6px; }
+  .seg { display:inline-flex; border:1px solid var(--bd); border-radius:8px; overflow:hidden; }
+  .seg span { padding:5px 12px; font-size:12px; color:var(--mut); display:inline-flex; gap:6px; align-items:center; }
+  .seg span.on { background:var(--sel); color:var(--fg); }
+  .seg svg { width:13px; height:13px; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+  .fld { border:1px solid var(--bd); background:var(--raised); border-radius:8px; padding:6px 10px; font-size:12px; display:inline-flex; gap:6px; align-items:center; }
+  .fld .cv { color:var(--mut); }
+  .av { width:18px; height:18px; border-radius:6px; display:inline-grid; place-items:center; }
+  .av i { width:2px; height:4px; background:#121212; margin:0 1.5px; border-radius:1px; display:inline-block; }
+  .ta { border:1px solid var(--bd); background:var(--raised); border-radius:10px; padding:10px 12px; min-height:74px; color:var(--fg); }
+  .mut { color:var(--mut); }
+  .runs { border-top:1px solid var(--bd); padding-top:12px; }
+  .run { display:flex; gap:10px; align-items:center; padding:5px 0; font-size:12px; }
+  .run a { color:var(--blue); margin-left:auto; text-decoration:none; }
+  /* option B: flow cards */
+  .flow { display:flex; flex-direction:column; align-items:stretch; max-width:560px; }
+  .card { border:1px solid var(--bd); background:#171717; border-radius:12px; padding:12px 14px; }
+  .card .ch { display:flex; align-items:center; gap:8px; font-weight:600; margin-bottom:8px; }
+  .step { width:20px; height:20px; border-radius:6px; background:var(--sel); display:grid; place-items:center; font-size:11px; color:var(--mut); }
+  .conn { width:2px; height:18px; background:var(--bd); margin-left:24px; }
+  .addc { border:1px dashed var(--bd); border-radius:12px; padding:9px 14px; color:var(--mut); font-size:12px; }
+  .split2 { display:flex; gap:20px; flex:1; min-height:0; }
+  .side { width:250px; flex:none; border-left:1px solid var(--bd); padding-left:16px; }
+</style>
+
+<h2>Routines: rail + layout</h2>
+<p class="subtitle">Both show the same rail and Routines sidebar. Only the editor on the right differs. Content is example data.</p>
+
+<!-- shared svg bits are repeated inline; keep it simple -->
+<h3 style="margin:18px 0 8px">A: One form, three parts (When, Send to, Prompt)</h3>
+<div class="cb">
+  <div class="rail">
+    <div class="logo"><i></i><i></i></div>
+    <div class="rb" title="Agents"><svg viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 7V4M9 12v1M15 12v1"/></svg></div>
+    <div class="rb on" title="Routines"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/><path d="M6.5 10v3a4 4 0 0 0 4 4H14"/></svg><span class="badge"></span></div>
+  </div>
+  <div class="sb">
+    <div class="sbh"><h4>Routines</h4><span class="cnt">3</span><span class="grow"></span>
+      <span class="hb"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+      <span class="hb"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg></span></div>
+    <div class="list">
+      <div class="ri on"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></span>
+        <div><div class="t">Daily AI digest <span class="dot" style="background:var(--ok)"></span></div><div class="s">Every day 07:00 · next in 9h</div></div></div>
+      <div class="ri"><span class="ic"><svg viewBox="0 0 24 24"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg></span>
+        <div><div class="t">PR opened → review <span class="dot" style="background:var(--warn)"></span></div><div class="s">Webhook · waiting for approval</div></div></div>
+      <div class="ri off"><span class="ic"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span>
+        <div><div class="t">Weekly cleanup</div><div class="s">Manual · paused</div></div></div>
+    </div>
+  </div>
+  <div class="main">
+    <div class="mh"><h3>Daily AI digest</h3><span class="tog"></span><span class="mut" style="font-size:12px">On</span><span class="grow"></span>
+      <span class="btn pri"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>Run now</span><span class="btn">⋯</span></div>
+    <div class="body">
+      <div><div class="lab">When</div>
+        <div class="seg"><span class="on"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>Schedule</span><span><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>Manual only</span><span><svg viewBox="0 0 24 24"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg>Webhook</span></div>
+        <div class="row"><span class="fld">Every day <span class="cv">▾</span></span><span class="mut">at</span><span class="fld">07:00</span><span class="mut">Asia/Baghdad</span></div></div>
+      <div><div class="lab">Send to</div>
+        <div class="seg"><span class="on">Agent</span><span>Group</span></div>
+        <div class="row"><span class="fld"><span class="av" style="background:var(--red)"><i></i><i></i></span>News Scout <span class="cv">▾</span></span>
+          <span class="fld">New chat every run <span class="cv">▾</span></span>
+          <span class="fld"><span class="mut">Folder</span> ~/news</span></div></div>
+      <div><div class="lab">Prompt</div>
+        <div class="ta">Find today's top AI and tech news. Build a short daily digest with links, then email it to me.</div></div>
+      <div class="runs"><div class="lab">Recent runs</div>
+        <div class="run"><span class="dot" style="background:var(--ok)"></span>Today 07:00<span class="mut">Done in 3m</span><a href="#">Open chat</a></div>
+        <div class="run"><span class="dot" style="background:var(--warn)"></span>Yesterday 07:00<span class="mut">Waited 2h for approval, then done</span><a href="#">Open chat</a></div>
+        <div class="run"><span class="dot" style="background:var(--err)"></span>Oct 25 07:00<span class="mut">Failed: server was off</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin:22px 0 8px">B: Trigger → Action cards (workflow style), runs on the right</h3>
+<div class="cb">
+  <div class="rail">
+    <div class="logo"><i></i><i></i></div>
+    <div class="rb" title="Agents"><svg viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 7V4M9 12v1M15 12v1"/></svg></div>
+    <div class="rb on" title="Routines"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/><path d="M6.5 10v3a4 4 0 0 0 4 4H14"/></svg><span class="badge"></span></div>
+  </div>
+  <div class="sb">
+    <div class="sbh"><h4>Routines</h4><span class="cnt">3</span><span class="grow"></span>
+      <span class="hb"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+      <span class="hb"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg></span></div>
+    <div class="list">
+      <div class="ri on"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></span>
+        <div><div class="t">Daily AI digest <span class="dot" style="background:var(--ok)"></span></div><div class="s">Every day 07:00 · next in 9h</div></div></div>
+      <div class="ri"><span class="ic"><svg viewBox="0 0 24 24"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg></span>
+        <div><div class="t">PR opened → review <span class="dot" style="background:var(--warn)"></span></div><div class="s">Webhook · waiting for approval</div></div></div>
+      <div class="ri off"><span class="ic"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span>
+        <div><div class="t">Weekly cleanup</div><div class="s">Manual · paused</div></div></div>
+    </div>
+  </div>
+  <div class="main">
+    <div class="mh"><h3>Daily AI digest</h3><span class="tog"></span><span class="mut" style="font-size:12px">On</span><span class="grow"></span>
+      <span class="btn pri"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>Run now</span><span class="btn">⋯</span></div>
+    <div class="body">
+      <div class="split2">
+        <div class="flow" style="flex:1">
+          <div class="card"><div class="ch"><span class="step">1</span>Trigger<span class="grow"></span><span class="mut" style="font-weight:400;font-size:12px">Schedule ▾</span></div>
+            <div class="row" style="margin:0"><span class="fld">Every day <span class="cv">▾</span></span><span class="mut">at</span><span class="fld">07:00</span><span class="mut">Asia/Baghdad</span></div></div>
+          <div class="conn"></div>
+          <div class="card"><div class="ch"><span class="step">2</span>Send prompt</div>
+            <div class="row" style="margin:0 0 8px"><span class="fld"><span class="av" style="background:var(--red)"><i></i><i></i></span>News Scout <span class="cv">▾</span></span><span class="fld">New chat every run <span class="cv">▾</span></span><span class="fld"><span class="mut">Folder</span> ~/news</span></div>
+            <div class="ta" style="min-height:64px">Find today's top AI and tech news. Build a short daily digest with links, then email it to me.</div></div>
+          <div class="conn"></div>
+          <div class="addc">+ Add step (later, not in this version)</div>
+        </div>
+        <div class="side"><div class="lab">Recent runs</div>
+          <div class="run"><span class="dot" style="background:var(--ok)"></span>Today 07:00<a href="#">Open</a></div>
+          <div class="run"><span class="dot" style="background:var(--warn)"></span>Yesterday 07:00<a href="#">Open</a></div>
+          <div class="run"><span class="dot" style="background:var(--err)"></span>Oct 25 · server off</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options" style="margin-top:14px">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)"><div class="letter">A</div><div class="content"><h3>One form</h3><p>Plain sections, run history below.</p></div></div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)"><div class="letter">B</div><div class="content"><h3>Trigger → Action cards</h3><p>Workflow look, run history on the side.</p></div></div>
+</div>

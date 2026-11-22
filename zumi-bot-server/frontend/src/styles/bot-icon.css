@@ -1,0 +1,61 @@
+/* The agent icon (BotIcon.tsx): bob, tilt and the working eyes' glance. */
+
+.bot {
+  flex: none;
+  display: block;
+}
+.bot-bob {
+  transform-box: view-box;
+  transform-origin: 512px 540px;
+}
+.bot-tilt {
+  transform-box: view-box;
+  transform-origin: 512px 560px;
+  transition: transform 0.45s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+.bot.bot-working .bot-bob {
+  animation: bot-bob var(--bob-duration) ease-in-out var(--bob-delay) infinite alternate;
+}
+@keyframes bot-bob {
+  from {
+    transform: translateY(-34px);
+  }
+  to {
+    transform: translateY(34px);
+  }
+}
+/* A working agent's eyes glance left, then right, then back, while the whole icon bobs and tilts. --eye-shift (from
+   BotIcon) is in the shape's own 100 box. */
+.bot.bot-working .bot-eyes {
+  animation: bot-look 3.2s ease-in-out var(--bob-delay) infinite;
+}
+@keyframes bot-look {
+  0%,
+  12% {
+    transform: translateX(0);
+  }
+  22%,
+  42% {
+    transform: translateX(calc(var(--eye-shift) * -1));
+  }
+  58%,
+  78% {
+    transform: translateX(var(--eye-shift));
+  }
+  88%,
+  100% {
+    transform: translateX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bot.bot-working .bot-bob,
+  .bot.bot-working .bot-eyes {
+    animation: none;
+  }
+  .bot .bot-tilt {
+    transition: none;
+  }
+  .tool-run-caret {
+    transition: none;
+  }
+}

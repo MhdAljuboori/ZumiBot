@@ -1,0 +1,5 @@
+[
+  { "type": "user", "id": "r1", "text": "@icon-agent draft the release notes, then @odd-format tidies them.", "ts": 1792690000000 },
+  { "type": "assistant", "id": "r2", "text": "Draft is in. @odd-format, over to you.", "ts": 1792690200000, "agent": "icon-agent" },
+  { "type": "assistant", "id": "r3", "text": "Tidied and shortened.", "ts": 1792690400000, "agent": "odd-format" }
+]

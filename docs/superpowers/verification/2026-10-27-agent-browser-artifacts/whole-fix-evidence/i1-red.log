@@ -1,0 +1,40 @@
+
+ RUN  v5.0.5 /home/mhdaljuboori/Developments/AI/ZumiBot
+
+ ❯ |backend| tests/core/browserManager.test.ts (47 tests | 2 failed | 44 skipped) 47ms
+   ❯ ownership period reference boundary (3)
+     × rejects same-turn old stamps after release while a viewer keeps the generation alive 30ms
+     × rejects same-turn old stamps after inactivity while a viewer keeps the generation alive 8ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |backend| tests/core/browserManager.test.ts > ownership period reference boundary > rejects same-turn old stamps after release while a viewer keeps the generation alive
+ FAIL  |backend| tests/core/browserManager.test.ts > ownership period reference boundary > rejects same-turn old stamps after inactivity while a viewer keeps the generation alive
+AssertionError: expected { ok: true, data: null } to match object { ok: false, code: 'stale_ref' }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "code": "stale_ref",
+-   "ok": false,
++   "ok": true,
+  }
+
+ ❯ tests/core/browserManager.test.ts:39:81
+     37|     if (reason === 'release') await manager.run(own, { op: 'release' }…
+     38|     else await vi.advanceTimersByTimeAsync(120000)
+     39|     expect(await manager.run(own, { op: 'click', stamp, ref: 'e1' }, s…
+       |                                                                                 ^
+     40|     expect(adapter.instances).toHaveLength(1)
+     41|     expect(instance.closed).toBe(false)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 1 passed | 44 skipped (47)
+   Start at  09:42:26
+   Duration  329ms (transform 55%, tests 26%, import 17%, worker 2%)
+

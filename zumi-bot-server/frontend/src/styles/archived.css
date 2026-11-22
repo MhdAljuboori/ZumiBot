@@ -1,0 +1,234 @@
+/* Archived: the list, bulk selection and the note over an archived chat. */
+
+/* ---- archived ---- */
+
+/* The list is a .sidebar too, like Settings' nav: the sidebar's width, and the drawer on a small screen. */
+.archived-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 20px;
+}
+.archived-head .settings-title {
+  margin-right: 0;
+}
+.archived-head .count-badge {
+  margin-top: 8px;
+}
+.archived-search {
+  display: flex;
+  padding: 0 12px 6px;
+}
+.archived-list {
+  padding-top: 4px;
+}
+.archived-line {
+  position: relative;
+  margin: 2px 8px;
+}
+.row.archived-row {
+  --stack-ring: var(--bg-sidebar);
+  gap: 10px;
+  padding: 7px 12px 7px 8px;
+  border-radius: 10px;
+}
+.archived-icon {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  width: 68px;
+}
+.row.archived-row .member-stack {
+  --stack-ring: inherit;
+}
+.row.archived-row:hover {
+  --stack-ring: var(--bg-hover);
+}
+.row.archived-row.on {
+  --stack-ring: var(--sel-bg);
+  font-weight: 400;
+}
+.archived-line:hover > .row.archived-row,
+.archived-line:has(:focus-visible, .more.shown) > .row.archived-row {
+  padding-right: 40px;
+}
+.archived-line:hover .row-action.more {
+  visibility: visible;
+}
+.archived-row .agent-desc .folder-icon {
+  margin-right: 0.35em;
+}
+.archived-when {
+  font-size: 11.5px;
+}
+/* A row's box sits over its icon: hovering the row shows it, and once one is ticked every row shows its box. On a touch
+   screen the box is there unseen, so a tap on the icon ticks and a tap on the rest of the row opens. */
+.archived-check {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  left: 8px;
+  width: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  cursor: pointer;
+  opacity: 0;
+}
+.archived-box {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--fg-muted);
+  border-radius: 5px;
+  background: var(--bg-sidebar);
+  color: var(--accent-fg);
+}
+.archived-box svg {
+  width: 13px;
+  height: 13px;
+}
+.archived-check[aria-checked='true'] .archived-box {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.archived-check:hover .archived-box {
+  border-color: var(--fg);
+}
+.archived-check[aria-checked='true']:hover .archived-box {
+  border-color: var(--accent);
+}
+.archived-check:focus-visible {
+  outline: none;
+}
+.archived-check:focus-visible .archived-box {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.archived-line:hover > .archived-check,
+.archived-check:focus-visible,
+.archived-list.picking .archived-check {
+  opacity: 1;
+}
+/* Only a line with a tick box hides its icon: the To-dos column reuses these rows without one. */
+.archived-line:has(> .archived-check):hover .archived-icon,
+.archived-line:has(> .archived-check:focus-visible) .archived-icon,
+.archived-list.picking .archived-icon {
+  visibility: hidden;
+}
+/* The box covers the row's left end, so the row keeps its hover look under it. */
+.archived-line:has(> .archived-check:hover) > .row.archived-row:not(.on) {
+  background: var(--bg-hover);
+}
+.archived-line.picked > .row.archived-row:not(.on) {
+  background: var(--bg-selected);
+}
+/* Over the list while any shown row is ticked. */
+.archived-bulk {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 12px 6px;
+  padding: 8px 8px 8px 12px;
+  border: 1px solid var(--sel-border);
+  border-radius: 10px;
+  background: var(--sel-bg);
+}
+.archived-bulk-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.archived-bulk-count {
+  font-size: 13px;
+  font-weight: 600;
+}
+.archived-bulk-all {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.archived-bulk-all:hover {
+  text-decoration: underline;
+}
+.archived-bulk-clear {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.archived-bulk-clear:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.archived-bulk-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-raised);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.archived-bulk-btn:hover {
+  background: var(--bg-hover);
+}
+.archived-bulk-btn.danger {
+  color: var(--error);
+}
+.archived-bulk-all:focus-visible,
+.archived-bulk-clear:focus-visible,
+.archived-bulk-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+/* Over a chat in the archive: what it is and the way out, on the left of the side panel's icon. */
+.archived-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-right: auto;
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+.archived-note .menu-icon {
+  flex: none;
+}
+.archived-note-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.archived-worktree {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+}

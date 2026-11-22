@@ -1,0 +1,1 @@
+PASS: | `npm run build` | PASS, executed by browser alias and packaged desktop command; existing frontend chunk >500 kB advisory and Electron “renderer config is missing” configuration warning remain |

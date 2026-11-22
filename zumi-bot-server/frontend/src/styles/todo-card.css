@@ -1,0 +1,202 @@
+/* A to-do opened as a card, and its status menu. */
+
+/* ---- A to-do opened as a card: notes, images and its task. The row stays a checkbox and a title. ---- */
+.todo-text.openable {
+  cursor: pointer;
+}
+.todo-hints {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 6px;
+  color: var(--fg-muted);
+  vertical-align: -2px;
+}
+.todo-hint {
+  width: 14px;
+  height: 14px;
+}
+.todo-hint-files {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+}
+.todo-open {
+  flex: none;
+  margin-top: 1px;
+  padding: 0 5px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  opacity: 0;
+}
+/* Like ✕: shown on the row's hover or focus, and kept while the card is open so it can close it. */
+.todo-row:hover .todo-open,
+.todo-open:focus-visible,
+.todo-row.open .todo-open {
+  opacity: 1;
+}
+/* A row's dot is its status menu: a 20px target around the 8px dot, a tint of the status on hover, the menu under it. */
+.todo-row-dot-wrap {
+  position: relative;
+  flex: none;
+  display: flex;
+}
+.todo-row-dot.pick {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  margin: 0 -6px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+.todo-row-dot.pick::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--col-dot);
+  transition: transform 0.12s;
+}
+.todo-row-dot.pick:hover:not(:disabled),
+.todo-row-dot.pick[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--col-dot) 18%, transparent);
+}
+.todo-row-dot.pick:hover:not(:disabled)::before {
+  transform: scale(1.15);
+}
+.todo-row-dot.pick:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 0;
+}
+.todo-row-dot.pick:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.todo-status-menu {
+  position: absolute;
+  top: 24px;
+  left: -8px;
+  z-index: 30;
+  min-width: 176px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: 0 10px 28px rgba(16, 24, 40, 0.16);
+}
+.todo-status-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: start;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.todo-status-option:hover,
+.todo-status-option:focus-visible {
+  background: var(--bg-hover);
+  outline: none;
+}
+.todo-status-option[aria-checked='true'] {
+  font-weight: 650;
+}
+.todo-status-option-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--col-dot);
+}
+.todo-status-check {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--accent-text);
+}
+.todo-row-error {
+  margin: 4px 0 0 18px;
+  padding: 0;
+}
+.todo-row-error {
+  margin: 4px 0 0 18px;
+  padding: 0;
+}
+.todo-open:hover,
+.todo-row.open .todo-open {
+  color: var(--fg);
+}
+.todo-status {
+  flex: none;
+  max-width: 14em;
+  margin-top: 1px;
+  padding: 0 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-selected);
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.todo-status.you {
+  background: var(--sel-bg);
+  color: var(--sel-fg);
+  box-shadow: inset 0 0 0 1px var(--sel-border);
+}
+.todo-status.busy {
+  color: var(--fg);
+}
+.todo-card {
+  margin: 8px 0 6px 18px;
+  padding: 4px 14px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.todo-card-section + .todo-card-section {
+  border-top: 1px solid var(--border);
+}
+.todo-card-section {
+  padding: 10px 0 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+} /* a long link in a question or a review breaks instead of widening the drawer */
+.todo-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  margin-bottom: 4px;
+}
+.todo-card-head h4 {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.todo-card-hint {
+  margin: 2px 0 6px;
+  color: var(--fg-muted);
+  font-size: 12px;
+}

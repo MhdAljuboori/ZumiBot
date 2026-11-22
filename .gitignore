@@ -1,0 +1,16 @@
+node_modules/
+dist/
+out/
+.superpowers/
+e2e/screenshots/
+zumi-bot-server/deploy/deploy.env
+zumi-bot-server/e2e/screenshots/
+.env
+release/
+
+zumi-bot-site/src/release.json
+zumi-bot-site/public/releases/
+zumi-bot-site/public/releases.next/
+
+zumi-bot-docs/.astro/
+zumi-bot-docs/src/content/docs/server/changelog.md

@@ -1,0 +1,233 @@
+/* Group chats: member stacks, the sidebar's own sections and room rows. */
+
+/* ---- group chats ---- */
+
+.head-btn.open {
+  background: var(--bg-hover);
+}
+
+/* Members as overlapping round tiles. --stack-ring is whatever lies behind the stack, drawn as a thin gap between tiles. */
+.member-stack {
+  --stack-ring: var(--bg);
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+}
+.member-stack-item {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--stack-size);
+  height: var(--stack-size);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-raised);
+  box-shadow: 0 0 0 1.5px var(--stack-ring);
+}
+.member-stack-item + .member-stack-item {
+  margin-left: calc(var(--stack-size) * -0.3);
+}
+.member-stack-item.more {
+  color: var(--fg-muted);
+  font-size: calc(var(--stack-size) * 0.4);
+  font-weight: 600;
+  line-height: 1;
+}
+.picker .member-stack {
+  --stack-ring: var(--bg);
+}
+.picker:hover:not(:disabled) .member-stack,
+.picker.open .member-stack {
+  --stack-ring: var(--bg-hover);
+}
+
+.row.dragging,
+.agent-block.dragging,
+.user-section.dragging {
+  opacity: 0.45;
+}
+
+/* The user's own sections, then everything in none; agent rows keep their own side margins, group rows line up with them. */
+.user-section {
+  position: relative;
+}
+.user-section + .user-section {
+  margin-top: 6px;
+}
+/* Where the sections end and the items in none begin. */
+.list-divider {
+  height: 1px;
+  margin: 10px 16px;
+  background: var(--border);
+}
+.section-items {
+  position: relative;
+}
+.section-items > .agent-block,
+.section-items > .row {
+  position: relative;
+}
+/* A button never stretches to fill its line on its own, so its width is set (less the side margins). */
+.section-items > .row.group-row {
+  width: calc(100% - 16px);
+  margin: 2px 8px;
+}
+.section-empty {
+  margin: 2px 16px 6px;
+  padding: 8px 12px;
+  border: 1.5px dashed color-mix(in srgb, var(--fg-muted) 45%, transparent);
+  border-radius: 10px;
+  color: var(--fg-muted);
+  font-size: 12.5px;
+  text-align: center;
+}
+/* While an item is dragged, the list of items in no section is always there to drop on. */
+.agent-list.moving .section-items[data-section-id=''] {
+  min-height: 44px;
+}
+/* A line in the gap where the dragged item or section will land. */
+.section-items > .drop-before::before,
+.section-items.drop-end::after,
+.user-section.drop-before::before,
+.user-sections.drop-end::after {
+  content: '';
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  z-index: 1;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--ring);
+  pointer-events: none;
+}
+.section-items > .drop-before::before,
+.user-section.drop-before::before {
+  top: -2px;
+}
+.section-items.drop-end::after,
+.user-sections.drop-end::after {
+  bottom: -2px;
+}
+.user-sections {
+  position: relative;
+}
+/* The header: name, then its options (on hover) and the chevron where the agent rows have theirs. */
+.section-head {
+  position: relative;
+  margin: 0 8px;
+}
+.section-head .section-toggle {
+  position: relative;
+  padding-right: 64px;
+}
+.section-head .section-toggle .glyph {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  margin: -7px 0 0;
+}
+.section-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.section-head > .row-action.more {
+  position: absolute;
+  top: 50%;
+  right: 36px;
+  width: 24px;
+  height: 24px;
+  transform: translateY(-50%);
+}
+.section-head:hover > .row-action.more {
+  visibility: visible;
+}
+.section-head.drop-into .section-toggle {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.section-rename {
+  margin: 2px 0 4px;
+}
+.section-label {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+/* The whole header toggles its section; the chevron sits where the agent rows' chevrons do. */
+.section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 16px 6px 12px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.section-toggle:hover:not(:disabled) {
+  color: var(--fg);
+}
+.section-toggle:disabled {
+  cursor: default;
+}
+.section-toggle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.section-toggle .glyph {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
+  transition: transform 0.15s ease;
+}
+.section-toggle:disabled .glyph {
+  opacity: 0.4;
+}
+.section-toggle.open .glyph {
+  transform: rotate(90deg);
+}
+.row.group-row {
+  --stack-ring: var(--bg-sidebar);
+  gap: 10px;
+  margin: 2px 0;
+  padding: 7px 12px 7px 8px;
+  border-radius: 10px;
+}
+/* Room for three tiles (the most a row shows), so every row's title starts at the same place. */
+.row.group-row .member-stack {
+  --stack-ring: inherit;
+  min-width: calc(var(--stack-size) * 2.4);
+}
+.row.group-row:hover {
+  --stack-ring: var(--bg-hover);
+}
+.row.group-row.on {
+  --stack-ring: var(--sel-bg);
+  font-weight: 400;
+}
+.group-row.unread .group-title {
+  color: var(--fg);
+}
+.group-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 19px;
+}
+.group-row .agent-desc .folder-icon {
+  margin-right: 0.35em;
+}

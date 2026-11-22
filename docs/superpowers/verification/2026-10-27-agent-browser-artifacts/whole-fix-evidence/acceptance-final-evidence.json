@@ -1,0 +1,121 @@
+{
+  "result": "PASS",
+  "checks": [
+    "local: unseen work / same live tab / one producer / takeover / fresh refs / manual input / idle zero",
+    "local: single handoff done",
+    "local: single handoff cancel",
+    "local: single handoff timeout",
+    "local: group handoff done",
+    "local: group handoff cancel",
+    "local: group handoff timeout",
+    "local: routine handoff done",
+    "local: routine handoff cancel",
+    "local: routine handoff timeout",
+    "local: same-agent single/group sequence serialization",
+    "local: two-browser cap queues third profile and releases capacity",
+    "local: server restart interrupts old card / persists cookies / isolates second agent",
+    "local: hidden panel releases capture and control; resumed viewer is read-only",
+    "local: forced parent exit frees owned Chromium",
+    "vps: unseen work / same live tab / one producer / takeover / fresh refs / manual input / idle zero",
+    "vps: single handoff done",
+    "vps: single handoff cancel",
+    "vps: single handoff timeout",
+    "vps: group handoff done",
+    "vps: group handoff cancel",
+    "vps: group handoff timeout",
+    "vps: routine handoff done",
+    "vps: routine handoff cancel",
+    "vps: routine handoff timeout",
+    "vps: same-agent single/group sequence serialization",
+    "vps: two-browser cap queues third profile and releases capacity",
+    "vps: server restart interrupts old card / persists cookies / isolates second agent",
+    "vps: hidden panel releases capture and control; resumed viewer is read-only",
+    "vps: signout revokes control/capture; unattended handoff expires and Chromium returns to zero",
+    "vps: forced parent exit frees owned Chromium"
+  ],
+  "measurements": [
+    {
+      "state": "local: zero browsers",
+      "processes": 0,
+      "rssMiB": 0,
+      "sampleMs": 1542,
+      "cpuPercentOneCore": 0
+    },
+    {
+      "state": "local: active unviewed",
+      "processes": 10,
+      "rssMiB": 971.0546875,
+      "sampleMs": 1560,
+      "cpuPercentOneCore": 5.769230769230769
+    },
+    {
+      "state": "local: active viewed",
+      "processes": 10,
+      "rssMiB": 995.8828125,
+      "sampleMs": 1549,
+      "cpuPercentOneCore": 20.65848934796643
+    },
+    {
+      "mode": "local",
+      "frames": 8,
+      "durationMs": 1100,
+      "fps": 7.2727272727272725,
+      "bytes": 103284,
+      "maxFrameBytes": 12952
+    },
+    {
+      "state": "local: post idle zero",
+      "processes": 0,
+      "rssMiB": 0,
+      "sampleMs": 1543,
+      "cpuPercentOneCore": 0
+    },
+    {
+      "state": "vps: zero browsers",
+      "processes": 0,
+      "rssMiB": 0,
+      "sampleMs": 1549,
+      "cpuPercentOneCore": 0
+    },
+    {
+      "state": "vps: active unviewed",
+      "processes": 10,
+      "rssMiB": 971.4609375,
+      "sampleMs": 1550,
+      "cpuPercentOneCore": 5.161290322580645
+    },
+    {
+      "state": "vps: active viewed",
+      "processes": 10,
+      "rssMiB": 993.12109375,
+      "sampleMs": 1551,
+      "cpuPercentOneCore": 26.434558349451965
+    },
+    {
+      "mode": "vps",
+      "frames": 8,
+      "durationMs": 1100,
+      "fps": 7.2727272727272725,
+      "bytes": 103284,
+      "maxFrameBytes": 12952
+    },
+    {
+      "state": "vps: post idle zero",
+      "processes": 0,
+      "rssMiB": 0,
+      "sampleMs": 1543,
+      "cpuPercentOneCore": 0
+    }
+  ],
+  "machine": {
+    "platform": "linux",
+    "kernel": "7.0.0-38-generic",
+    "architecture": "x64",
+    "cpu": "Intel(R) Core(TM) i5-10500 CPU @ 3.10GHz",
+    "logicalCpus": 12,
+    "ramMiB": 31985.9921875,
+    "node": "v22.23.3",
+    "chrome": "Google Chrome 156.0.8078.47",
+    "playwright": "1.64.1"
+  }
+}

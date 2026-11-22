@@ -1,0 +1,97 @@
+import { checkPrefix, commandParts, coveredBy, isSafePart, programError, suggestPrefix } from '@zumibot/shared/allowRules'
+import type { ChatItem, ChatMeta } from '@zumibot/shared/types'
+
+type ToolItem = Extract<ChatItem, { type: 'tool' }>
+
+/** The agent a row belongs to: a room's rows carry it, a single chat's is the chat's. */
+export const rowAgent = (item: ToolItem, chat: ChatMeta): string => item.agent ?? chat.agentName
+
+/** The Bash command of a tool row, or null when its input holds none. */
+export function commandOf(item: ToolItem): string | null {
+  const input = item.input
+  if (typeof input !== 'object' || input === null) return null
+  const c = (input as { command?: unknown }).command
+  return typeof c === 'string' ? c : null
+}
+
+/** Whether a refused row could ever be allowed: a classifier-refused Bash call with a command, in a chat a user can talk
+ *  to (not Zumi Bot's, not a workflow's), its turn ended. A user's Deny or a rule's block never qualifies (`blockedBy`). */
+function allowable(item: ToolItem, chat: ChatMeta): boolean {
+  const agent = rowAgent(item, chat)
+  return (
+    item.name === 'Bash' &&
+    item.blockedBy === 'classifier' &&
+    commandOf(item) !== null &&
+    item.turn === undefined &&
+    agent !== '' &&
+    agent !== 'zumi-bot' &&
+    chat.workflow === undefined &&
+    chat.workflowTest === undefined
+  )
+}
+
+/** Whether a row can be allowed right now: allowable, not yet allowed, and the chat idle. */
+export function canAllowBlocked(item: ToolItem, chat: ChatMeta, running: boolean): boolean {
+  return !running && item.allowedAs === undefined && allowable(item, chat)
+}
+
+export type AllowCardState = 'hidden' | 'collapsed' | 'pending' | 'running' | 'done'
+
+/**
+ * What the Allow card of a refused row shows. `done`: allowed already. `hidden`: it can never be allowed. `running`: the
+ * chat is running, so the card is there but cannot be used yet. Otherwise `pending` in the latest turn, `collapsed` (one
+ * line that expands) for an older refusal, which the user probably handled another way.
+ */
+export function allowCardState(item: ToolItem, chat: ChatMeta, running: boolean, latest: boolean): AllowCardState {
+  if (item.allowedAs !== undefined) return 'done'
+  if (!allowable(item, chat)) return 'hidden'
+  if (running) return 'running'
+  return latest ? 'pending' : 'collapsed'
+}
+
+/** The tool row is in the chat's latest turn: no user message comes after it. False when the row is not in `items`. */
+export function inLatestTurn(items: readonly ChatItem[], toolId: string): boolean {
+  const at = items.findIndex((i) => i.type === 'tool' && i.id === toolId)
+  return at >= 0 && !items.slice(at + 1).some((i) => i.type === 'user')
+}
+
+export interface SheetRow {
+  part: string
+  prefix: string
+  ticked: boolean
+  /** The held rule that already allows this part, or null. */
+  heldBy: string | null
+  /** Why no rule can start with this part's program (a shell or wrapper), or null. Such a row has no prefix and is never ticked. */
+  refused: string | null
+}
+
+/** One row per part of the refused command. Read-only helpers start unticked; a held part is ticked and fixed. */
+export function sheetRows(command: string, held: readonly string[]): SheetRow[] {
+  return commandParts(command).map((part) => {
+    // `timeout 30 git …` is not offered as `git …`: whether the CLI matches the wrapped command is unverified.
+    const refused = programError(part)
+    if (refused !== null) return { part, prefix: '', ticked: false, heldBy: null, refused }
+    const heldBy = coveredBy(part, held)
+    return { part, prefix: suggestPrefix(part), ticked: heldBy !== null || !isSafePart(part), heldBy, refused: null }
+  })
+}
+
+/** Every row that would be allowed is already held: the CLI refused anyway, so a new rule cannot help. */
+export const allHeld = (rows: readonly SheetRow[]): boolean =>
+  rows.some((r) => r.ticked) && rows.every((r) => !r.ticked || r.heldBy !== null)
+
+/**
+ * What a click would send: each ticked, not yet held row's prefix, trimmed (checkPrefix refuses spaces at the ends) and
+ * without repeats, plus the problem with each row's prefix (null when fine or not going to be sent).
+ */
+export function chosenPrefixes(rows: readonly SheetRow[], command: string): { prefixes: string[]; errors: (string | null)[] } {
+  const prefixes: string[] = []
+  const errors = rows.map((r) => {
+    if (!r.ticked || r.heldBy !== null) return null
+    const p = r.prefix.trim()
+    const bad = checkPrefix(p, command)
+    if (bad === null && !prefixes.includes(p)) prefixes.push(p)
+    return bad
+  })
+  return { prefixes, errors }
+}

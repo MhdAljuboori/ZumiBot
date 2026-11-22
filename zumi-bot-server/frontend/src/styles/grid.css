@@ -1,0 +1,372 @@
+/* The board's Kanban/Grid switch and the grid view. */
+
+/* Kanban or Grid: a segmented switch in the page head. */
+.board-views {
+  flex: none;
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-raised);
+}
+.board-view {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.board-view svg {
+  width: 14px;
+  height: 14px;
+}
+.board-view:hover {
+  color: var(--fg);
+}
+.board-view.on {
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.08),
+    0 0 0 1px var(--border);
+}
+.board-view:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+/* The phone's Filters button, beside the view switch: the filters fold behind it there, and it shows how many are set. */
+.board-tools-toggle {
+  flex: none;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.board-tools-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+.board-tools-toggle.on {
+  color: var(--fg);
+  background: var(--bg-selected);
+}
+.board-tools-toggle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.board-tools-count {
+  min-width: 18px;
+  box-sizing: border-box;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+/* The grid: one table in a rounded box that scrolls both ways, its head and title column kept in view. */
+.todo-grid-wrap {
+  flex: 1;
+  min-height: 0;
+  margin: 2px var(--board-gutter) 20px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg);
+}
+.todo-grid {
+  width: 100%;
+  min-width: 780px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+.todo-grid th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-raised);
+  text-align: start;
+  white-space: nowrap;
+}
+.grid-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 11px 14px;
+  border: none;
+  background: none;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: start;
+  cursor: pointer;
+}
+.grid-sort:hover,
+.grid-sort.on {
+  color: var(--fg);
+}
+.grid-sort:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.grid-sort-icon {
+  width: 12px;
+  height: 12px;
+  opacity: 0.55;
+}
+.grid-sort.on .grid-sort-icon {
+  opacity: 1;
+}
+.todo-grid td {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.todo-grid tbody tr {
+  cursor: pointer;
+}
+.todo-grid tbody tr:hover td {
+  background: color-mix(in srgb, var(--bg-hover) 55%, var(--bg));
+}
+.todo-grid tbody tr.open td {
+  background: var(--sel-bg);
+}
+.todo-grid tbody tr:last-child td {
+  border-bottom: none;
+}
+/* The pick box sticks at the left edge and Title right after it, so a sideways scroll keeps both. */
+.todo-grid .grid-pick {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
+  padding: 0 0 0 14px;
+  box-sizing: border-box;
+  cursor: default;
+}
+.todo-grid th.grid-pick {
+  z-index: 3;
+}
+.grid-check {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  vertical-align: middle;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.todo-grid tbody tr.picked td {
+  background: color-mix(in srgb, var(--sel-bg) 60%, var(--bg));
+}
+.todo-grid .grid-title {
+  position: sticky;
+  left: 40px;
+  z-index: 1;
+  width: 40%;
+  min-width: 260px;
+  max-width: 460px;
+  white-space: normal;
+}
+.todo-grid th.grid-title {
+  z-index: 3;
+}
+/* Status leads the row at its own width; Title, after it, still sticks to the left edge, so a sideways scroll slides
+   Status under it and the row keeps its name. */
+.todo-grid .grid-status {
+  width: 1%;
+}
+.grid-open {
+  display: inline;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: start;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  unicode-bidi: plaintext;
+}
+.grid-open:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.todo-grid tr[data-col='done'] .grid-open-text {
+  color: var(--fg-muted);
+  text-decoration: line-through;
+}
+.grid-status-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.todo-grid .field.todo-card-status-select {
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 12.5px;
+}
+.todo-grid .todo-status {
+  margin-top: 0;
+}
+.grid-muted {
+  color: var(--fg-muted);
+  font-size: 12.5px;
+}
+.grid-selbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 2px var(--board-gutter) 8px;
+  padding: 6px 8px 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-raised);
+  font-size: 13px;
+}
+.grid-selbar-count {
+  font-weight: 600;
+}
+.grid-selbar .inbox-link {
+  padding: 0;
+  font-size: inherit;
+}
+.grid-empty {
+  margin: 0;
+  padding: 28px 16px;
+  color: var(--fg-muted);
+  font-size: 13px;
+  text-align: center;
+}
+.grid-empty .inbox-link,
+.grid-foot .inbox-link {
+  padding: 0;
+  font-size: inherit;
+}
+.grid-foot {
+  margin: 0;
+  padding: 10px 16px 12px;
+  border-top: 1px solid var(--border);
+  color: var(--fg-muted);
+  font-size: 12.5px;
+  text-align: center;
+}
+@media (max-width: 799px) {
+  .board-page {
+    --board-gutter: 16px;
+    --board-gap: 12px;
+  }
+  /* The board keeps the screen: the bar above already names the page, so the head is one row (views, count, Filters),
+     the add box is slimmer, and the filters fold behind Filters. */
+  .board-page .todos-page-head {
+    padding-top: 10px;
+    padding-bottom: 0;
+  }
+  .board-head .todos-page-title {
+    display: none;
+  }
+  .board-views {
+    order: -1;
+  }
+  .board-tools-toggle {
+    display: inline-flex;
+  }
+  .board-tools.folded {
+    display: none;
+  }
+  .board-tools {
+    padding-bottom: 10px;
+  }
+  .board-add .todo-add {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  .board-add .todo-add-input,
+  .board-add .todo-add .btn.primary {
+    height: 38px;
+  }
+  .board-col {
+    flex-basis: 84%;
+  }
+  .board-col.collapsed {
+    flex-basis: 52px;
+  }
+  .board-view {
+    padding: 4px 9px;
+  }
+  .todo-grid .grid-title {
+    min-width: 200px;
+  }
+  .board-search {
+    flex: 1 1 100%;
+  }
+  /* The two pickers share a row; Clear and the switch wrap to the next. */
+  .board-tools .board-filter {
+    flex: 1 1 calc(50% - 5px);
+    min-width: 0;
+    max-width: none;
+  }
+  .board-switch {
+    margin-left: 0;
+  }
+  .board-scrim {
+    display: none;
+  }
+  .board-drawer {
+    inset: 0;
+    width: 100%;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .board-drawer .todo-card-body {
+    padding: 0 16px 16px;
+  }
+  .board-drawer .todo-card-hero {
+    margin-inline: -16px;
+    padding-inline: 16px;
+  }
+  .todo-card-foot-box {
+    padding-inline: 16px;
+  }
+}
+/* A narrow phone fits the views and Filters on one row without the open count; each column head still counts its cards. */
+@media (max-width: 379px) {
+  .board-page .todos-page-count {
+    display: none;
+  }
+}

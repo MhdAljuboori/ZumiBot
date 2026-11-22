@@ -1,0 +1,60 @@
+---
+title: Pause and Resume
+description: Pause an agent at a safe point instead of stopping it, then pick up where it left off.
+sidebar:
+  order: 10
+---
+
+import Shot from '../../../components/Shot.astro'
+import { Steps } from '@astrojs/starlight/components'
+
+**Stop** ends a reply right now, even in the middle of a job. **Pause** is gentler. The agent finishes what it is doing, starts nothing new, tells you where it got to, and waits. When you are ready, **Resume** continues the same conversation.
+
+Use it when you need the computer for a while, when you want to look at what the agent has done so far, or when you want to change the plan before it goes further.
+
+<Shot name="chatting-pause-running" alt="A chat where the agent is still working: its first line is shown and a 'Working…' line under it. In the message box, a round Pause button sits to the left of the red Stop button." />
+
+## Pause a reply
+
+<Steps>
+
+1. **Choose Pause** while the agent is working. It is the round button with two bars, beside the red Stop button in the message box.
+
+2. **Wait for it to settle.** A line over the message box reads "Pausing…". If the agent has subagents (helpers it started) running, it reads "Pausing — waiting for 2 subagents" and counts them down. Calls already running are never cut off.
+
+3. **Read where it stopped.** The chat ends with the agent's note on its progress and a line that reads "Paused. Press Resume to continue."
+
+</Steps>
+
+<Shot name="chatting-pause-resume" alt="A paused chat. After the agent's last message is the line 'Paused. Press Resume to continue.' with a Resume button under it." />
+
+## Resume
+
+Choose **Resume** under the "Paused" line. ZumiBot sends the agent the word "Continue" in the same conversation. It keeps everything it learned, including what its helpers found, and carries on.
+
+## Messages while it is paused
+
+- If you write while the agent is still pausing, the message waits in the **Tasks** list above the box. It goes in after Resume.
+- If the chat is already paused and you write a message, that message takes over. It goes in at once, and the pause ends. The same goes for **Send now** on a waiting message, for Edit, Resend and for switching versions.
+
+## In a group room
+
+Pause lets the members who are working finish, and starts nobody else. The room remembers who was working and who was waiting. **Resume** then sends "Continue" to each member who was working, as a message with their @name, and the waiting turns follow. A message you type in the room clears that.
+
+## Tips and limits
+
+- Pause is not instant. A long tool call, or a subagent (a helper the agent started) that is mid-job, runs to its end first. Use **Stop** if you need it to end now.
+- If the agent keeps trying to start new work while paused, ZumiBot ends the reply after a few tries, so a pause cannot hang.
+- A usage limit that ends a pausing reply leaves the chat paused. Only Resume continues it, not the reset. See [Usage limit waits](/chatting/usage-limit-waits/).
+- A pause survives a restart of ZumiBot. The chat comes back paused, with the Resume button.
+- A [routine](/automation/routines/) run that you pause waits for Resume too.
+- Pause is not shown while the agent compacts, or in a chat where another agent asked this one a question. Some agents, namely [ACP and remote agents](/engines/acp-and-ag-ui/), cannot pause. Then the button is left out.
+
+## Related
+
+- [Chats and the message box](/chatting/chats-and-composer/)
+- [Usage limit waits](/chatting/usage-limit-waits/)
+- [Edit, Resend and Fork](/chatting/edit-resend-fork/)
+- [/btw side questions](/chatting/side-questions/)
+- [Group rooms and the moderator](/rooms/rooms-and-moderator/)
+- [Dispatched agents](/rooms/dispatched-agents/)

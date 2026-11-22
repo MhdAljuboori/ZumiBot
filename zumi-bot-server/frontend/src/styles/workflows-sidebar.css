@@ -1,0 +1,132 @@
+/* Workflows: the sidebar's rows and runs. */
+
+/* ---- workflows: sidebar ---- */
+/* A stopped run is hollow, so it never reads as a skipped call (grey) or a failure (red). */
+.routine-dot.stopped {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--fg-muted);
+}
+.wf-row-group {
+  display: flex;
+  flex-direction: column;
+}
+.wf-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 10px;
+}
+.wf-row:hover {
+  background: var(--bg-hover);
+}
+.wf-row .routine-row {
+  flex: 1;
+  min-width: 0;
+}
+.wf-row .routine-row:hover {
+  background: none;
+}
+.wf-row.selected {
+  background: var(--sel-bg);
+  box-shadow: inset 0 0 0 1px var(--sel-border);
+}
+.wf-row[data-enabled='false'] .routine-ic {
+  opacity: 0.6;
+}
+.wf-row-switch {
+  flex: none;
+  position: relative;
+  width: 30px;
+  height: 18px;
+  margin-right: 10px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-selected);
+  cursor: pointer;
+}
+.wf-row-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--fg-muted);
+  transition: transform 0.15s;
+}
+.wf-row-switch[aria-checked='true'] {
+  border-color: var(--success);
+  background: var(--success);
+}
+.wf-row-switch[aria-checked='true'] .wf-row-knob {
+  transform: translateX(12px);
+  background: #ffffff;
+}
+.wf-row-switch:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.wf-row-switch:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.wf-runs {
+  margin: 2px 0 8px 40px;
+  padding: 0;
+  list-style: none;
+}
+.wf-run-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.wf-run-row:hover {
+  background: var(--bg-hover);
+}
+.wf-run-row.selected {
+  background: var(--sel-bg);
+  box-shadow: inset 0 0 0 1px var(--sel-border);
+}
+.wf-run-row:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.wf-run-when {
+  flex: none;
+}
+.wf-run-status {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.wf-run-row .wf-run-cost {
+  flex: none;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+/* A For each's progress takes its own line under the row, so a long item never squeezes the status. */
+.wf-run-row .wf-run-progress {
+  flex: 1 0 100%;
+  min-width: 0;
+  overflow: hidden;
+  padding-left: 15px;
+  color: var(--accent-text);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  unicode-bidi: plaintext;
+}

@@ -1,0 +1,161 @@
+/* The To-dos page's column and rows. */
+
+/* ---- To-dos page: the column is a .sidebar like Archived's list (it borrows the archived row look); the page fills the main area. ---- */
+.todos-nav-title {
+  margin: 0;
+  font-size: 15px;
+}
+/* The shared archive row makes room for a "more" menu on hover or touch; this one has none, so nothing may shift. */
+.row.archived-row.todos-row,
+.archived-line:hover > .row.archived-row.todos-row,
+.archived-line:has(:focus-visible) > .row.archived-row.todos-row {
+  padding-right: 12px;
+}
+.todos-row .count-badge,
+.todos-row .spinner,
+.todos-row .approval-badge {
+  margin-left: auto;
+}
+.todos-row .approval-badge + .count-badge,
+.todos-row .approval-badge + .spinner {
+  margin-left: 0;
+}
+.todos-row.zero .archived-icon,
+.todos-row.zero .agent-text {
+  opacity: 0.55;
+}
+/* My to-dos has no agent: the rail's To-dos icon in a disc the size of a row's agent icon. */
+.todos-own-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--bg-selected);
+  color: var(--fg);
+}
+.todos-own-glyph {
+  width: 16px;
+  height: 16px;
+}
+.todos-tag {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg-selected);
+  color: var(--fg-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 16px;
+}
+.todos-page {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.todos-page-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-height: 60px;
+  box-sizing: border-box;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.todos-page-title {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.todos-page-title h2 {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  line-height: 20px;
+}
+.todos-page-who {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-muted);
+  font-size: 12.5px;
+  line-height: 17px;
+}
+.todos-page-top {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.todos-page-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.todos-page .todo-add,
+.todos-page .todo-add-note,
+.todos-page-list {
+  width: 100%;
+  max-width: 860px;
+  box-sizing: border-box;
+  margin-inline: auto;
+}
+.todos-page .todo-add {
+  border-bottom: none;
+}
+.todos-page-list {
+  flex: none;
+  padding: 4px 18px 16px;
+  overflow-wrap: anywhere;
+}
+.todos-page-list .todo-done {
+  padding: 14px 0 0;
+}
+.todos-page-list .file-note {
+  padding-left: 0;
+  padding-right: 0;
+}
+.todo-age {
+  flex: none;
+  margin-top: 2px;
+  color: var(--fg-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.todo-age.old {
+  color: var(--warning);
+  font-weight: 600;
+}
+/* `.todo-row` outranks `.btn.small`, whose padding made Ask 26px and sat it 3px under the text's first line; the -1px centres its 22px on that 19.5px line. */
+.todo-row .todo-ask {
+  flex: none;
+  align-self: flex-start;
+  margin-block: -1px;
+  padding: 0 8px;
+  font-size: 11.5px;
+  line-height: 20px;
+  opacity: 0;
+}
+.todo-row:hover .todo-ask,
+.todo-ask:focus-visible {
+  opacity: 1;
+}
+/* Nothing hovers on a touch screen, so Ask is always there. */
+@media (hover: none) {
+  .todo-row .todo-ask {
+    opacity: 1;
+  }
+}

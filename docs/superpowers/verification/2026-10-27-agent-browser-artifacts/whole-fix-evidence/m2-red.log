@@ -1,0 +1,1 @@
+M2 RED: successful build row omits chunk >500 kB and Electron missing renderer config warnings. Confirmed against retained e2e-browser.log lines 29/60 and desktop.log lines 33/64.

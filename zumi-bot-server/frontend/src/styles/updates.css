@@ -1,0 +1,115 @@
+/* Self-update: the new-version toast, the updating overlay, About's release notes. */
+
+/* Self-update: the new-version toast, the updating overlay and About's release notes. */
+.update-toast {
+  position: fixed;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: calc(100vw - 32px);
+  padding: 10px 12px 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-raised);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  font-size: 13.5px;
+}
+.update-toast-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.update-toast-error {
+  color: var(--error);
+}
+.update-toast-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.update-toast .btn {
+  flex: none;
+  white-space: nowrap;
+}
+.update-toast-x {
+  flex: none;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--fg-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.update-toast-x:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+@media (max-width: 799px) {
+  /* The top, not the bottom: the composer lives there and the keyboard rises over it. Under the modals (30). */
+  .update-toast {
+    top: calc(8px + env(safe-area-inset-top));
+    bottom: auto;
+    left: 12px;
+    right: 12px;
+    max-width: none;
+  }
+  .update-toast-row {
+    flex-wrap: wrap;
+  }
+  .update-toast-row > .update-toast-text {
+    flex: 1 1 100%;
+  }
+}
+.updating-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px;
+  background: var(--bg);
+  text-align: center;
+}
+.updating-overlay .spinner {
+  width: 28px;
+  height: 28px;
+  margin-bottom: 10px;
+}
+.updating-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+.updating-sub {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: 14px;
+}
+.about-notes {
+  max-height: 260px;
+  overflow-y: auto;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: 13.5px;
+}
+.about-log {
+  max-height: 160px;
+  overflow: auto;
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

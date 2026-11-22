@@ -1,0 +1,19 @@
+# COMPOSE_PROFILES=domain. Caddy gets and renews the certificate itself (HTTP-01 on port 80, so 80 must be
+# reachable from the internet) and is the only listener; the server behind it binds 127.0.0.1 only.
+{
+	# Off, not just unpublished: Caddy shares the server's network namespace, so an agent running Bash in that
+	# container would otherwise reach the admin API on 127.0.0.1:2019 and could reconfigure the only listener.
+	# Config changes come from this file plus `docker compose restart caddy`.
+	admin off
+}
+
+{$ZUMIBOT_DOMAIN} {
+	request_body {
+		max_size 26MiB
+	}
+	header Strict-Transport-Security "max-age=31536000"
+	reverse_proxy 127.0.0.1:4317 {
+		# Overwrite, never append: the server trusts this single value for its per-IP rate limits.
+		header_up X-Forwarded-For {remote_host}
+	}
+}

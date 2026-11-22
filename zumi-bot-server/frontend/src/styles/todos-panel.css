@@ -1,0 +1,186 @@
+/* The side panel To-dos list. */
+
+/* To-dos: a group per reply, headings inside it, a folded Done list at the bottom. */
+.todos-panel {
+  position: relative;
+}
+.todo-group {
+  padding: 14px 18px 6px;
+  border-bottom: 1px solid var(--border);
+  scroll-margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+.todo-group:focus {
+  outline: none;
+}
+.todo-group:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -3px;
+}
+.todo-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  margin-bottom: 6px;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+}
+.todo-group-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 650;
+}
+.todo-group-head time {
+  flex: none;
+  white-space: nowrap;
+}
+.todo-heading {
+  margin: 10px 0 2px;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.todo-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.todo-row {
+  padding: 6px 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.todo-row-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.todo-row-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--col-dot);
+}
+.todo-text {
+  flex: 1;
+  min-width: 0;
+}
+.todo-row[data-done='true'] .todo-text {
+  color: var(--fg-muted);
+  text-decoration: line-through;
+}
+.markdown-inline {
+  display: inline;
+}
+.todo-by {
+  flex: none;
+  margin-top: 2px;
+  color: var(--fg-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.todo-remove {
+  flex: none;
+  margin-top: 1px;
+  padding: 0 5px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  opacity: 0;
+}
+.todo-row:hover .todo-remove,
+.todo-remove:focus-visible {
+  opacity: 1;
+}
+.todo-remove:hover {
+  color: var(--error);
+}
+.todo-add {
+  flex: none;
+  display: flex;
+  gap: 8px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.todo-add-input {
+  flex: 1;
+  min-width: 0;
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+.todo-add-note {
+  flex: none;
+  padding: 6px 18px 0;
+}
+.todo-error {
+  padding: 0 18px;
+}
+.todo-done {
+  border-bottom: none;
+}
+.todo-done-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 0 8px;
+  border: none;
+  background: none;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+}
+.todo-done-head:hover {
+  color: var(--fg);
+}
+.todo-done-head:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.todo-more {
+  margin: 4px 0 12px;
+}
+.todo-toast {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+}
+.todo-undo {
+  border: none;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.todo-undo:hover {
+  text-decoration: underline;
+}
+/* Nothing hovers on a touch screen, so the remove and open buttons are always there. */
+@media (hover: none) {
+  .todo-remove,
+  .todo-open {
+    opacity: 1;
+  }
+}

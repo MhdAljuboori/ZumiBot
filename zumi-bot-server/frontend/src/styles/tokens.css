@@ -1,0 +1,218 @@
+/* Colors for both themes (light-dark()), the color themes (data-accent), the forced theme, and Increase Contrast. Every
+   other file reads these. */
+
+:root {
+  /* Zumi Studio: the whole palette, both themes, in one place: light-dark() picks the first value in light and the second
+     in dark. The nav (rail + sidebar) sits on a canvas (--bg-sidebar) and the main pane floats over it as a card (--bg).
+     This is the Blue color theme, the default; the others (data-accent, below) restate the accent and the neutrals, which
+     carry a faint cast of their accent's hue. */
+  color-scheme: light dark;
+
+  --bg: light-dark(#ffffff, #13161c); /* the floating main pane */
+  --bg-sidebar: light-dark(#eef1f6, #0a0c10); /* the canvas under rail and sidebar */
+  --bg-raised: light-dark(#f7f9fc, #191d25); /* cards and panels */
+  --bg-hover: light-dark(#eef1f7, #21262f);
+  --bg-selected: light-dark(#e3e8f0, #2a303b); /* neutral active: segmented tabs, chips, raised buttons */
+  --fg: light-dark(#121620, #eef2f8);
+  /* Muted text keeps 4.5:1 on every surface up to --bg-selected and both bubbles, in both themes. */
+  --fg-muted: light-dark(#5a6478, #9aa3b5);
+  --border: light-dark(#e0e5ee, #262c36);
+
+  /* The accent: a fill that keeps 4.5:1 under white text in both themes; text in the accent's color takes --accent-text. */
+  --accent: light-dark(#2563eb, #2f6bf0);
+  --accent-hover: color-mix(in srgb, var(--accent) 86%, #000); /* darker, never paler, so white text keeps its contrast */
+  --accent-fg: #ffffff;
+  --accent-text: light-dark(#1d4ed8, #6ea1ff); /* 4.5:1 on every surface up to --bg-selected */
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent); /* washes: active rail icon */
+  --sel-bg: light-dark(#e5edff, #142446); /* selected row or option: a wash of the accent */
+  --sel-border: light-dark(#a9c1f7, #23427f);
+  --sel-fg: light-dark(#1d4ed8, #8db5ff); /* text and glyphs on --sel-bg and --tile-bg */
+  --tile-bg: light-dark(#dfe8ff, #182b52); /* icon tiles in card heads */
+
+  /* The user's bubble is a plain gray in every color theme; an agent's reply takes the theme's own wash. */
+  --user-bubble: light-dark(#ececef, #2a2a2f);
+  --user-bubble-fg: var(--fg);
+  --reply-bubble: light-dark(#e6edfd, #1a2740);
+  --ring: light-dark(#2563eb, #4a86ff); /* focus rings and selected borders */
+  --code-bg: light-dark(#eef1f7, #1e232c); /* code in agent replies */
+  --link: light-dark(#1d4ed8, #6ea1ff);
+  --error: light-dark(#c62828, #f07171);
+  --error-bg: light-dark(#fdecea, #2a1717);
+  --success: light-dark(#1b7c2b, #4cb94b);
+  --success-fg: light-dark(#ffffff, #0e1013); /* text on a --success fill: the dark green is too light for white */
+  --warning: light-dark(#8f5f00, #ffb700);
+  --search-hit: light-dark(#ffe58a, #6b5410); /* search matches: snippet marks and the words lit in a message */
+  --backdrop: light-dark(rgba(18, 23, 24, 0.32), rgba(0, 0, 0, 0.62));
+
+  /* Depth: the main pane and popovers float; shadows stay soft in light and go deep in dark, where a border does the work. */
+  --shadow-pane:
+    0 1px 2px light-dark(rgb(18 23 24 / 0.05), rgb(0 0 0 / 0.4)), 0 10px 30px -14px light-dark(rgb(18 23 24 / 0.14), rgb(0 0 0 / 0.75));
+  --shadow-pop:
+    0 12px 32px -8px light-dark(rgb(18 23 24 / 0.18), rgb(0 0 0 / 0.6)), 0 2px 6px light-dark(rgb(18 23 24 / 0.06), rgb(0 0 0 / 0.3));
+  --radius-pane: 16px;
+  --radius-card: 12px;
+  --radius-control: 10px;
+
+  /* The agent icon set's own colors: icon fills, dots and washes. */
+  --agent-red: light-dark(#c4504f, #ff6866);
+  --agent-blue: light-dark(#3f96f2, #429eff);
+  --agent-green: light-dark(#54ab38, #6cdb48);
+  --agent-yellow: light-dark(#f2bb3a, #ffc53d);
+  --agent-purple: light-dark(#8d5ade, #a267ff);
+  --agent-orange: light-dark(#de8440, #ff984a);
+  --agent-pink: light-dark(#dd5299, #f55baa);
+  --agent-cyan: light-dark(#2ca5b0, #3ad9e7);
+  /* The same hues as text (agentInk: reply names, mentions, quote names, a room's names, board avatars). Most fills
+     above are too light to read on white (yellow is 1.8:1), so each ink is its hue moved in OKLCH lightness until it
+     keeps 4.5:1 on the worst surface it meets: its own mention wash inside a bubble. */
+  --agent-red-ink: light-dark(#9a282d, #ff938d);
+  --agent-blue-ink: light-dark(#00559d, #76b6fe);
+  --agent-green-ink: light-dark(#206200, #6cdb48);
+  --agent-yellow-ink: light-dark(#6e5100, #ffc53d);
+  --agent-purple-ink: light-dark(#6c34b7, #c2a6fe);
+  --agent-orange-ink: light-dark(#864200, #ff984a);
+  --agent-pink-ink: light-dark(#9c0361, #ff8cc1);
+  --agent-cyan-ink: light-dark(#015e65, #3ad9e7);
+
+  /* A task card's status, as its dot (board columns, the drawer's Status, a panel row, the status menu): New a
+     gray, To do the accent blue, Blocked the error red, In progress orange, In review yellow, Done green. */
+  --status-new: light-dark(#848a94, #767c8a); /* 3:1 as a dot, in both themes */
+  --status-todo: var(--accent);
+  --status-blocked: var(--error);
+  --status-progress: var(--agent-orange);
+  --status-review: var(--agent-yellow);
+  --status-done: var(--success);
+
+  /* Workflow sticky notes, in n8n's preset order: yellow, orange, red, purple, blue, green, gray. A fill and a border
+     each, pale in light and deep in dark, so --fg reads on every one in both themes. */
+  --note-1: light-dark(#fff4c2, #4d4419);
+  --note-1-border: light-dark(#e6c75a, #7a6b25);
+  --note-2: light-dark(#ffe4cc, #5b3a1c);
+  --note-2-border: light-dark(#eeb07a, #8a5a2c);
+  --note-3: light-dark(#ffdfe0, #5a2129);
+  --note-3-border: light-dark(#ec9ea6, #8a2c3a);
+  --note-4: light-dark(#ece3ff, #3a2b58);
+  --note-4-border: light-dark(#bea3f0, #5b3a8a);
+  --note-5: light-dark(#dceaff, #1d3150);
+  --note-5-border: light-dark(#9cbff3, #2e4d7a);
+  --note-6: light-dark(#dcf3e3, #1e3d2c);
+  --note-6-border: light-dark(#93d1a7, #2e6146);
+  --note-7: light-dark(#eceef2, #2a2e37);
+  --note-7-border: light-dark(#c4cad4, #4a4f5a);
+
+  --avatar-bg: #2563eb; /* white initials stay readable in both themes */
+
+  --bot-fg: light-dark(#14161b, #f9f9f9); /* an agent with no color */
+  --bot-zumi: light-dark(#2563eb, #4a86ff); /* Zumi Bot's zumi-z, in the color theme's own hue */
+
+  /* Syntax colours in the Files and Changes panels (state/syntax.ts tones), GitHub-like: deep on white, light on the
+     dark background, and readable on the diff's green and red rows in both. */
+  --syn-kw: light-dark(#cf222e, #ff7b72);
+  --syn-str: light-dark(#0a3069, #a5d6ff);
+  --syn-num: light-dark(#0550ae, #79c0ff);
+  --syn-com: light-dark(#6e7781, #8b949e);
+  --syn-fn: light-dark(#8250df, #d2a8ff);
+  --syn-type: light-dark(#953800, #ffa657);
+  --syn-tag: light-dark(#116329, #7ee787);
+  --syn-add: light-dark(#116329, #aff5b4);
+  --syn-del: light-dark(#82071e, #ffdcd7);
+
+  --font-sans:
+    'Inter', 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI', 'Ubuntu Sans', system-ui, 'Noto Sans',
+    Helvetica, Arial, sans-serif;
+  --font-mono:
+    'JetBrains Mono', 'SF Mono', ui-monospace, 'Ubuntu Sans Mono', 'Cascadia Code', 'DejaVu Sans Mono', Menlo, Consolas, monospace;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+/* The other color themes (Settings › General › Color, theme.ts applyAccent): each restates the accent and the neutrals
+   tinted to it. Kept to plain light-dark() hex, so tests/palette.test.ts checks every one for contrast. */
+:root[data-accent='teal'] {
+  --bg: light-dark(#ffffff, #141819);
+  --bg-sidebar: light-dark(#eef1f1, #0a0d0e);
+  --bg-raised: light-dark(#f7f9f9, #1a1f20);
+  --bg-hover: light-dark(#eef2f2, #222829);
+  --bg-selected: light-dark(#e3e8e8, #2b3233);
+  --fg: light-dark(#121718, #eef3f3);
+  --fg-muted: light-dark(#5a6567, #9ba6a8);
+  --border: light-dark(#e0e6e6, #283031);
+  --accent: light-dark(#0f766e, #0f7a70);
+  --accent-text: light-dark(#0b6b63, #4fd1c1);
+  --sel-bg: light-dark(#e0f3f0, #12302d);
+  --sel-border: light-dark(#9fd6cd, #1f5a54);
+  --sel-fg: light-dark(#0a5f58, #6fe0d2);
+  --tile-bg: light-dark(#d6efeb, #163b37);
+  --reply-bubble: light-dark(#e2f3f0, #173431);
+  --ring: light-dark(#0f766e, #2bb3a3);
+  --code-bg: light-dark(#eef2f2, #1f2526);
+  --link: light-dark(#0b6b63, #4fd1c1);
+  --avatar-bg: #0f766e;
+  --bot-zumi: light-dark(#0d9488, #2dd4bf);
+}
+/* Coral shares its hue family with the red and orange agents, and Stop stays the error red. */
+:root[data-accent='coral'] {
+  --bg: light-dark(#ffffff, #1a1615);
+  --bg-sidebar: light-dark(#f4f0ee, #0e0b0a);
+  --bg-raised: light-dark(#faf8f7, #211c1b);
+  --bg-hover: light-dark(#f3efed, #2a2422);
+  --bg-selected: light-dark(#e9e3e0, #342d2b);
+  --fg: light-dark(#1a1514, #f6f1ef);
+  --fg-muted: light-dark(#685d59, #aea29e);
+  --border: light-dark(#ebe4e1, #322b29);
+  --accent: light-dark(#c2410c, #c2410c);
+  --accent-text: light-dark(#b23b0a, #ff9466);
+  --sel-bg: light-dark(#fdece4, #3a1d12);
+  --sel-border: light-dark(#f3b496, #6b3218);
+  --sel-fg: light-dark(#a3360a, #ffab85);
+  --tile-bg: light-dark(#fbe2d6, #45230f);
+  --reply-bubble: light-dark(#fcebe3, #33211b);
+  --ring: light-dark(#c2410c, #f0743f);
+  --code-bg: light-dark(#f3efed, #27211f);
+  --link: light-dark(#b23b0a, #ff9466);
+  --avatar-bg: #c2410c;
+  --bot-zumi: light-dark(#e8590c, #ff8a5b);
+}
+/* Graphite has no hue: near-black fills in light and near-white in dark, so text on the accent flips with them and links
+   keep their underline. The agents' own colors are the only color left. */
+:root[data-accent='graphite'] {
+  --bg: light-dark(#ffffff, #161618);
+  --bg-sidebar: light-dark(#f0f0f1, #0b0b0c);
+  --bg-raised: light-dark(#f8f8f9, #1c1c1f);
+  --bg-hover: light-dark(#f0f0f2, #242428);
+  --bg-selected: light-dark(#e6e6e9, #2e2e33);
+  --fg: light-dark(#18181b, #f4f4f5);
+  --fg-muted: light-dark(#5f5f68, #a1a1aa);
+  --border: light-dark(#e4e4e7, #2a2a2e);
+  --accent: light-dark(#18181b, #f4f4f5);
+  --accent-fg: light-dark(#ffffff, #18181b);
+  --accent-text: light-dark(#18181b, #f4f4f5);
+  --sel-bg: light-dark(#ececef, #26262b);
+  --sel-border: light-dark(#c4c4cc, #4a4a52);
+  --sel-fg: light-dark(#18181b, #f4f4f5);
+  --tile-bg: light-dark(#e8e8ec, #2a2a30);
+  --reply-bubble: var(--bg-raised); /* no hue to wash with: the raised surface keeps it apart from the gray user bubble */
+  --ring: light-dark(#3f3f46, #d4d4d8);
+  --code-bg: light-dark(#f0f0f2, #222226);
+  --link: light-dark(#18181b, #f4f4f5);
+  --avatar-bg: #3f3f46;
+  --bot-zumi: light-dark(#18181b, #f4f4f5);
+}
+:root[data-accent='graphite'] .markdown a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* Increase Contrast (macOS, Windows, GNOME high contrast): muted text near full strength, and every border and selected
+   edge at 3:1 so fields, cards and picked rows show their edges. :root[data-accent] too, so it outranks a color theme's
+   own neutrals; picked edges take the theme's ring, 3:1 in each. */
+@media (prefers-contrast: more) {
+  :root,
+  :root[data-accent] {
+    --fg-muted: light-dark(#454d5c, #c3c7d1);
+    --border: light-dark(#868fa0, #6b7180);
+    --sel-border: var(--ring);
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "zumibot",
+  "productName": "ZumiBot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Manage Claude Code agents and chat with them",
+  "author": {
+    "name": "Mohammed Al-Juboori",
+    "email": "mohammed.aljuboori@workiom.com"
+  },
+  "homepage": "https://github.com/MhdAljuboori/ZumiBot",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "e2e": "npm --prefix .. run build && electron-builder --linux --dir && node e2e/local.e2e.mjs",
+    "dist": "npm --prefix .. run build && electron-builder --linux deb",
+    "e2e:dev": "npm --prefix .. run build && ZUMIBOT_E2E_UNPACKED=1 node e2e/local.e2e.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@zumibot/backend": "*",
+    "@zumibot/shared": "*",
+    "electron": "45.0.0",
+    "electron-builder": "26.15.3",
+    "electron-vite": "6.0.0"
+  }
+}

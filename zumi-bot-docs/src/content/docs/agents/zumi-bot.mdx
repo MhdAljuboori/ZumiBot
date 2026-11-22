@@ -1,0 +1,90 @@
+---
+title: Zumi Bot assistant
+description: Ask the built-in assistant to create, change and clean up agents, and to set up routines and workflows, in plain words.
+sidebar:
+  order: 4
+---
+
+import Shot from '../../../components/Shot.astro'
+import { Steps } from '@astrojs/starlight/components'
+
+Zumi Bot is the assistant that comes with ZumiBot. It answers questions like Claude normally does. It can also create, change and delete agents, routines and workflows when you describe what you want. You do not need to know how an agent file works.
+
+<Shot name="agents-zumi-bot-chat" alt="A chat with Zumi Bot. The message reads 'Make me an agent that reviews pull requests for bugs and missing tests'. Zumi Bot replies that it created pr-reviewer, lists its one command, /review, and says it set Compact at to 400K. The new agent, shown as Pr Reviewer, is now in the sidebar list." />
+
+## Talk to Zumi Bot
+
+<Steps>
+
+1. **Choose Zumi Bot** at the top of the sidebar. Its chat opens straight away, with no folder to pick.
+
+2. **Say what you want** in your own words, for example "Make me an agent that reviews pull requests for bugs and missing tests".
+
+3. **Answer its questions.** When something important is open, Zumi Bot asks a few short questions first, as a question card. Otherwise it goes ahead.
+
+4. **Read the result.** Zumi Bot says what it did. For a new agent, it names the agent, says what it does and lists the commands it added. The agent shows in the sidebar at once.
+
+</Steps>
+
+Zumi Bot always works in your agents folder, `~/.claude/agents`, which is why its chat asks for no folder.
+
+## Commands
+
+Type `/` in a Zumi Bot chat to see its commands. Each one is a shortcut that starts the right job, and the text after the name says what you want.
+
+<Shot name="agents-zumi-bot-commands" alt="The message box of a new Zumi Bot chat with a slash typed. The menu lists /btw, /todo and /run-workflow, then Zumi Bot's own commands: /new-agent, /edit-agent, /suggest-commands, /make-friendly, /create-routine, /edit-routine, /delete-routine, /create-workflow, /edit-workflow and /delete-workflow, each with a one-line description." />
+
+- **/new-agent** creates an agent from your description.
+- **/edit-agent** changes an agent you have.
+- **/suggest-commands** reads an agent and proposes commands for its main jobs, then asks you before it writes them.
+- **/make-friendly** brings agents written before ZumiBot up to what a new agent gets. Name some agents, or name none to do them all.
+- **/create-routine**, **/edit-routine** and **/delete-routine** manage routines.
+- **/create-workflow**, **/edit-workflow** and **/delete-workflow** manage workflows.
+
+A command is only a shortcut. You can say the same thing in a plain message.
+
+## Agents
+
+When Zumi Bot creates an agent, it:
+
+- picks a name that no other agent uses, and asks you for another if it is taken;
+- writes the agent's instructions from your description;
+- picks a color and an icon, unless you named them;
+- adds commands for the agent's main jobs, unless you ask for none;
+- sets the **Compact at** size from the kind of job, 400K for most agents;
+- adds a few lines that keep the context small, only when the agent will read large files, logs or pages.
+
+It saves the file in `~/.claude/agents`, and you can open it in [Agent Studio](/agents/agent-studio/) to see or change anything. To rename an agent, ask Zumi Bot, or change the name in Agent Studio: its chats follow it.
+
+To delete an agent, Zumi Bot first asks you to confirm the exact name. It moves the file to the Trash, never a permanent delete.
+
+### Make older agents friendly
+
+**/make-friendly** adds what is missing to agents you wrote for the Claude Code terminal: commands, a Compact at size, short rules for asking you questions and for the look of answers, a color and an icon. It does not ask about each agent. It never changes an agent's role, name, description, model, memory or add-ons, and it leaves a file it cannot read alone and says why. Run it twice and the second run changes nothing. Zumi Bot ends with a table of what it changed.
+
+## Routines and workflows
+
+A [routine](/automation/routines/) runs one prompt on a trigger, such as a schedule. A [workflow](/automation/workflows/) is a chain of steps drawn on a canvas. Describe either in a message, or point Zumi Bot at an existing chat and ask it to turn that chat into one.
+
+- **A link to the result.** After it creates or changes one, Zumi Bot ends its reply with a link. Choose it to open the routine or workflow in ZumiBot.
+- **It never runs them.** Zumi Bot sets them up. Starting a run is up to you.
+- **Deleting asks.** The card reads, for example, "Delete routine" followed by its name, and offers only **Allow once** and **Deny**. It asks every time.
+- **Zumi Bot cannot be a step.** A routine or workflow cannot use Zumi Bot itself as its agent.
+- **Only from your messages.** Zumi Bot changes a routine or workflow only when you send the message. A routine run cannot change another routine.
+
+## Tips and limits
+
+- Check what Zumi Bot made. It follows your words, so a vague request gets a guess. Open the agent, routine or workflow and read it.
+- Zumi Bot does not change an agent's servers, plugins, skills or hooks, or its isolation. Use [Servers, plugins, skills and hooks](/agents/extensions/) for those.
+- It writes an agent that runs on [a different tool](/engines/codex/) than Claude Code only when you ask for one, and it cannot set that tool's launch settings. For those it tells you to open Agent Studio.
+- Zumi Bot has no memory of its own and no Edit agent entry. You cannot change or delete it.
+- Text in a chat you ask it to convert is material for it to read, not instructions. Still, read the result before you rely on it.
+
+## Related
+
+- [Agent Studio](/agents/agent-studio/)
+- [Servers, plugins, skills and hooks](/agents/extensions/)
+- [Slash commands](/chatting/slash-commands/)
+- [Approvals, questions and plans](/chatting/approvals-questions-plans/)
+- [Routines](/automation/routines/)
+- [Workflows](/automation/workflows/)

@@ -1,0 +1,66 @@
+---
+title: Local mode and server mode
+description: The desktop app can run ZumiBot's server on your computer or connect to one you host. Learn what changes between the two, and how to switch.
+sidebar:
+  order: 1
+---
+
+The desktop app is a window onto a ZumiBot server. In **Local** mode it starts that server on your own computer. In **VPS** mode it connects to a server you host somewhere else. You choose on the first screen, and you can switch at any time.
+
+## What changes between the two
+
+The screens and features are the same. What changes is where ZumiBot runs, and so where your agents work.
+
+| | Local mode | Server (VPS) mode |
+| --- | --- | --- |
+| Where the server runs | In the desktop app, on this computer | On the host you set up |
+| Where agents work | In this computer's folders | In the server's folders |
+| Sign-in | None. Only the app can reach its own server. | The password and 6-digit code you set up |
+| While the app is closed to the tray | Agents keep working | Agents keep working |
+| After you quit the app, or turn the computer off | Agents stop | Agents keep working |
+| Other devices | The server cannot be reached from a phone or another browser | Open it from any browser or your phone |
+| Windows | Yes | Yes |
+| macOS | Yes | Yes |
+
+Your agents run `claude` on the machine that runs the server. In Local mode that is your computer, so [Claude Code must be installed and signed in](/get-started/what-you-need/) there. On Windows, install Git for Windows too. [Run ZumiBot on your computer](/get-started/run-locally/) has the steps.
+
+Each mode keeps its own chats, agents, settings and sign-in. Nothing moves between them on its own. To merge a Local copy and a server, see [Sync](/desktop/sync/).
+
+## Pick one, or switch
+
+The first screen is called "Connect to a server". It says "ZumiBot runs on a server. Pick where yours lives."
+
+1. **Choose Local or VPS.**
+   - **Local**: "Run the server on this computer. Your chats stay here." The **Port** field starts at 4318. Leave it unless another program uses that port. Choose a number from 1024 to 65535.
+   - **VPS**: "Connect to a ZumiBot server you host." Type the server's address in the "Server address" box, for example `https://zumibot.example.com`. It must start with `https://` and have no path after the host name.
+2. **Choose Continue.** The button reads "Connecting…" while the app starts the local server or reaches the one you named. If your server asks for a sign-in, the window shows it.
+
+The app remembers your choice and opens the same server next time.
+
+To switch later, use either of these:
+
+- Press Ctrl+Shift+S.
+- Open **Settings**, then **Sync & server**, find the **Server** group and choose **Switch server…**. Its hint reads "Choose Local or a VPS for this app."
+
+The first screen comes back with your last choice selected. Pick the other option and choose **Continue**. If you installed the `.deb` package, you can also start `zumibot --switch-server` from a terminal.
+
+When you leave Local mode, the app stops the local server first. Your chats stay where they were, and Local mode has them again when you come back.
+
+## Tips and limits
+
+- **Switching can stop replies.** If you leave Local mode while agents are working, the app asks first. The message reads, for example, "2 replies still running. Stop them and switch?" Choose **Stop & Switch** to go on, or **Cancel** to stay. It also counts [background processes](/projects/background-processes/), because they stop with the server. If an agent editor has unsaved changes, the app asks about those first: "You have unsaved changes to this agent."
+- **A server's replies are not affected.** A reply running on a server you host keeps going when you switch away, because it runs on the server.
+- **Closing the window does not quit.** On Linux, ZumiBot keeps running in the tray, and a Local server keeps working. See [The island and the tray](/desktop/island-and-tray/).
+- **The port stays fixed.** Local mode uses the same port every time you start it, so addresses you gave to other programs keep working while the app is running. If the port is busy, you see "Port 4318 is already in use. Choose another port for Local mode." Choose **Switch server…** and pick a different port.
+- **"Can't reach the server."** If the app cannot reach the server you chose, it shows this screen with **Retry** and **Switch server**. Choose **Retry** once the server is back, or **Switch server** to pick again.
+- **On Windows, Local mode needs Git for Windows and Claude Code.** If the server cannot start, the app says what is missing. Computer use and the agent browser need a Linux server. See [Run ZumiBot on your computer](/get-started/run-locally/).
+- **Each server has its own island.** The agents you put on the island are remembered per server, so Local mode and each server keep separate lists.
+
+## Related
+
+- [Install the desktop app](/get-started/install-desktop/)
+- [Run ZumiBot on your computer](/get-started/run-locally/)
+- [What is ZumiBot](/get-started/what-is-zumibot/)
+- [Sync](/desktop/sync/)
+- [The island and the tray](/desktop/island-and-tray/)
+- [Desktop app updates](/desktop/updates/)

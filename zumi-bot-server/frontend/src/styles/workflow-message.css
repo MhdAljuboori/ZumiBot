@@ -1,0 +1,94 @@
+/* A workflow step's message in a chat. */
+
+/* A workflow step's message: its own text, and each input block as a labelled box (WorkflowPrompt.tsx). */
+.bubble.user.wf-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  white-space: normal;
+}
+.wf-prompt .sent-text {
+  white-space: pre-wrap;
+}
+.wf-prompt-input {
+  min-width: 0;
+  padding: 6px 10px 8px;
+  border: 1px solid color-mix(in srgb, var(--user-bubble-fg) 12%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--user-bubble-fg) 4%, transparent);
+  font-size: 13px;
+  line-height: 20px;
+}
+.wf-prompt-input-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  margin-bottom: 2px;
+  font-size: 12px;
+  line-height: 16px;
+}
+.wf-prompt-input-tag {
+  flex: none;
+  color: var(--fg-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.wf-prompt-input-from {
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.wf-prompt-input-text {
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.wf-prompt-input-text .markdown {
+  font-size: 13px;
+  line-height: 20px;
+}
+.wf-prompt-input-text .markdown p,
+.wf-prompt-input-text .markdown ul,
+.wf-prompt-input-text .markdown ol,
+.wf-prompt-input-text .markdown .code-block,
+.wf-prompt-input-text .markdown table,
+.wf-prompt-input-text .markdown blockquote {
+  margin: 6px 0;
+}
+.wf-prompt-input-text .markdown > :first-child {
+  margin-top: 0;
+}
+.wf-prompt-input-text .markdown > :last-child {
+  margin-bottom: 0;
+}
+.wf-prompt-input-text.folded {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2.5em), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 2.5em), transparent);
+}
+.wf-prompt-input-empty {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.wf-prompt-input-more {
+  margin-top: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.wf-prompt-input-more:hover {
+  text-decoration: underline;
+}
+.wf-prompt-input-more:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

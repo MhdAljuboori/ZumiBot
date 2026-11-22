@@ -1,0 +1,99 @@
+---
+title: Install the desktop app
+description: Download ZumiBot for macOS, Linux or Windows, install it, and choose whether it runs its own server or connects to one you run.
+sidebar:
+  order: 3
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components'
+
+The desktop app is the easiest way to start. It can run the whole server on your computer, or connect to a server you run somewhere else. On Windows, running it on your computer needs Git for Windows and Claude Code: [Run ZumiBot on your computer](/get-started/run-locally/) has every step.
+
+Download the installer for your system from [zumibot.run](https://zumibot.run/#download). The page offers the build for the computer you are using, and the other systems below it. Checksums for every build are listed there too.
+
+<Tabs>
+  <TabItem label="Linux">
+    You can use the `.deb` package on Debian and Ubuntu, or the AppImage on any other distribution.
+
+    **The `.deb` package**
+
+    1. Download the `.deb` file.
+    2. Open a terminal in the folder you saved it to and install it:
+
+       ```bash
+       sudo apt install ./ZumiBot_*.deb
+       ```
+
+    3. Start **ZumiBot** from your applications menu.
+
+    **The AppImage**
+
+    1. Download the AppImage file.
+    2. Make it runnable, then start it:
+
+       ```bash
+       chmod +x ZumiBot_*.AppImage
+       ./ZumiBot_*.AppImage
+       ```
+
+    An AppImage needs FUSE. On Ubuntu 24.04, install it with `sudo apt install libfuse2t64`.
+
+    ZumiBot runs `claude` on this computer, so [Claude Code must be installed and signed in](/get-started/what-you-need/) here before your first message.
+  </TabItem>
+  <TabItem label="Windows">
+    On Windows the app can run ZumiBot on this computer, or connect to a server you run elsewhere.
+
+    1. Download the Windows installer (the `.exe` file) and run it.
+    2. The installer is not signed yet, so Windows SmartScreen asks first. Choose **More info**, then **Run anyway**.
+    3. Start **ZumiBot**.
+    4. On the first screen, "Connect to a server", choose one:
+       - **Local** runs the server on this computer. Install Git for Windows and Claude Code first, as [Run ZumiBot on your computer](/get-started/run-locally/) shows step by step.
+       - **VPS** connects to a server you host. [Install ZumiBot on a server](/get-started/install-server/) first. Type its address, for example `https://zumibot.example.com`, and choose **Continue**, then sign in with the password and 6-digit code you set up there.
+  </TabItem>
+  <TabItem label="macOS">
+    There are two builds: **Apple silicon** for Macs with an M chip, and **Intel**. The download page picks the right one for your Mac. To check, open the Apple menu, **About This Mac**: the **Chip** line says Apple M1 or later, the **Processor** line says Intel. The macOS app is a preview: it is new, so tell us what does not work.
+
+    1. Download the `.dmg` file and open it.
+    2. Drag **ZumiBot** onto the **Applications** folder in the window that opens.
+    3. The app is not notarized by Apple yet, so macOS refuses to open it the first time, with "Apple could not verify" or "ZumiBot is damaged". Open **Terminal** and run this once:
+
+       ```bash
+       xattr -cr /Applications/ZumiBot.app
+       ```
+
+       This removes the "downloaded from the internet" mark from the app only. Instead, you can try to open the app once, then open **System Settings**, **Privacy & Security**, and choose **Open Anyway** next to the line about ZumiBot.
+    4. Start **ZumiBot** from Applications or Launchpad.
+    5. On the first screen, "Connect to a server", choose **Local** to run the server on this Mac, or **VPS** to connect to a server you host.
+
+    For **Local**, [Claude Code must be installed and signed in](/get-started/what-you-need/) on this Mac. [Run ZumiBot on your computer](/get-started/run-locally/) has every step.
+
+    The first time you dictate or make a voice request, macOS asks whether ZumiBot may use the microphone. Choose **Allow**.
+  </TabItem>
+</Tabs>
+
+## Choose where ZumiBot runs
+
+The first time you start the app, it opens a screen called "Connect to a server". You pick one of two options.
+
+- **Local** runs the server on this computer. Your chats stay here, and agents work only while the app is running. The **Port** field is set to 4318, which is fine unless another program uses it. You do not sign in: the app is the only way into its own server.
+- **VPS** connects to a ZumiBot server you host. Type its address. It must start with `https://`.
+
+Choose **Continue**. The app remembers your choice.
+
+## Tips and limits
+
+- On Linux, closing the window does not quit ZumiBot. It keeps running in the system tray, so a Local server and your agents keep going. Choose **Quit** in the tray menu to stop it.
+- On a Mac, closing the window does not quit ZumiBot either. It stays in the menu bar at the top right, and in the Dock. Click its Dock icon to bring the window back. Press Cmd+Q, or choose **Quit** in its menu bar menu, to stop it.
+- To come back to the first screen and pick again, press Ctrl+Shift+S, or Cmd+Shift+S on a Mac. In Settings, "Switch server…" does the same.
+- Local mode and a server are separate. Each keeps its own chats, agents and sign-in.
+- The Windows and macOS builds are not signed yet, so Windows and macOS ask before the first run.
+
+## Related
+
+- [What you need](/get-started/what-you-need/)
+- [Run ZumiBot on your computer](/get-started/run-locally/)
+- [Local mode and server mode](/desktop/local-vs-server/)
+- [The island and the tray](/desktop/island-and-tray/)
+- [Desktop app updates](/desktop/updates/)
+- [Install on a server](/get-started/install-server/)
+- [Your first chat](/get-started/first-chat/)

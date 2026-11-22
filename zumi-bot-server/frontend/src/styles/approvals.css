@@ -1,0 +1,174 @@
+/* Approval cards in a chat: input fields, scope hints and actions. */
+
+.approval {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+}
+.approval.pending {
+  border: 2px solid var(--ring);
+  background: var(--bg-raised);
+}
+.approval-head {
+  display: block;
+  width: 100%;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+.approval-head.connector {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+.approval-head:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.approval-desc {
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+.approval-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+.approval-connector {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.approval-input {
+  padding: 2px 0 0;
+}
+.approval-input-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.approval-fields {
+  margin: 4px 0 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 12px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  max-height: 360px;
+  overflow: auto;
+}
+.approval-field {
+  display: contents;
+}
+.approval-field dt {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.approval-field dd {
+  margin: 0;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.approval-field.block dt,
+.approval-field.block dd {
+  grid-column: 1 / -1;
+}
+.approval-field.block dd pre {
+  margin: 0;
+  max-height: 240px;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  background: var(--bg-raised);
+}
+@media (max-width: 520px) {
+  .approval-field dt,
+  .approval-field dd {
+    grid-column: 1 / -1;
+  }
+  .approval-field dd {
+    margin-bottom: 2px;
+  }
+}
+.approval-command {
+  margin: 0 0 4px;
+  padding: 6px 8px;
+  background: var(--code-bg);
+  border-radius: 6px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.approval-reason {
+  color: var(--fg-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.approval-actions .btn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 40px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.approval-sub {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--fg-muted);
+  overflow-wrap: anywhere;
+  max-width: min(260px, 100%);
+  text-align: center;
+}
+.approval-line {
+  font-size: 12px;
+  color: var(--fg);
+}
+.approval-line.muted {
+  color: var(--fg-muted);
+}
+
+.approval-badge {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  white-space: nowrap;
+}
+.approval-badge.compact {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+}

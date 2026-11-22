@@ -1,0 +1,143 @@
+/* The new-chat screen: the composer with the agent, folder and git pickers under it. */
+
+/* ---- new chat (no chat open) ---- */
+
+/* The composer sits a little above center, with the agent and folder pickers under it (an open chat shows them locked). */
+.new-chat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-bottom: 10vh;
+}
+.new-chat .composer {
+  max-width: 768px;
+}
+.pickers {
+  display: flex;
+  gap: 4px;
+  padding: 8px 6px 0;
+}
+/* The context meter and cost sit at the row's right end, apart from the run settings. */
+.pickers-end {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+/* useFitRow's measure: every chip at its own width, so the full row's natural width can be read. */
+.pickers.fit-measure > * {
+  flex: none;
+  margin-left: 0;
+}
+/* A compact row under an open chat on a wide window (useFitRow), as on a phone: one line, the run and git chips shrink
+   to an ellipsis, the rest keep their size, and a row still too long scrolls sideways rather than cutting every label. */
+.pickers.one-line.compact {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.pickers.one-line.compact > :not(.run-picker, .git-chip) {
+  flex: none;
+}
+/* The new-chat row, compact on a wide window: it wraps as on a phone, since its agent and folder are picked there. */
+.pickers.compact:not(.one-line) {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+.picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: 280px;
+  height: 28px;
+  padding: 0 9px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--fg-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+.picker:hover:not(:disabled),
+.picker.open {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.picker.set {
+  color: var(--fg);
+}
+.picker:not(.set) .bot {
+  opacity: 0.6;
+}
+.picker:disabled {
+  cursor: default;
+}
+.picker:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.picker .folder-icon,
+.picker-menu .folder-icon {
+  margin-right: 0;
+  font-size: 14px;
+}
+.picker .caret {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  opacity: 0.7;
+}
+.picker-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The git chip opens the side panel's Changes; a worktree whose folder was cleaned up reads muted and is locked. */
+.picker .git-icon,
+.picker .run-icon {
+  width: 14px;
+  height: 14px;
+}
+.git-chip.muted {
+  color: var(--fg-muted);
+}
+.git-dirty {
+  flex: none;
+  color: var(--warning);
+  font-size: 10px;
+  line-height: 1;
+}
+.picker-menu .worktree-option {
+  align-items: flex-start;
+  max-width: 300px;
+  white-space: normal;
+}
+.worktree-option .check {
+  margin-top: 1px;
+}
+.picker-menu {
+  min-width: 220px;
+  max-width: 420px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+.picker-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.folder-path {
+  margin-left: auto;
+  padding-left: 16px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+}

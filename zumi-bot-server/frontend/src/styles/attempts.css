@@ -1,0 +1,105 @@
+/* Parallel attempts under a card. */
+
+/* ---- Parallel attempts: one row per attempt under the card, the Run attempts dialog and the compare sheet ---- */
+.todo-card-attempts-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0 2px;
+  border-top: 1px solid var(--border);
+}
+.todo-card-attempts-start .todo-card-hint {
+  margin: 0;
+}
+.attempt-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.attempt-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+}
+.attempt-row:first-child {
+  border-top: none;
+}
+.attempt-row.kept {
+  background: color-mix(in srgb, var(--success) 8%, transparent);
+}
+.attempt-pick {
+  flex: none;
+  margin: 0;
+}
+.attempt-who {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+}
+.attempt-name {
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.attempt-n {
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.attempt-engine {
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--tile-bg);
+  color: var(--fg-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.attempt-state {
+  flex: none;
+}
+.attempt-state.tone-done {
+  color: var(--success);
+  font-weight: 600;
+}
+.attempt-state.tone-you {
+  color: var(--warning);
+  font-weight: 600;
+}
+.attempt-state.tone-busy {
+  color: var(--accent-text);
+}
+.attempt-state.tone-quiet {
+  color: var(--fg-muted);
+}
+.attempt-stat {
+  flex: none;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.attempt-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-inline-start: auto;
+}
+.attempt-kept {
+  flex: none;
+  color: var(--success);
+  font-weight: 600;
+}
+.attempt-problems {
+  margin: 6px 0 0;
+  padding-inline-start: 18px;
+  color: var(--error);
+  font-size: 12px;
+}

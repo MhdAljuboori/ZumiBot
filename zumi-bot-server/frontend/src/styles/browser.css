@@ -1,0 +1,463 @@
+/* The browser panel, the vault approval drawn in it, and the browser's settings. */
+
+.browser-panel {
+  display: flex;
+  flex-direction: column;
+  width: 54%;
+  min-width: 360px;
+  max-width: calc(100% - 300px);
+  flex-shrink: 0;
+  min-height: 0;
+  resize: horizontal;
+  overflow: auto;
+  border-left: 1px solid var(--border);
+  background: var(--bg-raised);
+}
+.browser-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.browser-title {
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.browser-title > span {
+  font-weight: 400;
+  color: var(--fg-muted);
+}
+.browser-header-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 5px;
+}
+.browser-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 10px 0;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+}
+.browser-tab {
+  display: flex;
+  min-width: 90px;
+  max-width: 190px;
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: var(--bg);
+}
+.browser-tab > button {
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  cursor: pointer;
+}
+.browser-tab > button[aria-selected='true'] {
+  color: var(--fg);
+  font-weight: 600;
+}
+.browser-tab > button:disabled {
+  opacity: 0.8;
+  cursor: default;
+}
+.browser-navigation {
+  display: flex;
+  gap: 4px;
+  padding: 10px;
+  align-items: center;
+}
+.browser-navigation input {
+  min-width: 40px;
+  flex: 1;
+  font: inherit;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 7px 9px;
+  background: var(--bg);
+  color: var(--fg);
+}
+.browser-navigation input[readonly] {
+  color: var(--fg-muted);
+}
+.browser-navigation button:disabled {
+  opacity: 0.4;
+}
+.browser-control {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 14px 12px;
+  font-size: 12px;
+}
+.browser-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.browser-switch input {
+  appearance: none;
+  width: 29px;
+  height: 17px;
+  margin: 0;
+  border-radius: 20px;
+  background: var(--bg-selected);
+  border: 1px solid var(--border);
+  position: relative;
+  cursor: pointer;
+}
+.browser-switch input::after {
+  content: '';
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  left: 2px;
+  top: 2px;
+  background: var(--fg-muted);
+  border-radius: 50%;
+  transition: transform 0.12s;
+}
+.browser-switch input:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.browser-switch input:checked::after {
+  background: white;
+  transform: translateX(12px);
+}
+.browser-switch input:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.browser-switch input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+.browser-owner {
+  color: var(--fg-muted);
+  font-size: 11px;
+}
+.browser-control-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.browser-control-actions .btn:disabled {
+  opacity: 0.4;
+}
+/* Only a touch screen needs a way to bring its keyboard back. */
+@media (hover: hover) and (pointer: fine) {
+  .browser-keyboard {
+    display: none;
+  }
+}
+.browser-paste {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 0 10px 10px;
+}
+.browser-paste input {
+  min-width: 40px;
+  flex: 1;
+  font: inherit;
+  font-size: 16px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 6px 9px;
+  background: var(--bg);
+  color: var(--fg);
+}
+.browser-owner.active {
+  color: var(--success, #218351);
+}
+.browser-surface {
+  position: relative;
+  flex: 1;
+  min-height: 220px;
+  background: #16191f;
+  overflow: hidden;
+}
+.browser-surface canvas {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.browser-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  resize: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  opacity: 0.01;
+  cursor: default;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  font-size: 16px;
+}
+.browser-surface:focus-within {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.browser-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #9a9fae;
+  font-size: 13px;
+  pointer-events: none;
+}
+.browser-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  color: var(--fg-muted);
+  font-size: 10px;
+  border-top: 1px solid var(--border);
+}
+.browser-footer > span:last-child {
+  margin-left: auto;
+}
+.browser-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--fg-muted);
+}
+.browser-dot.live {
+  background: #31a66a;
+}
+.browser-error,
+.browser-notice,
+.browser-reopen {
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 10px 14px;
+  overflow-wrap: anywhere;
+}
+.browser-error {
+  color: var(--error);
+  background: var(--error-bg);
+}
+.browser-error .btn {
+  margin-left: 8px;
+}
+.browser-notice {
+  color: var(--fg-muted);
+}
+.browser-reopen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+}
+.browser-reopen > span {
+  color: var(--fg-muted);
+}
+.browser-panel.expanded {
+  position: fixed;
+  z-index: 50;
+  inset: calc(20px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom))
+    calc(20px + env(safe-area-inset-left));
+  width: auto;
+  max-width: none;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 20px 100px #0005;
+  resize: none;
+}
+.browser-action {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 6px 0;
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+.browser-action.pending {
+  border-color: var(--sel-border);
+}
+.browser-action-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+}
+.browser-action-heading > span:first-child {
+  color: var(--sel-fg);
+  font-size: 18px;
+}
+.browser-action-site {
+  color: var(--fg-muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.browser-action > p {
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 8px 0 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.browser-action > .browser-action-hint {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.browser-action-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.vault-approval {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin: 6px 0;
+  background: var(--bg-raised);
+}
+.vault-approval.pending {
+  border-color: var(--sel-border);
+}
+.vault-approval > p {
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0 0 10px;
+  overflow-wrap: anywhere;
+}
+.vault-approval > p:last-child,
+.vault-approval > .vault-approval-outcome {
+  margin-bottom: 0;
+}
+.vault-approval-frame,
+.vault-approval-outcome {
+  color: var(--fg-muted);
+}
+.vault-key-path code {
+  overflow-wrap: anywhere;
+}
+.vault-approval-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.browser-panel.inline {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  height: 490px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  margin-top: 14px;
+}
+.browser-panel.inline.expanded {
+  width: auto;
+  height: auto;
+  margin: 0;
+}
+.browser-settings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  border-top: 1px solid var(--border);
+}
+.browser-settings > div {
+  flex: 1;
+  min-width: 180px;
+  font-size: 13px;
+}
+.browser-settings p {
+  margin: 4px 0 0;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.browser-settings > p {
+  flex-basis: 100%;
+}
+@media (max-width: 1100px) {
+  .browser-panel:not(.inline) {
+    min-width: 330px;
+  }
+  .browser-chat {
+    min-width: 250px;
+  }
+}
+@media (max-width: 760px) {
+  .browser-panel:not(.inline) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    z-index: 10;
+    border: 0;
+    resize: none;
+  }
+  .browser-workspace {
+    position: relative;
+  }
+  .browser-panel.expanded,
+  .browser-panel.inline.expanded {
+    position: fixed;
+    inset: calc(8px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom))
+      calc(8px + env(safe-area-inset-left));
+    z-index: 50;
+    width: auto;
+  }
+  .browser-panel.inline {
+    height: 430px;
+  }
+  .browser-chat {
+    min-width: 0;
+  }
+  .chat-top {
+    padding: 4px 10px;
+  }
+  .browser-action {
+    padding: 12px;
+  }
+  .browser-control {
+    gap: 6px;
+    padding: 6px 10px 10px;
+  }
+  .browser-header {
+    padding: 10px 12px;
+  }
+  .browser-footer > span:last-child {
+    max-width: 55%;
+    text-align: right;
+  }
+}

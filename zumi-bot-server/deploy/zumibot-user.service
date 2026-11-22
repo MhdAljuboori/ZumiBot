@@ -1,0 +1,22 @@
+# A systemd *user* service, so a plain account can install and run ZumiBot with no root at all.
+# install.sh fills in the two placeholders and writes it to ~/.config/systemd/user/zumibot.service.
+[Unit]
+Description=ZumiBot Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Environment=NODE_ENV=production ZUMIBOT_MODE=vps ZUMIBOT_ORIGIN=<ZUMIBOT_ORIGIN> ZUMIBOT_PORT=4317
+# Tells the server it was put here by install.sh, so it can update itself and roll back.
+Environment=ZUMIBOT_INSTALL_DIR=<ZUMIBOT_DIR>
+ExecStart=<ZUMIBOT_DIR>/bin/zumibot-server
+Restart=on-failure
+KillSignal=SIGTERM
+TimeoutStopSec=15
+NoNewPrivileges=true
+# No PrivateTmp here, unlike the system unit: mount namespacing is not reliably available to user units, and a
+# service that will not start is worse than a shared /tmp. What protects the per-chat IPC folders is their own
+# 0700 mode and owner check (core/*/*Ipc.ts), not the namespace.
+
+[Install]
+WantedBy=default.target

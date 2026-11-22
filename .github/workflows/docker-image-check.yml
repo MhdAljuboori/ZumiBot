@@ -1,0 +1,127 @@
+# Proves the Docker image and the Docker bundle build and start, without releasing anything. Run it by hand
+# (Actions > Check the Docker image > Run workflow) once before the first tag after any change to the Dockerfile,
+# docker-compose.yml, docker/ or a workflow.
+#
+# It builds the server tarball exactly as the release does, builds the image from it for both platforms, starts the
+# amd64 image, waits for the server and the claude CLI and checks that the image holds the tarball's server.mjs
+# (not a rebuild of the source), then packs the Docker bundle with a dummy digest and has
+# compose read it under both profiles. It pushes nothing, signs in nowhere and holds no secret, so it is safe on any
+# branch. The tag release itself is only proven by a real tag.
+name: Check the Docker image
+
+on:
+  workflow_dispatch:
+
+# Nothing by default; the job asks for what it needs.
+permissions: {}
+
+jobs:
+  check:
+    name: Build, start and pack
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      # Pinned by commit, like every dependency in this repo (actions/checkout v5.1.0). No token is left in .git for
+      # the npm code below to read.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+
+      # actions/setup-node v5.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: '22'
+          cache: npm
+
+      # --ignore-scripts, as the container image does: nothing here needs an install script, and it keeps
+      # Electron's postinstall from downloading a binary no server artifact contains.
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - run: npm run build:server
+
+      - run: sh zumi-bot-server/deploy/package.sh release
+
+      # The image ships the tarball, as in the release, not a second build of the source.
+      - name: Unpack the server tarball
+        run: |
+          mkdir -p release/unpacked
+          tar -xzf release/zumibot-server.tar.gz -C release/unpacked
+
+      # docker/setup-qemu-action v4.4.0 (runs the arm64 half of the build)
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1
+
+      # docker/setup-buildx-action v4.4.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
+
+      # Both platforms must build, but a multi-arch result cannot be loaded into the local daemon; cacheonly keeps
+      # the layers, so the amd64 load below is only the export.
+      - name: Build both platforms
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --build-context dist=release/unpacked/zumibot-server/app \
+            --output type=cacheonly \
+            .
+
+      - name: Load the amd64 image
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --build-context dist=release/unpacked/zumibot-server/app \
+            --load -t zumibot-check \
+            .
+
+      # The compose file's own server environment. A fresh data dir is the setup state, which `busy` answers too,
+      # the same as the image's healthcheck.
+      - name: Start the image
+        run: |
+          c="$(docker run -d \
+            -e ZUMIBOT_MODE=vps \
+            -e ZUMIBOT_PORT=4317 \
+            -e ZUMIBOT_ORIGIN=https://localhost:8443 \
+            zumibot-check)"
+          trap 'docker rm -f "$c" >/dev/null 2>&1 || true' EXIT
+          up=0
+          for _ in $(seq 1 60); do
+            if docker exec "$c" zumibot-server busy >/dev/null 2>&1; then
+              up=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$up" != 1 ]; then
+            echo "The server did not answer within 60 seconds." >&2
+            docker logs "$c" >&2 || true
+            exit 1
+          fi
+          if ! docker exec "$c" claude --version; then
+            echo "The claude CLI did not run in the image." >&2
+            docker logs "$c" >&2 || true
+            exit 1
+          fi
+          # The Dockerfile's `dist` stage is replaced by --build-context; if BuildKit ignored that, the image would
+          # hold a build of the checked-out source and not the tarball. Only the hash field is compared.
+          want="$(sha256sum release/unpacked/zumibot-server/app/server.mjs | cut -d' ' -f1)"
+          have="$(docker exec "$c" sha256sum /app/server.mjs 2>/dev/null | cut -d' ' -f1)"
+          if [ "$have" != "$want" ]; then
+            echo "The image's /app/server.mjs (sha256 '$have') is not the release tarball's server.mjs ('$want'): the build context was not used." >&2
+            exit 1
+          fi
+
+      # A dummy digest: only the shape is checked, and nothing is pulled.
+      - name: Pack the Docker bundle
+        run: |
+          version="$(node -p "require('./zumi-bot-server/backend/package.json').version")"
+          node --experimental-strip-types zumi-bot-server/deploy/docker-bundle.mjs "$version" "docker.io/mhdaljuboori/zumibot:$version@sha256:0000000000000000000000000000000000000000000000000000000000000000" release
+          mkdir -p release/docker-unpacked
+          tar -xzf release/zumibot-docker.tar.gz -C release/docker-unpacked
+
+      # Each profile must parse; the domain one also needs its host.
+      - name: Check the bundle's compose file
+        run: |
+          COMPOSE_PROFILES=local docker compose -f release/docker-unpacked/zumibot-docker/docker-compose.yml config -q
+          COMPOSE_PROFILES=domain ZUMIBOT_DOMAIN=check.example.com docker compose -f release/docker-unpacked/zumibot-docker/docker-compose.yml config -q
+
+      - name: Check the installer parses
+        run: sh -n docker/install.sh

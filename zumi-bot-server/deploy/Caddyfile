@@ -1,0 +1,10 @@
+zumibot-server.mhdaljuboori.me {
+	request_body {
+		max_size 26MiB
+	}
+	header Strict-Transport-Security "max-age=31536000"
+	reverse_proxy 127.0.0.1:4317 {
+		# Overwrite, never append: the server trusts this single value.
+		header_up X-Forwarded-For {remote_host}
+	}
+}

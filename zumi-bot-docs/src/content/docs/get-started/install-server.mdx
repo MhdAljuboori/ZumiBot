@@ -1,0 +1,272 @@
+---
+title: Install on a server
+description: Put ZumiBot on a Linux server with one installer, or in Docker on Linux or a Mac, with HTTPS in front of it, and open it from any browser.
+sidebar:
+  order: 5
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
+
+A server keeps your agents working when your computer is off, and lets you open the same chats from any browser or phone. There are two ways to install it:
+
+- **Native** runs ZumiBot straight on a Linux host with systemd. You install it with a script, then put an HTTPS proxy in front of it.
+- **Docker** runs ZumiBot in containers, on a Linux host or a Mac. One script installs it, and HTTPS comes built in. The Docker install is a preview: it has not been proven on many real hosts yet.
+
+Pick a tab below. The other sections follow your pick.
+
+The examples use `zumibot.example.com`. Use your own address wherever you see it.
+
+## Before you start
+
+<Tabs syncKey="server-install">
+<TabItem label="Native">
+
+- A Linux host with systemd, and Node.js 22 or newer.
+- [Claude Code installed and signed in](/get-started/what-you-need/), as the same user that will run ZumiBot.
+- A domain with an `A` record (and an `AAAA` record if the host has IPv6) that points at the host.
+- A normal user account. The installer refuses to run as root, because your agents run as this user.
+
+</TabItem>
+<TabItem label="Docker">
+
+- A Linux host or a Mac with Docker and its compose plugin, version 2.17 or newer. `docker compose version` shows yours. On Linux, install Docker Engine. On a Mac, use Docker Desktop, OrbStack or Colima. Apple silicon and Intel Macs both work.
+- Your own user can run `docker` without `sudo`. On Linux that means being in the `docker` group. The installer never runs `sudo` for you.
+- Nothing else on the host. The image brings Claude Code and the HTTPS server with it. You sign Claude Code in inside the container, after the install.
+- One way to reach it:
+  - **Tailscale**, on this host and on every device you will open ZumiBot from. This suits a Mac at home, or any machine with no public address.
+  - **SSH** to the host, for a tunnel from your own computer.
+  - **A domain** with an `A` record (and an `AAAA` record if the host has IPv6) that points at the host, with ports 80 and 443 free and open to the internet. The host's clock must be in sync too: sign-in codes depend on it.
+
+</TabItem>
+</Tabs>
+
+## Install
+
+<Tabs syncKey="server-install">
+<TabItem label="Native">
+
+<Steps>
+
+1. **Download the installer and read it.**
+
+   ```bash
+   curl -fsSL https://zumibot.run/releases/latest/install.sh -o install.sh
+   less install.sh
+   ```
+
+   Reading it first is the point: you see what it will do before it does it.
+
+2. **Install it for the address you will open.**
+
+   ```bash
+   sh install.sh --origin https://zumibot.example.com
+   ```
+
+   Run it as your own user, not root. It downloads the latest release and checks it against the publisher's signature before it unpacks anything.
+
+   The address must start with `https://` and have no path after the host. ZumiBot checks that requests come from this address, so use the one you will type in the browser.
+
+   The installer puts ZumiBot in `~/zumibot` and starts it as a systemd user service. It asks before it runs the one command that needs sudo, `loginctl enable-linger`. That command keeps the service running after you log out. If you say no, everything else still works, but the server stops when your last session ends.
+
+   If the installer warns that `claude` was not found, install and sign in to Claude Code as this user now. The server starts either way.
+
+3. **Point your HTTPS proxy at it.**
+
+   ZumiBot listens only on its own machine, on port 4317. A proxy that adds HTTPS is the only way in. The installer wrote ready-made Caddy and nginx configs with your address already filled in, in `~/zumibot/proxy/`. Installing either one needs root, so the installer leaves it to you. See the proxy section below.
+
+4. **Open `https://zumibot.example.com/setup`.**
+
+   The setup page asks for a one-time code. The server printed it to its log when it started. Read it with:
+
+   ```bash
+   journalctl --user -u zumibot -n 20 --no-pager
+   ```
+
+   Paste the code into the page and follow the steps. [First-run setup](/get-started/first-run-setup/) walks through them.
+
+5. **Update it later.**
+
+   ```bash
+   ~/zumibot/bin/zumibot-update
+   ```
+
+   It does not update while a reply is running. Wait for the reply to finish and run it again, or add `--force` to interrupt it. You can also update from Settings, in the About section. [Update your server](/server/updates/) has the details, and how to go back to the earlier version, which works only if the update kept a copy of your data.
+
+</Steps>
+
+</TabItem>
+<TabItem label="Docker">
+
+<Steps>
+
+1. **Download the installer and read it.**
+
+   ```bash
+   curl -fsSL https://zumibot.run/releases/latest/docker/install.sh -o install.sh
+   less install.sh
+   ```
+
+   This is the Docker installer, not the native one: its address ends in `/docker/install.sh`. Reading it first is the point: you see what it will do before it does it.
+
+2. **Install it for the way you will reach it.**
+
+   Run it as your own user. It downloads the latest release, checks it against the publisher's signature, pulls the ready-made image and starts it. Nothing is built on your machine. ZumiBot's files go in `~/zumibot-docker`, and your chats in Docker volumes. Pick one of the three ways below.
+
+   **Over Tailscale.** Give the address you will open: this machine's name on your tailnet, with port 8443.
+
+   ```bash
+   sh install.sh --origin https://mac.tail1234.ts.net:8443
+   ```
+
+   Here `mac` is the machine's name and `tail1234.ts.net` is your tailnet's name. The Tailscale admin console shows the full name on the machine's page. Then, on this machine, pass the tailnet's port 8443 through to ZumiBot:
+
+   ```bash
+   tailscale serve --bg --tcp=8443 tcp://127.0.0.1:8443
+   ```
+
+   The port is always 8443, in the address and in that line. Any other port does not work.
+
+   **Through an SSH tunnel.** With no option, ZumiBot answers only on this machine, at `https://localhost:8443`:
+
+   ```bash
+   sh install.sh
+   ```
+
+   To open it, start a tunnel from your own computer, and keep it open while you use ZumiBot:
+
+   ```bash
+   ssh -L 8443:127.0.0.1:8443 you@zumibot.example.com
+   ```
+
+   **On a public domain.** Give the bare host name, with no `https://`:
+
+   ```bash
+   sh install.sh --domain zumibot.example.com
+   ```
+
+   ZumiBot answers at `https://zumibot.example.com` on ports 80 and 443, and gets its own certificate. You need no proxy, so skip the proxy section below.
+
+3. **Trust the certificate (Tailscale or a tunnel only).**
+
+   Without a domain, ZumiBot's certificate comes from its own small certificate authority, so the browser warns until you trust that authority. Copy its root certificate out:
+
+   ```bash
+   cd ~/zumibot-docker && docker compose cp caddy-local:/data/caddy/pki/authorities/local/root.crt ./zumibot-local-ca.crt
+   ```
+
+   Then add `zumibot-local-ca.crt` to the trusted certificates of each device you open ZumiBot from. With a domain, skip this step.
+
+4. **Open the setup page.**
+
+   Open the address you installed for, with `/setup` at the end: for example `https://mac.tail1234.ts.net:8443/setup`, `https://localhost:8443/setup` through a tunnel, or `https://zumibot.example.com/setup`.
+
+   The setup page asks for a one-time code. The server printed it to its log when it started. Read it with:
+
+   ```bash
+   cd ~/zumibot-docker && docker compose logs zumibot-local
+   ```
+
+   With `--domain`, the service is called `zumibot` instead:
+
+   ```bash
+   cd ~/zumibot-docker && docker compose logs zumibot
+   ```
+
+   The installer prints the right command for your install as it finishes. It never prints the code itself. Paste the code into the page and follow the steps. [First-run setup](/get-started/first-run-setup/) walks through them.
+
+5. **Sign Claude Code in, inside the container.**
+
+   ZumiBot runs Claude Code inside its container, so Claude Code needs its own sign-in there. A sign-in on the host does not carry over. Do this once:
+
+   ```bash
+   cd ~/zumibot-docker && docker compose exec zumibot-local claude
+   ```
+
+   With `--domain`, use `docker compose exec zumibot claude`. The container has no browser, so open the sign-in link it prints on any device, then paste the code you get back into the terminal. Type `/exit` when you are signed in. The sign-in is kept across restarts and updates. If the setup page's last step said no login was found, choose **Check again**.
+
+6. **Update it later.**
+
+   Run the installer again:
+
+   ```bash
+   sh ~/zumibot-docker/docker/install.sh
+   ```
+
+   It downloads the latest release, checks its signature and keeps your settings. It does not update while a reply is running. Wait for the reply to finish and run it again, or add `--force` to interrupt it. It pulls the new image before it stops anything, so a failed download leaves ZumiBot running. The app does not update a Docker install itself: **Settings**, **About** reads "Updates are not available in a container install: run the Docker installer again".
+
+   Each update keeps the previous version in `~/zumibot-docker.prev`. If the new one misbehaves, go back with the line the installer printed:
+
+   ```bash
+   mv ~/zumibot-docker ~/zumibot-docker.failed && mv ~/zumibot-docker.prev ~/zumibot-docker && cd ~/zumibot-docker && docker compose up -d
+   ```
+
+   Your chats live in Docker volumes, not in that folder, so updating and going back leave them alone.
+
+</Steps>
+
+**On a Mac**
+
+- Set Docker Desktop, OrbStack or Colima to start when you log in. ZumiBot's containers start again by themselves once Docker is running.
+- A Mac that sleeps cannot answer you. Keep it on power, and in System Settings, under Battery, Options, turn on "Prevent automatic sleeping on power adapter when the display is off". Or leave `caffeinate -s` running in a Terminal window. Closing a MacBook's lid usually puts it to sleep, so leave the lid open.
+- Keep the Tailscale app running and signed in. If your terminal does not find the `tailscale` command, [Tailscale's guide to its command line](https://tailscale.com/kb/1080/cli) shows where it is on a Mac.
+
+</TabItem>
+</Tabs>
+
+## The HTTPS proxy
+
+This section is for the native install. The Docker install brings its own HTTPS, so skip it.
+
+Use Caddy if you have no proxy yet: it gets its own certificates. Use nginx if it is already running on the host. Either way, open ports 80 and 443 first. If you use `ufw`, allow SSH before you turn it on:
+
+```bash
+sudo ufw allow OpenSSH && sudo ufw allow 80 && sudo ufw allow 443 && sudo ufw enable
+```
+
+<Tabs>
+  <TabItem label="Caddy">
+    Install Caddy from its [official apt repository](https://caddyserver.com/docs/install#debian-ubuntu-raspbian). Then add ZumiBot as its own file, so any sites you already have stay as they are:
+
+    ```bash
+    sudo cp ~/zumibot/proxy/Caddyfile /etc/caddy/zumibot.caddy
+    grep -qx 'import zumibot.caddy' /etc/caddy/Caddyfile || printf '\nimport zumibot.caddy\n' | sudo tee -a /etc/caddy/Caddyfile
+    sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
+    ```
+  </TabItem>
+  <TabItem label="nginx">
+    Copy the config in, test it, and let certbot add the certificate:
+
+    ```bash
+    sudo cp ~/zumibot/proxy/nginx-zumibot.conf /etc/nginx/sites-available/zumibot
+    sudo ln -s /etc/nginx/sites-available/zumibot /etc/nginx/sites-enabled/
+    sudo nginx -t && sudo systemctl reload nginx
+    sudo apt-get install -y certbot python3-certbot-nginx
+    sudo certbot --nginx --redirect -d zumibot.example.com
+    ```
+  </TabItem>
+</Tabs>
+
+If you use another proxy, it must serve HTTPS and pass WebSocket connections through to `127.0.0.1:4317`.
+
+## Tips and limits
+
+- There is no plain-HTTP mode. ZumiBot signs you in with a secure cookie, so it needs HTTPS.
+- The setup code lives only in the running server's memory. If the server restarts before you finish, it prints a new code and the old one stops working.
+- If you reach a server from the desktop app, type the same `https://` address on its first screen.
+- With the native install, agents run as the user that installed ZumiBot. Keep the projects they work on in that user's account.
+- With Docker, agents run inside the container. They work with the container's files, not the host's, and a file they write outside its volumes is gone after an update.
+- The Docker image leaves out computer use and agent browsers. The app says what is missing where you would use them, and chats work as usual.
+- With Docker, back up the `zumibot_data`, `zumibot_claude` and `zumibot_vault` volumes. Keep the vault copy apart from the others: it holds the key to your [vault](/safety/vault/). `docker compose down -v` deletes every volume, your chats and the vault key included.
+- With Docker, [admin commands](/server/admin-commands/) run in the container. From `~/zumibot-docker`, for example: `docker compose exec zumibot-local zumibot-server set-password`.
+- To change a Docker install's Tailscale address later, edit `ZUMIBOT_LOCAL_ORIGIN` in `~/zumibot-docker/.env`, then run `docker compose up -d` in that folder.
+
+## Related
+
+- [What you need](/get-started/what-you-need/)
+- [First-run setup](/get-started/first-run-setup/)
+- [Install the desktop app](/get-started/install-desktop/)
+- [Use it on your phone](/get-started/phone/)
+- [Update your server](/server/updates/)
+- [Data folder and backups](/server/data-and-backups/)
+- [Admin commands](/server/admin-commands/)
+- [Troubleshooting](/server/troubleshooting/)

@@ -1,0 +1,844 @@
+/* Agent Studio: editor bar, cards, choices, icon and color, tools, ACP, commands, the prompt editor. */
+
+/* ---- agent editor ---- */
+
+.editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  container: editor / inline-size;
+}
+.editor .glyph {
+  width: 15px;
+  height: 15px;
+}
+
+.editor-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.editor-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--bg-raised);
+}
+/* A small flex basis lets the title shrink (with an ellipsis) before the actions wrap to a second row. */
+.editor-heading {
+  flex: 1 1 160px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.editor-crumb {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.editor-title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.status-pill {
+  --pill: var(--fg-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px;
+  border: 1px solid color-mix(in srgb, var(--pill) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pill) 12%, transparent);
+  color: var(--pill);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.status-pill::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.status-pill.saved {
+  --pill: var(--success);
+}
+.status-pill.unsaved {
+  --pill: var(--warning);
+}
+
+.editor-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.bar-sep {
+  width: 1px;
+  height: 22px;
+  margin: 0 2px;
+  background: var(--border);
+}
+
+.seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.seg button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 11px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--fg-muted);
+  font-weight: 500;
+  cursor: pointer;
+}
+.seg button:hover:not(:disabled):not([aria-pressed='true']):not([aria-selected='true']) {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.seg button[aria-pressed='true'],
+.seg button[aria-selected='true'] {
+  background: var(--sel-bg);
+  color: var(--sel-fg);
+  box-shadow: inset 0 0 0 1px var(--sel-border);
+  font-weight: 600;
+}
+.seg button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.seg button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.editor .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+.editor-bar .btn {
+  height: 32px;
+  padding: 0 12px;
+}
+.editor .btn.small {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+.editor .btn.small .glyph {
+  width: 13px;
+  height: 13px;
+}
+.btn.ghost {
+  border-color: transparent;
+  background: none;
+  color: var(--fg-muted);
+}
+.btn.ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+/* More (⋯): an icon button the height of the bar's others. */
+.editor-bar .btn.editor-more {
+  width: 32px;
+  padding: 0;
+  justify-content: center;
+}
+.editor-bar .btn.primary {
+  font-weight: 600;
+}
+/* Narrow editor: Revert drops to an icon (the label stays for screen readers) so the actions fit one row. */
+@container editor (max-width: 700px) {
+  .bar-sep {
+    display: none;
+  }
+  .editor-bar .btn.ghost {
+    width: 32px;
+    padding: 0;
+    justify-content: center;
+  }
+  .editor-bar .btn.ghost .btn-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+}
+
+.editor-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 20px;
+  background: var(--bg-raised);
+  color: var(--warning);
+  border-bottom: 1px solid var(--warning);
+}
+.editor-errors {
+  padding: 6px 20px;
+  background: var(--error-bg);
+  color: var(--error);
+  border-bottom: 1px solid var(--error);
+}
+
+/* Memory, approvals and the browser row scroll with the form; pinned under it, they squeezed it to nothing. */
+.editor-scroll {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+/* One column of cards; once there is room, the prompt moves into a second column as tall as the first. */
+.editor-body {
+  flex: none;
+  padding: 24px;
+  container: editor-body / inline-size;
+}
+.editor-grid {
+  display: grid;
+  gap: 20px;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+.editor-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+@container editor-body (min-width: 780px) {
+  .editor-grid {
+    grid-template-columns: minmax(330px, 380px) minmax(0, 1fr);
+  }
+  /* No height of its own (contain: size), so the row takes the left column's height and the card stretches to it. */
+  .prompt-card {
+    contain: size;
+    min-height: 520px;
+  }
+  .prompt-card .code-box {
+    flex: 1 1 0;
+  }
+  .prompt-card .code-scroll {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+}
+
+.card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px 20px 20px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg-raised);
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.card-head > .glyph {
+  width: 17px;
+  height: 17px;
+  color: var(--fg-muted);
+}
+.card-title {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 650;
+}
+.card-meta {
+  margin-left: auto;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.card-actions {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.lbl {
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.lbl-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.lbl-value {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.mono {
+  font-family: var(--font-mono);
+}
+
+.editor-body .field {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 9px;
+  line-height: 1.5;
+}
+.editor-body .field.mono {
+  font-size: 14px;
+}
+.editor-body textarea.field {
+  resize: vertical;
+}
+.hint {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+}
+.hint .glyph {
+  width: 12px;
+  height: 12px;
+}
+.field-error {
+  color: var(--error);
+  font-size: 12px;
+}
+.field[aria-invalid='true'] {
+  border-color: var(--error);
+}
+
+.choices {
+  display: grid;
+  gap: 8px;
+}
+.choices.models {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.choices.compact-sizes {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.card-note {
+  margin: 8px 0 0;
+  color: var(--fg-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+/* Agent Studio's ACP card (AcpCard.tsx). */
+.acp-keys {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.acp-key {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.acp-key-name {
+  color: var(--fg-muted);
+}
+.acp-compare {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--warning);
+  border-radius: 9px;
+  font-size: 12.5px;
+}
+.acp-compare p {
+  margin: 0 0 6px;
+  color: var(--warning);
+}
+.acp-compare dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 10px;
+}
+.acp-compare dt {
+  color: var(--fg-muted);
+}
+.acp-compare dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+/* Over the Raw view's textarea, in its margins. */
+.acp-compare.raw-compare {
+  flex: none;
+  margin: 24px 24px 0;
+}
+.acp-test {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.acp-result {
+  margin: 10px 0 0;
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+}
+.acp-result > div {
+  display: grid;
+  grid-template-columns: 9em minmax(0, 1fr);
+  gap: 10px;
+}
+.acp-result dt {
+  color: var(--fg-muted);
+}
+.acp-result dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.choices.shapes {
+  grid-template-columns: repeat(5, minmax(0, 1fr)); /* 20 shapes: four full rows */
+}
+.choices.tool-modes {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.choice {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 54px;
+  padding: 8px 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--fg-muted);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  cursor: pointer;
+}
+.choice:hover:not(:disabled):not([aria-pressed='true']) {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.choice[aria-pressed='true'] {
+  border-color: var(--sel-border);
+  background: var(--sel-bg);
+  color: var(--fg);
+  font-weight: 600;
+}
+.choice:disabled {
+  cursor: default;
+}
+.choice.wide {
+  grid-column: 1 / -1;
+  min-height: 40px;
+}
+.choice.inline {
+  flex-direction: row;
+  gap: 8px;
+  min-height: 42px;
+}
+.choice-sub {
+  color: var(--fg-muted);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+.choice[aria-pressed='true'] .choice-sub {
+  color: var(--fg);
+}
+.choices.shapes .choice {
+  min-height: 44px;
+  padding: 6px;
+}
+.choice:focus-visible,
+.swatch:focus-visible,
+.state-badge:focus-visible,
+.opt:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.avatar-preview {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+}
+.avatar-tile {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-raised);
+}
+.state-badge {
+  position: absolute;
+  top: -10px;
+  right: -16px;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 999px;
+  background: var(--bg-selected);
+  color: var(--fg-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.state-badge[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.avatar-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.avatar-name {
+  font-size: 13.5px;
+  font-weight: 650;
+}
+.avatar-desc {
+  color: var(--fg-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 3px;
+}
+.swatch {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.swatch[aria-pressed='true'] {
+  outline: 2px solid var(--fg);
+  outline-offset: 3px;
+}
+
+.opts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-raised);
+  font-size: 12px;
+  cursor: pointer;
+}
+.tool-tag {
+  cursor: default;
+  padding-right: 2px;
+  font-family: var(--font-mono);
+}
+.tool-tag .icon-btn {
+  padding: 0 5px;
+}
+
+.tools-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 6px 12px;
+}
+.tool-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+}
+.tool-check input {
+  accent-color: var(--accent);
+}
+.tools-add {
+  display: flex;
+  gap: 6px;
+}
+.tools-add .field {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+/* Commands card: one bordered row per command, a dashed add button under the list. */
+.command-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.command-row {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.command-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.command-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.command-slash {
+  flex: none;
+  color: var(--fg-muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+.command-name .field {
+  min-width: 0;
+  font-weight: 600;
+}
+.command-remove {
+  flex: none;
+}
+.command-row .field {
+  background: var(--bg-raised);
+}
+.command-prompt {
+  min-height: 72px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+.command-add {
+  padding: 8px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: none;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.command-add:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.command-add:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.command-row .field-error {
+  padding: 0 2px;
+}
+
+/* The prompt editor: a window-like box with line numbers. The textarea lies over .code-lines, a copy of its text
+   drawn transparent, and grows with it, so .code-scroll scrolls both together. */
+.prompt-card .card-head {
+  flex-wrap: wrap;
+}
+.code-box {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.code-box:focus-within {
+  border-color: var(--ring);
+}
+.code-titlebar,
+.code-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.code-titlebar {
+  height: 38px;
+  border-bottom: 1px solid var(--border);
+}
+.code-foot {
+  height: 34px;
+  gap: 16px;
+  border-top: 1px solid var(--border);
+}
+.code-foot b {
+  color: var(--fg);
+  font-weight: 600;
+}
+.code-file {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--fg);
+}
+
+.code-scroll {
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.code-content {
+  position: relative;
+  flex: 1 0 auto;
+}
+.code-content::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--gutter);
+  border-right: 1px solid var(--border);
+  background: var(--bg-sidebar);
+}
+.code-lines {
+  position: relative;
+  padding: 12px 0;
+  pointer-events: none;
+  user-select: none;
+}
+.code-line {
+  display: grid;
+  grid-template-columns: var(--gutter) minmax(0, 1fr);
+}
+.code-no {
+  padding-right: 12px;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 21px;
+  text-align: right;
+  opacity: 0.7;
+}
+.code-text,
+.code-input {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 21px;
+  tab-size: 2;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+.code-text {
+  padding: 0 16px;
+  color: transparent;
+}
+.code-input {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: var(--gutter);
+  width: auto;
+  margin: 0;
+  padding: 12px 16px;
+  border: none;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  background: none;
+  color: var(--fg);
+}
+
+.raw-editor {
+  /* At least the visible height (less its margins); the sections under it follow on scroll. */
+  flex: 1 0 calc(100% - 48px);
+  margin: 24px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  resize: none;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  tab-size: 2;
+}

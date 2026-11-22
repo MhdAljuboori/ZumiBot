@@ -1,0 +1,499 @@
+/* A chat's thread: bubbles, an agent's turn, message actions, edit, versions, reactions, reply quotes. */
+
+/* ---- chat ---- */
+
+.chat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The conversation is a centered column (max 960px) inside the scroller, so the scrollbar stays at the window edge. */
+/* No browser scroll anchoring: the list keeps the reader's place itself when older items go in above (see MessageList). */
+.messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 24px;
+  overflow-anchor: none;
+}
+.messages-inner {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+/* A chat opening: its first page is on its way. */
+.chat-loading {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+/* An older page on its way: pinned to the top of the visible list, with no height, so nothing moves while it shows. */
+.older-loading {
+  position: sticky;
+  top: 6px;
+  z-index: 1;
+  height: 0;
+  display: flex;
+  justify-content: center;
+}
+.older-loading-chip {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-raised);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+}
+
+/* An empty chat: the agent's icon, name and description, centered in the pane. */
+.chat-intro {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+}
+.chat-intro-name {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 30px;
+}
+.chat-intro-desc {
+  max-width: 560px;
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: 14px;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+}
+
+/* User bubbles stop at 560px like chat lines. An agent's reply is often a report with headings and lists:
+   720px at 15px keeps about 90 characters a line, so it reads in fewer wrapped lines without getting too long.
+   The reply's 100% matters where it is sized to its content (streaming, or under its buttons on a touch screen): a code
+   block's longest line counts in that size, and only the cap keeps the bubble in the column so the block scrolls instead. */
+.bubble {
+  max-width: 560px;
+  padding: 7px 12px;
+  border-radius: 16px;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+}
+.bubble.user {
+  align-self: flex-end;
+  background: var(--user-bubble);
+  color: var(--user-bubble-fg);
+  white-space: pre-wrap;
+  border-radius: 18px;
+}
+/* A reply takes the color theme's wash, whoever the agent is: a soft fill, not a solid one, since replies carry long
+   markdown, code and tables that must stay readable. The agent's own color stays on its avatar and name. */
+.bubble.assistant {
+  align-self: flex-start;
+  max-width: min(720px, 100%);
+  padding: 9px 12px;
+  background: var(--reply-bubble);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  font-size: 15px;
+  line-height: 24px;
+}
+
+.agent-turn {
+  display: flex;
+  align-items: flex-end;
+  gap: 9px;
+}
+.agent-turn-avatar {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+.agent-turn-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+/* Lines up with the text inside the bubbles; colored inline with the agent's color. */
+.agent-turn-name {
+  padding-left: 12px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--fg-muted);
+}
+.memory-line {
+  padding-left: 12px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--fg-muted);
+}
+.todo-line {
+  padding-left: 12px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--fg-muted);
+}
+/* Inside the reply's bubble: a quiet footer under the text. */
+.todo-line.inside {
+  padding: 8px 0 0;
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.todo-chip {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent, inherit);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.todo-chip:hover {
+  text-decoration: underline;
+}
+.memory-view {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent, inherit);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.bubble.error {
+  align-self: flex-start;
+  background: var(--error-bg);
+  border: 1px solid var(--error);
+  color: var(--error);
+  white-space: pre-wrap;
+}
+
+/* A user message that never reached the chat: dimmed, with a red warning beside it that says why on hover. */
+.user-send {
+  align-self: flex-end;
+  max-width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.user-send-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 16px;
+  opacity: 0.55;
+}
+.send-failed {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--error);
+  cursor: help;
+}
+.send-failed svg {
+  width: 18px;
+  height: 18px;
+}
+.send-failed .mark {
+  stroke: var(--bg);
+}
+.send-failed .mark-dot {
+  fill: var(--bg);
+}
+
+/* A finished agent message: its bubble with the react, reply and copy buttons beside it (shown on hover), its reactions below. */
+.msg {
+  align-self: stretch;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.msg-row {
+  max-width: 100%;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+.msg-row > .bubble {
+  min-width: 0;
+}
+.msg-actions {
+  flex: none;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.msg:hover .msg-actions,
+.user-msg:hover .msg-actions,
+.msg-actions:focus-within,
+.msg-actions.open {
+  opacity: 1;
+}
+.msg-action {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.msg-action svg {
+  width: 16px;
+  height: 16px;
+}
+.msg-action:hover,
+.msg-actions.open .msg-action[aria-expanded='true'] {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.msg-action:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.msg-action:disabled {
+  opacity: 0.4;
+  cursor: default;
+  background: none;
+  color: var(--fg-muted);
+}
+
+/* A user message in the chat: its buttons to the left of the bubble (shown on hover), its versions underneath. */
+.user-msg {
+  align-self: flex-end;
+  max-width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.user-msg-row {
+  max-width: 100%;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+.user-msg-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 16px;
+}
+/* Everything after the message being edited: it moves to the old version on Send. */
+.dimmed {
+  opacity: 0.4;
+}
+/* The bubble as a box: the width of a long bubble, growing to the composer's height cap, then scrolling. */
+.msg-edit {
+  width: 560px;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border: 1px solid var(--ring);
+  border-radius: 16px;
+  background: var(--bg);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 25%, transparent);
+}
+/* The composer's editor (.composer-input inside), without its min height and padding. */
+.msg-edit-input {
+  max-height: max(200px, 40vh);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.msg-edit-text {
+  min-height: 22px;
+  padding: 0;
+}
+.msg-edit-btns {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 6px;
+}
+.msg-edit .dictation-btn {
+  margin-right: auto;
+}
+.msg-edit .dictation-strip {
+  margin: 6px 0 0;
+}
+.msg-edit .attach-error {
+  padding: 6px 0 0;
+}
+/* Always visible once a message has more than one version, touch screens included. */
+.versions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.version-arrow {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.version-arrow:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.version-arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.version-arrow:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.version-label {
+  min-width: 34px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.reaction-menu {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+}
+.reaction-menu button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+/* Centred over the selection (left is its centre), in a row of icon-and-label buttons. */
+.selection-menu {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  transform: translateX(-50%);
+}
+.selection-menu button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  white-space: nowrap;
+}
+.selection-menu svg {
+  width: 14px;
+  height: 14px;
+  color: var(--fg-muted);
+}
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-left: 4px;
+}
+/* The agent's icon stays beside the last bubble, not the reactions under it (one row of chips and the gap above it). */
+.agent-turn:has(> .agent-turn-body > .msg:last-child .reactions) .agent-turn-avatar {
+  margin-bottom: 28px;
+}
+.reaction {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--link) 45%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--link) 12%, transparent);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.reaction:hover {
+  border-color: var(--link);
+}
+.reaction:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+/* The agent message a user message replies to, above that message; colored with the agent's color. */
+.reply-quote {
+  --quote: var(--fg-muted);
+  align-self: flex-end;
+  max-width: 420px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: -10px;
+  padding: 5px 10px;
+  border: none;
+  border-left: 3px solid var(--quote);
+  border-radius: 4px 10px 10px 4px;
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 18px;
+  text-align: left;
+  cursor: pointer;
+}
+.reply-quote:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.reply-quote:disabled {
+  cursor: default;
+}
+.reply-quote:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.reply-quote-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--quote);
+  font-weight: 600;
+}
+.reply-quote-name svg,
+.reply-strip > svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+.reply-quote-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}

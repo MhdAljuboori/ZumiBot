@@ -1,0 +1,26 @@
+/* The Unarchive button. */
+
+.archived-unarchive {
+  flex: none;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-raised);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.archived-unarchive:hover {
+  background: var(--bg-hover);
+}
+.archived-unarchive:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+@media (hover: none) {
+  .row.archived-row {
+    padding-right: 40px;
+  }
+}

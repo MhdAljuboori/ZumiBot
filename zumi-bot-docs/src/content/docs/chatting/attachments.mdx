@@ -1,0 +1,60 @@
+---
+title: Attachments
+description: Attach pictures and files to a message by pasting, dropping or choosing them, and see what the agent gets.
+sidebar:
+  order: 2
+---
+
+import Shot from '../../../components/Shot.astro'
+import { Steps } from '@astrojs/starlight/components'
+
+You can send files along with a message: a screenshot of a bug, a log, a document. The agent sees pictures directly and can read the other files.
+
+<Shot name="chatting-attachments" alt="The message box of an open chat. Above it, a picture thumbnail and a chip for error-log.txt, 3 KB, each with a small ✕. The box holds 'Why does checkout fail? The screenshot and the log are attached.'" />
+
+## Attach files
+
+Use whichever way is closest to hand.
+
+<Steps>
+
+1. **Choose the paperclip.** The button reads "Attach files" and sits at the left of the message box. Pick one or more files in the window that opens.
+
+2. **Or drop files on the chat.** Drag them from your file manager and drop them anywhere on the chat. A "Drop files to attach" panel shows while they are over it.
+
+3. **Or paste.** Press Ctrl+V (Cmd+V on a Mac) with a copied picture or file. A pasted picture is named after the date and time, for example `pasted-20261120-143005.png`.
+
+4. **Write your message and send.** You can send files with no text at all.
+
+</Steps>
+
+Each file shows above the box while it uploads and waits for you. Pictures show as thumbnails. Other files show as a chip with the name and the size. Sending is held until every file has finished uploading.
+
+To take a file off before you send, choose the ✕ on it.
+
+## Look at a file
+
+Choose a thumbnail or a chip, before or after you send, to open it in the viewer. Pictures show fitted to the window, and a click shows a large one at full size. Text files show as plain text. Use the left and right arrows to step through the message's files, and press Esc or choose ✕ to close.
+
+In the viewer, **Download** saves a copy. A file you already sent also offers **Open in default app** in the desktop app, or **Open in new tab** in a browser.
+
+## What the agent gets
+
+- **Pictures** in PNG, JPEG, GIF or WebP, up to about 3.75 MB and 8000 pixels on a side, go to the agent as pictures it can look at.
+- **Everything else** is a file. The agent is told its name and where it is, and reads it the way it reads any file in its work.
+
+Sent files show above your message in the chat. ZumiBot keeps its own copy with the chat, on the computer or server that runs ZumiBot, so the file still opens if you move or delete the original.
+
+## Tips and limits
+
+- You can attach up to 10 files to one message. Each can be up to 25 MB. Past that, ZumiBot shows "You can attach up to 10 files per message." or "(file name) is over 25 MB", and leaves the rest as they were.
+- Folders cannot be attached. Zip a folder first.
+- A message sent while the agent is still working waits in the Tasks list with its files. A paperclip and a number on the row tell you how many.
+- If a file cannot be read, ZumiBot says "(file name) couldn't be read". Attach it again.
+- If a picture cannot be loaded, its thumbnail reads "File missing". If a file you staged is gone before you send, ZumiBot says "An attached file is gone. Attach it again."
+
+## Related
+
+- [Chats and the message box](/chatting/chats-and-composer/)
+- [Slash commands](/chatting/slash-commands/)
+- [Edit, Resend and Fork](/chatting/edit-resend-fork/)

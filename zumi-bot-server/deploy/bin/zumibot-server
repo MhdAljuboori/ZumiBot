@@ -1,0 +1,5 @@
+#!/bin/sh
+# Pin the data dir so the systemd unit and `busy` over SSH share one control socket.
+: "${ZUMIBOT_DATA_DIR:=$HOME/.local/share/zumibot}"
+export ZUMIBOT_DATA_DIR
+exec node "$(dirname "$0")/../app/server.mjs" "$@"

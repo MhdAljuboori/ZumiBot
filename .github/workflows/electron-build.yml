@@ -1,0 +1,202 @@
+# Builds unsigned desktop installers on GitHub-hosted runners and keeps them as Actions artifacts for 1 day. On a
+# version tag, the `publish` job also attaches them to that tag's release (release.yml creates it) and rebuilds the
+# showcase site, which offers them for download. How to run it, sign and keep within the free minutes:
+# docs/ELECTRON_CLOUD_BUILD.md.
+name: Electron Cloud Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: Which installers to build (free on a public repo; a private one bills Windows minutes 2x, macOS 10x)
+        type: choice
+        default: all
+        options: [all, linux, windows, macos]
+  # Never on plain commits: only a version tag, the same one release.yml publishes the server from.
+  push:
+    tags: ['v*']
+
+# Reading the code is all a build needs. Only `publish` asks for more (it writes to the existing release), and it runs
+# no npm code.
+permissions:
+  contents: read
+
+# A second run for the same ref replaces the first instead of paying for both.
+concurrency:
+  group: electron-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux, windows, macos]
+        # A manual run for one platform drops the others before any runner starts, so they cost nothing.
+        # A tag push has no inputs, so it builds all three.
+        exclude:
+          - platform: ${{ contains(fromJSON('["all","linux"]'), inputs.platforms || 'all') && 'none' || 'linux' }}
+          - platform: ${{ contains(fromJSON('["all","windows"]'), inputs.platforms || 'all') && 'none' || 'windows' }}
+          - platform: ${{ contains(fromJSON('["all","macos"]'), inputs.platforms || 'all') && 'none' || 'macos' }}
+    # macos-15 is Apple silicon; it builds the x64 DMG as well (no native modules to compile).
+    runs-on: ${{ matrix.platform == 'linux' && 'ubuntu-24.04' || matrix.platform == 'windows' && 'windows-2025' || 'macos-15' }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      # electron-builder downloads Electron itself; the npm package's own download is only for `electron-vite dev`.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      # Pinned by commit, like every dependency in this repo (actions/checkout v5.1.0).
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      # actions/setup-node v5.0.0, caching ~/.npm keyed on package-lock.json.
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Cache paths
+        id: paths
+        run: |
+          echo "electron=$RUNNER_TEMP/electron-cache" >> "$GITHUB_OUTPUT"
+          echo "builder=$RUNNER_TEMP/electron-builder-cache" >> "$GITHUB_OUTPUT"
+
+      # Electron zips and electron-builder's tools (NSIS, fpm, appimagetool, dmgbuild), so reruns skip the downloads.
+      # actions/cache v6.1.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ${{ steps.paths.outputs.electron }}
+            ${{ steps.paths.outputs.builder }}
+          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: electron-${{ runner.os }}-
+
+      - name: Check the tag matches the package version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(node -p "require('./zumi-bot-desktop/package.json').version")"
+          if [ "$tag" != "$version" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match version $version. Use npm run bump:* and commit before tagging." >&2
+            exit 1
+          fi
+
+      # --ignore-scripts as in release.yml: no dependency needs an install script (no native modules), and Electron's
+      # binary comes from electron-builder's cache instead.
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      # Frontend (vite), backend bundle, then the shell's main + preload (electron-vite): the same `npm run build` as
+      # a local machine.
+      - run: npm run build
+
+      - name: Package
+        working-directory: zumi-bot-desktop
+        env:
+          ELECTRON_CACHE: ${{ steps.paths.outputs.electron }}
+          ELECTRON_BUILDER_CACHE: ${{ steps.paths.outputs.builder }}
+        run: |
+          case "${{ matrix.platform }}" in
+            linux) targets="--linux deb AppImage --x64" ;;
+            windows) targets="--win nsis --x64" ;;
+            # Ad-hoc signed (identity -): with no signature at all, an Apple silicon Mac calls the app damaged and
+            # never opens it. Drop -c.mac.identity=- once a Developer ID certificate is set (docs/ELECTRON_CLOUD_BUILD.md).
+            macos) targets="--mac dmg --arm64 --x64 -c.mac.identity=-" ;;
+          esac
+          # --publish never: on a tag electron-builder would otherwise try to upload to GitHub Releases.
+          npx --no-install electron-builder $targets --publish never
+
+      # The bundle must carry a whole, valid signature (an edit after signing breaks it, and Gatekeeper then says
+      # damaged), and the Apple silicon build must start under the hardened runtime: Electron run as Node, the way
+      # Local mode starts its server, loading the bundled server's code.
+      - name: Check the Mac apps
+        if: matrix.platform == 'macos'
+        working-directory: zumi-bot-desktop
+        run: |
+          for app in dist/mac/ZumiBot.app dist/mac-arm64/ZumiBot.app; do
+            codesign --verify --deep --strict --verbose=2 "$app"
+            # Captured first: under pipefail, grep -q closing the pipe early could fail codesign with SIGPIPE.
+            entitlements="$(codesign -d --entitlements - "$app" 2>&1)"
+            grep -q com.apple.security.cs.allow-jit <<< "$entitlements"
+            plutil -extract NSMicrophoneUsageDescription raw "$app/Contents/Info.plist"
+          done
+          ELECTRON_RUN_AS_NODE=1 dist/mac-arm64/ZumiBot.app/Contents/MacOS/ZumiBot -e \
+            "require('node:fs').accessSync(process.argv[1]); console.log('runs', process.versions.electron, process.arch)" \
+            dist/mac-arm64/ZumiBot.app/Contents/Resources/server/server.mjs
+
+      - name: Version
+        id: version
+        run: echo "value=$(node -p "require('./zumi-bot-desktop/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # actions/upload-artifact v7.0.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: ZumiBot-${{ steps.version.outputs.value }}-${{ matrix.platform }}
+          path: |
+            zumi-bot-desktop/dist/*.deb
+            zumi-bot-desktop/dist/*.AppImage
+            zumi-bot-desktop/dist/*.exe
+            zumi-bot-desktop/dist/*.dmg
+          if-no-files-found: error
+          # One day: `publish` copies them to the release right away, and longer runs hit the artifact storage quota
+          # (a full run is about 1 GB), which fails every upload.
+          retention-days: 1
+          # Installers are already compressed; zipping them again only costs time.
+          compression-level: 0
+
+  publish:
+    name: Attach to the release
+    needs: build
+    # Tag runs only. !cancelled() rather than success(): one platform failing still publishes the ones that built, and
+    # the site offers only what it finds.
+    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write # upload to the release release.yml creates; this run's own artifacts need no extra permission
+    steps:
+      # actions/download-artifact v8.0.2, as in release.yml. Every platform's installers land in one folder.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          pattern: ZumiBot-*
+          merge-multiple: true
+          path: installers
+
+      # The site checks every installer against this file before it serves it. Written after the installers, and
+      # uploaded last, so a site build that lands mid-upload sees no list rather than a list of missing files.
+      - name: Checksums
+        run: |
+          ls installers/* > /dev/null
+          (cd installers && sha256sum -- *) > SHA256SUMS-desktop
+          cat SHA256SUMS-desktop
+
+      # release.yml creates the release from the same tag and usually wins the race (it builds no installers); wait
+      # for it rather than create one here, so the server tarball's release stays the only release.
+      - name: Upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 60); do
+            gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1 && break
+            if [ "$i" = 60 ]; then
+              echo "No release for $GITHUB_REF_NAME after 20 minutes; did release.yml fail?" >&2
+              exit 1
+            fi
+            sleep 20
+          done
+          gh release upload "$GITHUB_REF_NAME" installers/* --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload "$GITHUB_REF_NAME" SHA256SUMS-desktop --repo "$GITHUB_REPOSITORY" --clobber
+
+      # The release.yml rebuild ran before these were attached; this one puts them on the page. Skipped when the
+      # secret is not set. The hook is only in this step's env.
+      - name: Rebuild the showcase site
+        env:
+          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$VERCEL_DEPLOY_HOOK" ]; then
+            echo "VERCEL_DEPLOY_HOOK is not set; skipping the site rebuild."
+            exit 0
+          fi
+          curl -fsS -X POST "$VERCEL_DEPLOY_HOOK"

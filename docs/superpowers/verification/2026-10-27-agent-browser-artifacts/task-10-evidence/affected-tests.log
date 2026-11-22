@@ -1,0 +1,9 @@
+
+ RUN  v5.0.5 /home/mhdaljuboori/Developments/AI/ZumiBot
+
+
+ Test Files  4 passed (4)
+      Tests  170 passed (170)
+   Start at  09:19:37
+   Duration  5.88s (tests 93%, import 3%, transform 3%)
+

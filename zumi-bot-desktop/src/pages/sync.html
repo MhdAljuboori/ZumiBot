@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sync ZumiBot</title>
+    <link rel="stylesheet" href="./picker.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Sync this PC and VPS</h1>
+      <p id="target" class="hint"></p>
+      <p>Merge chats and Claude data in both directions, with backups. The VPS will restart. Wait for active replies to finish first.</p>
+      <p id="status" role="status">Ready to sync.</p>
+      <pre id="log" aria-label="Sync log" tabindex="0"></pre>
+      <div class="row">
+        <button id="start" type="button">Sync now</button>
+        <button id="configure" type="button" class="secondary">Choose deploy.env…</button>
+        <button id="close" type="button" class="secondary">Close</button>
+      </div>
+    </main>
+    <script src="./sync.js" defer></script>
+  </body>
+</html>

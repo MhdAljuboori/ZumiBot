@@ -1,0 +1,92 @@
+---
+title: Chats and the message box
+description: How a chat looks, how to write and send messages, and what the buttons around the message box do.
+sidebar:
+  order: 1
+---
+
+import Shot from '../../../components/Shot.astro'
+import { Steps } from '@astrojs/starlight/components'
+
+A chat is a conversation with one agent in one folder. The message box at the bottom is where you write to it, and the row under the box holds the settings for the next message.
+
+If you have not started a chat yet, begin with [Your first chat](/get-started/first-chat/).
+
+<Shot name="chatting-composer" alt="An open chat with the Code Reviewer agent. Your message is on the right and the agent's reply is on the left, with a list and a code block. Under the thread is the message box with 'Yes, add that test' typed in it, and a row with the agent, model, mode, effort and folder." />
+
+## Find and open a chat
+
+Your chats sit under their agent in the left column. Choose the arrow beside an agent to show or hide its chats, and choose a chat to open it. A new chat is named after your first message.
+
+## Write and send a message
+
+<Steps>
+
+1. **Click the message box.** It reads "Message" followed by the agent's name.
+
+2. **Type your message.** Press Enter to send. Press Shift+Enter for a new line. On a phone, Enter starts a new line and the round send button sends.
+
+3. **Watch the reply.** It streams in under your message. Each tool the agent uses shows as a small card, and cards that need you wait for your answer. See [Approvals, questions and plans](/chatting/approvals-questions-plans/).
+
+</Steps>
+
+The box shows formatting as you type. Start a line with `- ` for a bullet list, `1. ` for a numbered list, or `> ` for a quote. Put text between single backticks to make it code. Text you paste in keeps its line breaks and indentation.
+
+Press the Up arrow on the first line of an empty box to bring back the messages you sent before in this chat. Press Down to walk forward again.
+
+## The agent says what it's about to do
+
+Every message you send starts with one short line from the agent saying what it's doing now, such as "Checking all channels and building your day right now." When the message asks for to-dos, the line also says it will add tasks to your board. The line shows a few seconds after you send, above the agent's reply. ZumiBot writes it with a quick, small model call, so it adds a little to the chat's cost. Routines, workflows and messages between agents don't get one, and neither do group rooms.
+
+## Reply to one message
+
+To answer a specific agent message, hover over it and choose **Reply**. A card above the box reads "Replying to" and the agent's name, and the next message goes out as a reply to that message. Choose the ✕ on the card, or press Esc, to cancel.
+
+To quote part of a reply, select the text and choose **Quote**. It lands in your message box as a quote, ready for you to write under it. **Explain** sends the selected text with a request to explain it.
+
+## Send while the agent is working
+
+You do not have to wait for a reply to end. A message you send while the agent works joins a **Tasks** list above the box. Each one goes in on its own, in order, once the run before it ends. Choose the ✕ on a row to remove a message from the list before it is sent.
+
+Choose the red Stop button to end the reply that is running.
+
+## The row under the box
+
+The row under the message box shows what the next message will use:
+
+- The agent and the folder. They are fixed for the chat, so start a new chat to change them.
+- The model, the mode and the effort. You can change these any time. See [Mode, effort and model](/chatting/mode-effort-model/).
+- A context meter and the cost so far, at the right end.
+
+In a narrow window or on a phone, the model, mode and effort share one chip, and the folder shows as an icon.
+
+## Tips and limits
+
+- If the box is grayed out, look at the banner at the top of the screen. "Claude CLI not found." means Claude Code is missing or not on the path. See [What you need](/get-started/what-you-need/).
+- If the connection to the server drops, the send button is held and its tooltip reads "Reconnecting…". It works again once the connection is back.
+- Press Enter on a phone's keyboard to start a new line. Use the round button to send.
+- Attach files by dropping them on the chat or choosing the paperclip. See [Attachments](/chatting/attachments/).
+- Type `/` at the start of the box to see commands. See [Slash commands](/chatting/slash-commands/).
+
+## Related
+
+- [Your first chat](/get-started/first-chat/)
+- [Attachments](/chatting/attachments/)
+- [Dictation](/voice/dictation/)
+- [Approvals, questions and plans](/chatting/approvals-questions-plans/)
+- [Mode, effort and model](/chatting/mode-effort-model/)
+- [Slash commands](/chatting/slash-commands/)
+- [/btw side questions](/chatting/side-questions/)
+- [Thinking](/chatting/thinking/)
+- [Context and Compact](/chatting/context-and-compact/)
+- [Edit, Resend and Fork](/chatting/edit-resend-fork/)
+- [Pause and Resume](/chatting/pause-resume/)
+- [Usage limit waits](/chatting/usage-limit-waits/)
+- [Search, unread and archive](/chatting/search-unread-archive/)
+- [Export a chat](/chatting/export/)
+- [Group rooms and the moderator](/rooms/rooms-and-moderator/)
+- [Agent asks](/rooms/agent-asks/)
+- [Files panel and Restore](/projects/files-and-restore/)
+- [Git and worktrees](/projects/git-and-worktrees/)
+- [To-dos and the task board](/projects/todos-and-board/)
+- [Jev](/engines/jev/): the optional agent suggestion on the new-chat screen.

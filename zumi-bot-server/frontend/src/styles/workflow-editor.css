@@ -1,0 +1,685 @@
+/* Workflow editor: head, inspector, fields, triggers, filters, the phone view. */
+
+/* ---- workflows: editor ---- */
+.wf-editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* Never squeezed by a long body below: .rt-head's min-height would let a wrapped header shrink to one row, its
+   second row (the run's Stop) then hidden under the scrolled list. */
+.wf-editor > .rt-head,
+.wf-editor > .wf-banner {
+  flex: none;
+}
+.wf-head .btn.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+.wf-head .btn.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.wf-head .status-pill {
+  flex: none;
+}
+.wf-head .rt-pop-right {
+  min-width: 170px;
+  white-space: nowrap;
+}
+.wf-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.wf-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.wf-notice.error {
+  color: var(--error);
+}
+.wf-notice.warn {
+  color: var(--warning);
+}
+.wf-notice-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.wf-notice .icon-btn {
+  color: var(--fg-muted);
+}
+.wf-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.wf-canvas {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.wf-canvas-note {
+  display: grid;
+  place-items: center;
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+.wf-inspector {
+  flex: none;
+  width: 360px;
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  background: var(--bg);
+}
+.wf-inspect {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px 28px;
+}
+.wf-inspect .rt-fieldset {
+  margin-top: 18px;
+}
+.wf-inspect > .wf-visit-part {
+  margin-top: 18px;
+} /* the run overview's Run input and Cost, spaced like the editor's fields */
+.wf-inspect > .wf-visit-part > .rt-label {
+  margin-bottom: 8px;
+}
+.wf-inspect .rt-fieldset .rt-label {
+  margin-bottom: 8px;
+}
+.wf-inspect .rt-hint {
+  line-height: 1.5;
+}
+.wf-inspect .rt-select {
+  width: 100%;
+}
+.wf-inspect-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wf-inspect-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.wf-inspect .wf-step-problems {
+  margin-top: 12px;
+}
+.wf-inspect .rt-hint .mono,
+.wf-filter .mono {
+  font-family: var(--font-mono);
+}
+.wf-pair {
+  display: flex;
+  gap: 10px;
+}
+.wf-pair > .rt-fieldset {
+  flex: 1;
+  min-width: 0;
+}
+.wf-template .rt-prompt .rt-prompt-input {
+  min-height: 76px;
+  padding-right: 14px;
+}
+/* A field's label row, with its Expand button at the right. */
+.wf-field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.wf-field-head .rt-label,
+.wf-inspect .rt-fieldset .wf-field-head .rt-label {
+  margin: 0;
+}
+.wf-test > .wf-field-head {
+  margin: 10px 0 6px;
+}
+.wf-expand {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.wf-expand:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.wf-expand:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.wf-expand .glyph {
+  width: 13px;
+  height: 13px;
+}
+.wf-test-output-wrap {
+  position: relative;
+}
+.wf-test-output-wrap .wf-test-output {
+  padding-right: 36px;
+}
+.wf-test-output-wrap .wf-expand {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: var(--bg-raised);
+}
+.wf-test-output-wrap .wf-expand:hover {
+  background: var(--bg-hover);
+}
+/* Expand dialog: one field at a size made for reading, its text box taking every line the dialog has. */
+.modal.wf-expand-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(900px, calc(100vw - 32px));
+  height: min(760px, calc(100dvh - 48px));
+  box-sizing: border-box;
+}
+.wf-expand-dialog .modal-title {
+  margin-bottom: 12px;
+}
+.wf-expand-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  margin-bottom: 14px;
+}
+.wf-expand-body .rt-prompt {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.wf-expand-body .rt-prompt > div:first-child {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.wf-expand-body .rt-prompt .rt-prompt-input {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  padding: 14px 16px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.wf-expand-body .rt-hint {
+  flex: none;
+  line-height: 1.5;
+}
+.wf-expand-body .wf-expand-text {
+  flex: 1;
+  min-height: 0;
+  padding: 14px 16px;
+  resize: none;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.wf-expand-body .wf-expand-pre {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.wf-expand-pre:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.wf-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.wf-check input {
+  accent-color: var(--accent);
+}
+.wf-inspect .wf-lock {
+  color: var(--warning);
+  font-weight: 500;
+}
+.wf-minutes {
+  width: 120px;
+}
+.wf-rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.wf-rule-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.wf-rule-add {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+}
+.wf-rule-add .rt-select,
+.wf-rule-add .rt-input {
+  width: 100%;
+}
+.wf-rule-add .wf-check {
+  margin-top: 0;
+}
+.wf-inspect .wf-rule-error,
+.wf-inspect .wf-room-missing {
+  margin-top: 0;
+  color: var(--error);
+}
+.wf-trigger .rt-hook {
+  margin-top: 0;
+}
+/* .rt-fieldset .rt-label drops the top margin, which glued Secret to the URL row. */
+.wf-trigger .rt-hook .rt-label {
+  margin: 18px 0 8px;
+}
+.wf-trigger .rt-hook .rt-label:first-child {
+  margin-top: 0;
+}
+.wf-trigger .rt-kv {
+  gap: 8px;
+}
+.wf-trigger .rt-field {
+  height: 36px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  line-height: 34px;
+  font-size: 12.5px;
+}
+.wf-trigger .rt-kv .btn {
+  flex: none;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+}
+/* The inspector is too narrow for a secret beside three buttons: the secret gets its own line. */
+.wf-trigger .rt-kv-secret {
+  flex-wrap: wrap;
+}
+.wf-trigger .rt-kv-secret .rt-field {
+  flex-basis: 100%;
+}
+.wf-trigger .rt-new-secret {
+  margin-left: auto;
+}
+.wf-trigger .rt-hook-how {
+  margin-top: 10px;
+}
+.wf-trigger .rt-wait {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.wf-trigger .rt-wait .btn {
+  height: 36px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+.wf-trigger .rt-got {
+  margin-top: 18px;
+}
+.wf-trigger .rt-got-head {
+  flex-wrap: wrap;
+  row-gap: 6px;
+  padding: 10px 12px;
+}
+.wf-trigger .rt-frow {
+  padding: 8px 12px;
+}
+.wf-trigger .rt-fk {
+  width: 120px;
+}
+.wf-trigger .wf-trigger-output {
+  margin-top: 10px;
+}
+.wf-trigger-note {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.wf-trigger-note-title {
+  margin-bottom: 4px;
+  color: var(--fg);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.wf-trigger-note p {
+  margin: 0;
+}
+.wf-trigger-note p + p {
+  margin-top: 6px;
+}
+.wf-trigger-note .mono {
+  font-family: var(--font-mono);
+}
+.wf-inspect .wf-filters {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.wf-filters > .rt-hint {
+  margin: 0 0 12px;
+}
+.wf-filters > .rt-hint:last-child {
+  margin: 12px 0 0;
+}
+/* Under its own row, closer to it than to the next one. */
+.wf-filters > .wf-filter-empty {
+  margin: -4px 0 12px;
+}
+/* A filter is a small card: field and remove on top, "equals" and value below. */
+.wf-filter {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: 'field field remove' 'op value value';
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-raised);
+}
+.wf-filter-field {
+  grid-area: field;
+}
+.wf-filter-value {
+  grid-area: value;
+}
+.wf-filter-remove {
+  grid-area: remove;
+  width: 32px;
+  height: 32px;
+  color: var(--fg-muted);
+}
+.wf-inspect .wf-filter-op {
+  grid-area: op;
+  width: auto;
+  height: 36px;
+  font-size: 12.5px;
+}
+.wf-trigger-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+.wf-mail-check {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+.wf-mail-check .btn {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.wf-mail-check .rt-hint {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.wf-filter-add {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.wf-test {
+  margin-top: 20px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+.wf-test-input {
+  resize: vertical;
+  font-size: 12.5px;
+}
+.wf-test-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.wf-test-result {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+.wf-test-reason {
+  color: var(--fg-muted);
+  overflow-wrap: anywhere;
+}
+.wf-test-output {
+  max-height: 260px;
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-raised);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.wf-remove {
+  align-self: flex-start;
+  margin-top: 22px;
+  color: var(--error);
+}
+.wf-edge-text {
+  margin: 12px 0 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.wf-all-problems {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--error);
+  font-size: 13px;
+}
+.wf-all-problems li {
+  margin: 3px 0;
+}
+.wf-all-problems .rt-insert {
+  padding: 0;
+  color: var(--error);
+  text-align: left;
+}
+.wf-empty {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+}
+.wf-run-dialog {
+  width: min(520px, calc(100vw - 32px));
+}
+.wf-run-dialog .rt-fieldset {
+  margin-bottom: 16px;
+}
+.wf-run-dialog .rt-input {
+  resize: vertical;
+}
+.wf-run-dialog .rt-hint {
+  margin: 0 0 16px;
+}
+.wf-run-buttons .btn {
+  min-width: 80px;
+}
+/* Phone: no canvas. The switch, Run workflow, the steps in run order (read-only) and the recent runs. */
+.wf-phone-name {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 18px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.wf-phone-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  overflow-y: auto;
+}
+.wf-phone-note {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  color: var(--fg-muted);
+  font-size: 14px;
+}
+.wf-phone-sub {
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+.wf-phone-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.wf-phone-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: var(--bg-selected);
+  font-weight: 500;
+}
+.wf-phone-actions .btn .glyph {
+  width: 15px;
+  height: 15px;
+}
+.wf-phone .wf-banner {
+  padding: 8px 16px;
+  border: none;
+}
+.wf-phone-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wf-phone-section .rt-label,
+.wf-phone-section .rt-hint {
+  margin: 0;
+}
+.wf-phone-steps {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-raised);
+}
+.wf-phone-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+.wf-phone-step + .wf-phone-step {
+  border-top: 1px solid var(--border);
+}
+.wf-phone-step-ic {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--fg-muted);
+}
+.wf-phone-step-ic .glyph {
+  width: 16px;
+  height: 16px;
+}
+.wf-phone-step-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.wf-phone-step-name {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  unicode-bidi: plaintext;
+}
+.wf-phone-step-sub {
+  overflow: hidden;
+  color: var(--fg-muted);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.wf-phone-runs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wf-phone-runs .wf-run-row {
+  padding: 9px 8px;
+  font-size: 13px;
+}
+.wf-phone .wf-phone-note {
+  padding: 0;
+  border: none;
+  font-size: 12px;
+}

@@ -1,0 +1,194 @@
+/* The context meter and its popover, and a room member's role chip. */
+
+/* The group Role chip and its popup. */
+/* ---- context meter ---- */
+.context-chip {
+  flex: none;
+  padding: 0 7px;
+}
+.context-ring {
+  flex: none;
+  display: block;
+}
+.context-ring circle {
+  fill: none;
+  stroke-width: 2.4;
+}
+.context-ring-track {
+  stroke: var(--border);
+}
+.context-ring-fill {
+  stroke: var(--accent);
+  stroke-linecap: round;
+}
+.context-ring.warn .context-ring-fill {
+  stroke: var(--warning);
+}
+.context-popup {
+  width: 300px;
+  max-width: calc(100vw - 24px);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.context-label {
+  color: var(--fg-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.context-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.context-amount {
+  font-size: 18px;
+  font-weight: 700;
+}
+.context-amount span {
+  color: var(--fg-muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+.context-sub {
+  color: var(--fg-muted);
+  font-size: 11.5px;
+}
+.context-note {
+  width: 100%;
+  font-size: 12.5px;
+}
+.context-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.context-member {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  font-size: 12.5px;
+}
+.context-member + .context-member {
+  border-top: 1px solid var(--border);
+}
+.context-member-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.context-member-use {
+  min-width: 64px;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  text-align: right;
+}
+.menu.context-popup .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-raised);
+  font-size: 12px;
+  font-weight: 500;
+}
+.menu.context-popup .btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.menu.context-popup .btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+.menu.context-popup .btn.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.menu.context-popup .btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.role-chip .role-icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+.role-chip.has-role {
+  color: var(--fg);
+}
+.role-popup {
+  width: 330px;
+  max-width: calc(100vw - 24px);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.role-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.role-title .role-icon {
+  width: 14px;
+  height: 14px;
+}
+.role-sub {
+  color: var(--fg-muted);
+  font-size: 11.5px;
+}
+.role-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 96px;
+  max-height: 40vh;
+  line-height: 1.45;
+  font-size: 12.5px;
+}
+.role-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+/* Undo the .menu button reset (full width, no border) so these read as real buttons. */
+.menu .role-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  height: 28px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-raised);
+  font-size: 12px;
+  font-weight: 500;
+}
+.menu .role-actions .btn:hover {
+  background: var(--bg-hover);
+}
+.menu .role-actions .btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+.menu .role-actions .btn.primary:hover {
+  background: var(--accent-hover);
+}
+.menu .role-actions .btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}

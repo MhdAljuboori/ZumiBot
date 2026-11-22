@@ -1,0 +1,64 @@
+# Deletes the old Vercel deployments of the showcase site and the user docs, keeping the one serving production and
+# the one before it (the rollback target). Each site deploy holds the whole release, installers included, so kept
+# deploys add up to gigabytes; the docs are smaller but count toward the same team storage.
+# Logic: zumi-bot-site/src/pruneDeployments.ts; details: docs/architecture/updates.md (Showcase site, Vercel).
+#
+# One-time setup: create a Vercel access token scoped to the team that owns zumibot-site and save it as the repository
+# secret VERCEL_TOKEN. Without it every run fails at the first step and deletes nothing.
+name: Prune site deployments
+
+on:
+  # Hourly: this project's Vercel deploys are not reported to GitHub (no deployment_status event ever arrived), and
+  # the free plan's 10 GB fills after a few dozen deploys. A run takes seconds.
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: List what would be deleted, delete nothing
+        type: boolean
+        default: false
+
+permissions: {}
+
+# Two runs at once would race to delete the same deploys.
+concurrency:
+  group: prune-site-deployments
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: Prune ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: zumibot-site
+            project: prj_JEoxl34ck1iKEMLqIBdlfbGA8Acj
+            host: zumibot.run
+          - name: zumibot-docs
+            project: prj_utdTp6cxsbAACKH02UB2iqKe8jCU
+            host: docs.zumibot.run
+    steps:
+      # actions/checkout v5.1.0, pinned by commit like every dependency here. Only the site folder is needed.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+          sparse-checkout: zumi-bot-site
+
+      # actions/setup-node v5.0.0. Node 22 for type stripping; no npm runs in this job.
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: '22'
+
+      - name: Delete old deployments
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ matrix.project }}
+          VERCEL_TEAM_ID: team_LAQCbp2nOwXshTreijw3FFsL
+          LIVE_HOST: ${{ matrix.host }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+        run: node --experimental-strip-types zumi-bot-site/scripts/pruneDeployments.mjs

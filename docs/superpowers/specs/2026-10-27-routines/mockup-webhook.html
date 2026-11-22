@@ -1,0 +1,84 @@
+<style>
+  .cb { --bg:#121212; --raised:#1f1f1f; --hover:#262626; --sel:#2b2b2b; --fg:#f5f5f5; --mut:#a3a3a3; --bd:#2a2a2a; --ok:#50ad43; --warn:#ffb700; --red:#f0714f; --blue:#4695fb; --cyan:#3cc8e4;
+    background:var(--bg); color:var(--fg); font:13px/1.45 system-ui,sans-serif; border:1px solid var(--bd); border-radius:10px; padding:18px 22px; margin-bottom:12px; }
+  .cb * { box-sizing:border-box; }
+  .cb svg { width:13px; height:13px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .flow { max-width:640px; display:flex; flex-direction:column; }
+  .card { border:1px solid var(--bd); background:#171717; border-radius:12px; padding:12px 14px; }
+  .ch { display:flex; align-items:center; gap:8px; font-weight:600; margin-bottom:10px; }
+  .step { width:20px; height:20px; border-radius:6px; background:var(--sel); display:grid; place-items:center; font-size:11px; color:var(--mut); }
+  .grow { flex:1; }
+  .mut { color:var(--mut); }
+  .conn { width:2px; height:18px; background:var(--bd); margin-left:24px; }
+  .lab { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--mut); font-weight:700; margin:10px 0 5px; }
+  .kv { display:flex; gap:6px; align-items:center; }
+  .fld { border:1px solid var(--bd); background:var(--raised); border-radius:8px; padding:6px 10px; font-size:12px; display:inline-flex; gap:6px; align-items:center; }
+  .mono { font-family:ui-monospace,monospace; font-size:12px; }
+  .wide { flex:1; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .btn { border:1px solid var(--bd); background:var(--raised); color:var(--fg); border-radius:8px; padding:5px 10px; font-size:12px; display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+  .btn.pri { background:var(--fg); color:#121212; border-color:var(--fg); font-weight:600; }
+  .btn.dis { opacity:.45; }
+  .hint { font-size:12px; color:var(--mut); margin-top:6px; }
+  .wait { margin-top:12px; border:1px dashed var(--bd); border-radius:10px; padding:14px; display:flex; gap:12px; align-items:center; }
+  .spin { width:14px; height:14px; border-radius:50%; border:2px solid var(--bd); border-top-color:var(--fg); flex:none; }
+  .got { margin-top:12px; border:1px solid var(--bd); border-radius:10px; overflow:hidden; }
+  .goth { display:flex; gap:8px; align-items:center; padding:8px 12px; background:var(--raised); font-size:12px; }
+  .meth { background:#1d3557; color:#8ec5ff; border-radius:5px; padding:1px 6px; font-weight:700; font-size:11px; }
+  .frow { display:flex; gap:10px; align-items:center; padding:6px 12px; border-top:1px solid var(--bd); font-size:12px; }
+  .frow .k { width:170px; flex:none; }
+  .frow .v { flex:1; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:var(--mut); }
+  .ins { color:var(--blue); font-size:12px; }
+  .chip { display:inline-flex; align-items:center; gap:4px; background:rgba(60,200,228,.14); color:var(--cyan); border:1px solid rgba(60,200,228,.35); border-radius:6px; padding:0 6px; font-family:ui-monospace,monospace; font-size:12px; line-height:19px; }
+  .ta { border:1px solid var(--bd); background:var(--raised); border-radius:10px; padding:10px 12px; min-height:70px; line-height:1.9; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+  .av { width:18px; height:18px; border-radius:6px; display:inline-grid; place-items:center; }
+  .av i { width:2px; height:4px; background:#121212; margin:0 1.5px; border-radius:1px; display:inline-block; }
+  .foot { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; max-width:640px; }
+</style>
+
+<h2>Webhook trigger: test call, then fields in the prompt</h2>
+<p class="subtitle">Layout B. Two moments of the same new routine. Example data.</p>
+
+<h3 style="margin:16px 0 8px">1. Webhook picked, waiting for a test call</h3>
+<div class="cb">
+  <div class="flow">
+    <div class="card">
+      <div class="ch"><span class="step">1</span>Trigger<span class="grow"></span><span class="mut" style="font-weight:400;font-size:12px">Webhook ▾</span></div>
+      <div class="lab" style="margin-top:0">URL</div>
+      <div class="kv"><span class="fld mono wide">https://zumibot.your-domain.com/hooks/rt_8f3k2q</span><span class="btn">Copy</span></div>
+      <div class="lab">Secret</div>
+      <div class="kv"><span class="fld mono wide">••••••••••••••••••••••••</span><span class="btn">Show</span><span class="btn">Copy</span><span class="btn">New secret</span></div>
+      <div class="hint">Send it as the <span class="mono">X-ZumiBot-Secret</span> header. Any method works: GET data comes from the URL's query, other methods from the body (JSON or form).</div>
+      <div class="wait"><span class="spin"></span><div class="grow">No test call yet. Call the URL from your tool, then check.</div><span class="btn pri">Check test call</span></div>
+    </div>
+    <div class="conn"></div>
+    <div class="card"><div class="ch"><span class="step">2</span>Send prompt</div>
+      <div class="hint" style="margin:0">Fields from the test call show up here once it arrives.</div></div>
+  </div>
+  <div class="foot"><span class="btn">Cancel</span><span class="btn pri dis">Save, needs a test call</span></div>
+</div>
+
+<h3 style="margin:22px 0 8px">2. Test call found, fields inserted into the prompt</h3>
+<div class="cb">
+  <div class="flow">
+    <div class="card">
+      <div class="ch"><span class="step">1</span>Trigger<span class="grow"></span><span class="mut" style="font-weight:400;font-size:12px">Webhook ▾</span></div>
+      <div class="kv"><span class="fld mono wide">https://zumibot.your-domain.com/hooks/rt_8f3k2q</span><span class="btn">Copy</span><span class="btn">Secret…</span></div>
+      <div class="got">
+        <div class="goth"><span class="meth">POST</span>Test call · today 10:42<span class="grow"></span><span class="btn">Check again</span></div>
+        <div class="frow"><span class="k mono">query.priority</span><span class="v">high</span><span class="ins">Insert</span></div>
+        <div class="frow"><span class="k mono">body.repo</span><span class="v">workiom/web</span><span class="ins">Insert</span></div>
+        <div class="frow"><span class="k mono">body.pr.title</span><span class="v">Fix login redirect on expired session</span><span class="ins">Insert</span></div>
+        <div class="frow"><span class="k mono">body.pr.url</span><span class="v">https://github.com/workiom/web/pull/412</span><span class="ins">Insert</span></div>
+        <div class="frow"><span class="k mono">body.pr.labels.0</span><span class="v">bug</span><span class="ins">Insert</span></div>
+      </div>
+    </div>
+    <div class="conn"></div>
+    <div class="card"><div class="ch"><span class="step">2</span>Send prompt</div>
+      <div class="row"><span class="fld"><span class="av" style="background:var(--blue)"><i></i><i></i></span>Code Reviewer <span class="mut">▾</span></span><span class="fld">New chat every run <span class="mut">▾</span></span><span class="fld"><span class="mut">Folder</span> ~/work/web</span></div>
+      <div class="ta">Review the pull request <span class="chip">body.pr.title</span> in <span class="chip">body.repo</span>: <span class="chip">body.pr.url</span>. Priority is <span class="chip">query.priority</span>. Post your findings here.</div>
+      <div class="hint">Type <span class="mono">{{</span> or use Insert to add a field.</div>
+    </div>
+  </div>
+  <div class="foot"><span class="btn">Cancel</span><span class="btn pri">Save</span></div>
+</div>

@@ -1,0 +1,13 @@
+
+> test
+> vitest run
+
+
+ RUN  v5.0.5 /home/mhdaljuboori/Developments/AI/ZumiBot
+
+
+ Test Files  132 passed (132)
+      Tests  1829 passed | 1 skipped (1830)
+   Start at  14:58:46
+   Duration  33.73s (tests 94%, import 4%, transform 1%, worker 1%)
+

@@ -1,0 +1,7 @@
+PASS signed-out visit to / lands on /login  [0.8s]
+PASS wrong code shows "Wrong password or code."  [1.1s]
+PASS right password + current TOTP code reaches the sidebar  [1.4s]
+PASS "Sign out everywhere" in tab A sends tab B to /login (27 ms)  [1.7s]
+PASS tab B's composer draft is back after signing in again  [2.0s]
+PASS no unexpected console or server errors  [2.0s]
+done in 2.0s

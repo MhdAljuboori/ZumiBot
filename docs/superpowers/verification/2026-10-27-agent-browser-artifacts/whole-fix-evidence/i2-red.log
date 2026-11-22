@@ -1,0 +1,36 @@
+
+ RUN  v5.0.5 /home/mhdaljuboori/Developments/AI/ZumiBot
+
+ ❯ |backend| tests/core/chatService.test.ts (91 tests | 1 failed | 90 skipped) 35ms
+   ❯ browser handoff turns (4)
+     × injects the real upload contract and discoverable attachment IDs, including an expired-session seed 34ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |backend| tests/core/chatService.test.ts > browser handoff turns > injects the real upload contract and discoverable attachment IDs, including an expired-session seed
+AssertionError: expected 'Use the zumibot_browser tools for t…' to contain 'browser_upload'
+
+- Expected
++ Received
+
+- browser_upload
++ Use the zumibot_browser tools for this agent's persistent app browser when the task needs a website. Never fall back to a system browser, Chrome integration, or an unscoped browser tool. Browser tools are scoped to this chat turn; do not supply agent or profile IDs.
++ Observe before interacting and use the latest stamp and element references. Observe again after navigation, another observation, a lease change, or the user finishes takeover. If a tool reports dialogPending, answer with browser_dialog before continuing. File uploads are not supported yet.
++ For sign-in, passwords, two-factor codes, CAPTCHA, or user-only confirmation, call browser_request_user_action with a short safe reason. Ask the user to enter sensitive values directly in the app browser; never request raw credentials or codes in chat or tool arguments. The tool waits for Done, Cancel, or expiry; do not repeatedly poll or retry a pending handoff. Respect cancellation, busy results, and user control. Call browser_release when finished.
+
+ ❯ tests/core/chatService.test.ts:1355:24
+    1353|       for (const call of calls) {
+    1354|         const prompt = call.args[call.args.indexOf('--append-system-pr…
+    1355|         expect(prompt).toContain('browser_upload')
+       |                        ^
+    1356|         expect(prompt).toContain('explicitly attached')
+    1357|         expect(prompt).toContain('file ID')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 90 skipped (91)
+   Start at  09:42:43
+   Duration  294ms (transform 52%, import 28%, tests 18%, worker 2%)
+

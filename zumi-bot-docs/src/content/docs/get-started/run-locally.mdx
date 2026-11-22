@@ -1,0 +1,147 @@
+---
+title: Run ZumiBot on your computer
+description: Step by step, set up Local mode so the desktop app runs ZumiBot's server on your own computer, on Linux, macOS or Windows.
+sidebar:
+  order: 4
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
+
+In **Local** mode the desktop app runs ZumiBot's server on your own computer. You need no domain, no HTTPS and no password. Your chats and agents stay on this computer, and agents work while the app is running.
+
+Pick your system below and follow the steps in order.
+
+<Tabs>
+  <TabItem label="Linux">
+
+<Steps>
+
+1. **Install Claude Code and sign in.**
+
+   Follow [Anthropic's Claude Code setup guide](https://code.claude.com/docs/en/overview). Then run it once in a terminal and sign in:
+
+   ```bash
+   claude
+   ```
+
+   Type `/exit` when you are signed in. ZumiBot uses this same sign-in for every reply.
+
+2. **Install the desktop app.**
+
+   Download the `.deb` package or the AppImage from [zumibot.run](https://zumibot.run/#download) and install it. [Install the desktop app](/get-started/install-desktop/) has the commands for both.
+
+3. **Start ZumiBot and choose Local.**
+
+   On the first screen, "Connect to a server", choose **Local**. Leave **Port** at 4318 unless another program uses it. Choose **Continue**.
+
+4. **Send your first message.**
+
+   The app opens on your agents. You do not sign in: only the app can reach its own server. Go on with [Your first chat](/get-started/first-chat/).
+
+</Steps>
+
+  </TabItem>
+  <TabItem label="macOS">
+
+<Steps>
+
+1. **Install Claude Code and sign in.**
+
+   Follow [Anthropic's Claude Code setup guide](https://code.claude.com/docs/en/overview) for macOS. Then open **Terminal** and run it once to sign in:
+
+   ```bash
+   claude
+   ```
+
+   Type `/exit` when you are signed in. ZumiBot uses this same sign-in for every reply.
+
+2. **Install the desktop app.**
+
+   Download the `.dmg` for your Mac from [zumibot.run](https://zumibot.run/#download), open it and drag **ZumiBot** to **Applications**. The app is not notarized yet, so it needs one Terminal command before the first open. [Install the desktop app](/get-started/install-desktop/) has it.
+
+3. **Start ZumiBot and choose Local.**
+
+   On the first screen, "Connect to a server", choose **Local**. Leave **Port** at 4318 unless another program uses it. Choose **Continue**.
+
+4. **Send your first message.**
+
+   The app opens on your agents. You do not sign in: only the app can reach its own server. Go on with [Your first chat](/get-started/first-chat/).
+
+</Steps>
+
+  </TabItem>
+  <TabItem label="Windows">
+
+On Windows the desktop app runs ZumiBot's server directly on your computer. You need Git for Windows and Claude Code, both installed on Windows itself.
+
+<Steps>
+
+1. **Install Git for Windows.**
+
+   Download it from [git-scm.com](https://git-scm.com/downloads/win) and install it with the default options. Claude Code runs your agents' commands in the Git Bash that comes with it, and ZumiBot does the same for background processes.
+
+2. **Install Claude Code and sign in.**
+
+   Follow [Anthropic's Claude Code setup guide](https://code.claude.com/docs/en/overview) for Windows. Then open **PowerShell** and run it once to sign in:
+
+   ```powershell
+   claude
+   ```
+
+   Type `/exit` when you are signed in. ZumiBot uses this same sign-in for every reply.
+
+3. **Install the desktop app.**
+
+   Download the Windows installer (the `.exe` file) from [zumibot.run](https://zumibot.run/#download) and run it. The installer is not signed yet, so Windows SmartScreen asks first. Choose **More info**, then **Run anyway**.
+
+4. **Start ZumiBot and choose Local.**
+
+   On the first screen, "Connect to a server", choose **Local**. Leave **Port** at 4318 unless another program uses it, then choose **Continue**.
+
+5. **Send your first message.**
+
+   The app opens on your agents. You do not sign in: only the app can reach its own server. Go on with [Your first chat](/get-started/first-chat/).
+
+</Steps>
+
+  </TabItem>
+</Tabs>
+
+## On Windows: where things live
+
+- **Your agents** are the files in `.claude\agents` in your Windows user folder, for example `C:\Users\you\.claude\agents`.
+- **Your chats** are in `.local\share\zumibot` in your user folder. Uninstalling the desktop app does not remove them.
+- **A chat with no folder** works in its own folder under `zumibot\cache` in your user folder.
+- **Commands your agents run** go through Git Bash, so agents write paths like `/c/Users/you/code` there. That is the same folder as `C:\Users\you\code`.
+
+## On a Mac: finding your tools
+
+An app you open from the Dock or Finder does not get the command search path your Terminal has. ZumiBot asks your login shell for it, zsh unless you switched to bash, so agents can run what you installed with Homebrew, nvm and the like. It reads the same startup files Terminal does, such as `.zprofile` and `.zshrc` in your home folder.
+
+If ZumiBot still says "Claude CLI not found", run `which claude` in Terminal and paste the path it prints into the box under that message, then choose **Save**.
+
+## If something goes wrong
+
+The app shows what is missing instead of your chats. Fix it, then choose **Retry**.
+
+- **"Claude CLI not found."** Claude Code is missing, or was installed after ZumiBot started. Do step 2, then quit ZumiBot from the tray and start it again.
+- **A reply says "Failed to authenticate" or "Not logged in".** Claude Code is not signed in, or its sign-in has expired. Run `claude` in PowerShell (Terminal on a Mac), type `/login`, and sign in again.
+- **Agents can't run commands.** Git for Windows is missing. Do step 1.
+- **"Port 4318 is already in use."** Another program holds the port. Press Ctrl+Shift+S (Cmd+Shift+S on a Mac) and pick another port.
+- **A file you attach from another computer has a new name.** Windows can't store `< > : " | ? *` in file names, so ZumiBot puts `_` in their place.
+
+## Tips and limits
+
+- **Not on Windows or macOS:** computer use, the agent browser and isolation levels need a Linux server. [Install ZumiBot on a server](/get-started/install-server/) to use them.
+- **Agents work only while the app runs.** Quit the app, or turn the computer off, and replies stop. To keep agents working around the clock, [install ZumiBot on a server](/get-started/install-server/) instead.
+- **No phone access.** A Local server can only be reached from this computer's app. A server can be opened from any browser or phone.
+- **Updates work the same on every system.** ZumiBot updates itself from inside the app. See [Desktop app updates](/desktop/updates/).
+- **Local mode and a server are separate.** Each keeps its own chats, agents and settings. [Sync](/desktop/sync/) merges them.
+
+## Related
+
+- [What you need](/get-started/what-you-need/)
+- [Install the desktop app](/get-started/install-desktop/)
+- [Local mode and server mode](/desktop/local-vs-server/)
+- [Install on a server](/get-started/install-server/)
+- [Your first chat](/get-started/first-chat/)

@@ -1,0 +1,133 @@
+/* Agent Studio's memory card. */
+
+/* ---- agent memory ---- */
+.memory {
+  margin: 0 20px 14px;
+}
+.memory-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.memory-count {
+  color: var(--fg-muted);
+  font-size: 12.5px;
+}
+.memory-count.over,
+.memory-warn {
+  color: var(--warning);
+}
+.memory-warn {
+  font-size: 12px;
+}
+.memory-limit {
+  width: auto;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+/* The card is a column flex box: .search's flex: 1 (basis 0) would drop its height and squash it to the text line. Square
+   corners like the card's other fields; the pill is the sidebar's look. */
+.memory-search {
+  flex: none;
+  margin: 0;
+  padding-left: 10px;
+  border-radius: 6px;
+}
+.memory-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.memory-group-title {
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.memory-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.memory-row {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-raised);
+}
+.memory-row.open {
+  border-color: var(--ring);
+}
+.memory-open {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.memory-open:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.memory-title {
+  max-width: 100%;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.memory-desc {
+  max-width: 100%;
+  color: var(--fg-muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.memory-mark {
+  color: var(--warning);
+  font-size: 11px;
+}
+.memory-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+}
+.memory-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.memory-body {
+  resize: vertical;
+  min-height: 100px;
+}
+.memory-edit-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+@media (max-width: 760px) {
+  .memory {
+    margin: 0 16px 14px;
+  }
+  .memory-limit,
+  .memory-label .field {
+    font-size: 16px;
+  }
+}

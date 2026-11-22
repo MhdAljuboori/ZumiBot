@@ -1,0 +1,16 @@
+
+> test
+> vitest run
+
+
+ RUN  v5.0.5 /home/mhdaljuboori/Developments/AI/ZumiBot
+
+
+ Test Files  132 passed (132)
+      Tests  1822 passed | 1 skipped (1823)
+   Start at  09:15:28
+   Duration  33.89s (tests 93%, import 5%, transform 2%, worker 1%)
+
+    Isolate  132 workers spawned · ~170ms startup each (spawn + environment, per file)
+             at least ~1.87s faster with isolate: false — reuses workers across files instead of one per file
+

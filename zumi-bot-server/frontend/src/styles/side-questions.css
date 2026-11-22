@@ -1,0 +1,344 @@
+/* Side questions (/btw): the list, a thread and the question box. */
+
+/* Side answers share the Files sheet so navigation and phone sizing stay consistent. */
+.side-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+/* The list's rows borrow Dispatched agents' look (.dispatch-row); these add the clamped title and the one-line summary. */
+.side-row-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  line-height: 1.4;
+  unicode-bidi: plaintext;
+}
+.side-row-line {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  unicode-bidi: plaintext;
+}
+.side-row-line.dispatch-usage {
+  font-size: 12px;
+}
+.side-row-error {
+  color: var(--error);
+  font-size: 12px;
+}
+.side-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+}
+.side-row-meta .file-dot,
+.side-thread-meta .file-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+}
+/* "Coder · from Reviewer · 14:32": the dot is a flex item, so the gap spaces it like the agent dot. */
+:is(.side-row-meta, .side-thread-meta) time {
+  display: inline-flex;
+  gap: 6px;
+}
+:is(.side-row-meta, .side-thread-meta) > :is(.side-who, time) + :is(.side-who, time)::before {
+  content: '·';
+}
+/* A thread in chat style: the user's questions as bubbles on the right, each answer under its question. */
+.side-thread {
+  padding-bottom: 8px;
+}
+.side-thread-title {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.side-thread-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px 2px;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+}
+.side-entry {
+  padding: 10px 16px;
+  overflow-wrap: anywhere;
+  scroll-margin-top: 4px;
+}
+.side-entry:focus {
+  outline: none;
+}
+.side-entry:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -3px;
+}
+.side-bubble-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.side-bubble-row.from {
+  align-items: flex-start;
+}
+.side-bubble {
+  max-width: 85%;
+  padding: 7px 12px;
+  border-radius: 16px;
+  background: var(--user-bubble);
+  color: var(--user-bubble-fg);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+/* Not the user's words: an agent's question is drawn as a plain box on the left. */
+.side-bubble-row.from .side-bubble {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+}
+.side-bubble-row.from .side-who {
+  color: var(--fg-muted);
+  font-size: 11.5px;
+}
+.side-who {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.side-entry .markdown {
+  font-size: 13px;
+  line-height: 1.65;
+}
+.side-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 10px 0;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.side-error {
+  margin: 10px 0;
+  color: var(--error);
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+.side-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.side-chip-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: 12px 0;
+  max-width: 100%;
+}
+.side-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.side-chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.side-chip-who {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 45%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+}
+.side-chip-who .file-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+}
+.side-chip .spinner {
+  flex: none;
+  width: 11px;
+  height: 11px;
+}
+.side-chip:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.side-chip:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.side-warning {
+  color: var(--error);
+}
+.side-ask-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  min-width: 0;
+  margin: 4px 0 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.side-ask-link .file-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+}
+.side-ask-link .spinner {
+  flex: none;
+  width: 11px;
+  height: 11px;
+}
+.side-ask-link:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.side-ask-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.side-ask-link:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+/* The question box at the top of the Side questions panel, like the To-dos "Add a to-do…" row. */
+.side-ask {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.side-picks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.side-picks-label {
+  margin-inline-end: 2px;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+}
+.side-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--bg);
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.side-pick .file-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+}
+.side-pick:hover:not(:disabled):not([aria-pressed='true']) {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.side-pick[aria-pressed='true'] {
+  border-color: var(--sel-border);
+  background: var(--sel-bg);
+  color: var(--sel-fg);
+  font-weight: 600;
+}
+.side-pick:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.side-pick:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+/* Drawn as the chat's composer (.composer-box, .composer-input, .send-btn): a bare textarea inside its rounded box.
+   Grows with its lines where field-sizing is supported; elsewhere it stays one line and scrolls. */
+.side-input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  line-height: 22px;
+  resize: none;
+  field-sizing: content;
+  max-height: max(200px, 40vh);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+.side-input::placeholder {
+  color: var(--fg-muted);
+  opacity: 1;
+}
+/* As the composer's input on touch: 16px, so the phone does not zoom in on focus. */
+@media (pointer: coarse) {
+  .side-input {
+    font-size: 16px;
+    line-height: 24px;
+  }
+}
+.side-input-error {
+  margin: 0;
+}
+/* The follow-up box sits under the thread as the composer sits under a chat: no rule above it. */
+.side-ask.side-follow {
+  padding: 4px 18px 14px;
+  border-bottom: none;
+}
+.side-follow-note {
+  color: var(--fg-muted);
+  font-size: 11.5px;
+}

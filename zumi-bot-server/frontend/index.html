@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- resizes-content: a phone's keyboard shrinks the page (Chrome), so the composer stays above it.
+         viewport-fit=cover: where the browser allows it, the page draws under the system bars, so they show the page's
+         background, not the browser's own color; styles/base.css pads by the safe-area insets. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content, viewport-fit=cover" />
+    <title>ZumiBot</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <!-- use-credentials: the manifest sits behind the sign-in gate, so a request without the cookie gets 401. -->
+    <link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <!-- The installed app's status bar color, one per OS scheme; applyTheme (theme.ts) points both at a forced theme. -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#13161c" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

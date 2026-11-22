@@ -1,0 +1,42 @@
+
+> test
+> vitest run
+
+
+ RUN  v5.0.5 /home/mhdaljuboori/Developments/AI/ZumiBot
+
+ ❯ |backend| tests/browserPackaging.test.ts (9 tests | 1 failed) 10865ms
+   × checks a copied artifact with a sandboxed ephemeral profile, leaving app data untouched 2484ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |backend| tests/browserPackaging.test.ts > checks a copied artifact with a sandboxed ephemeral profile, leaving app data untouched
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "com.google.Chrome.chrome_chrome_url_fetcher_.uX1km6",
++ ]
+
+ ❯ tests/browserPackaging.test.ts:46:34
+     44|   await writeFile(join(data, 'browsers/profiles.json'), 'deliberately …
+     45|   const result = await run(cli('browser-check'), { ZUMIBOT_DATA_DIR:…
+     46|   expect(await readdir(scratch)).toEqual([])
+       |                                  ^
+     47|   expect(result).toMatchObject({ code: 0, err: '' })
+     48|   expect(result.out).toContain('Browser check passed')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 131 passed (132)
+      Tests  1 failed | 1828 passed | 1 skipped (1830)
+   Start at  14:51:40
+   Duration  34.10s (tests 93%, import 5%, transform 1%, worker 1%)
+
+    Isolate  132 workers spawned · ~162ms startup each (spawn + environment, per file)
+             at least ~1.78s faster with isolate: false — reuses workers across files instead of one per file
+

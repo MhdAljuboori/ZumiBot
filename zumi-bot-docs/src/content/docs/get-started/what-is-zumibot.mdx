@@ -1,0 +1,62 @@
+---
+title: What is ZumiBot
+description: ZumiBot is a chat app for your Claude Code agents. Run it on your own computer, or on a server you reach from any browser.
+sidebar:
+  order: 1
+---
+
+import Shot from '../../../components/Shot.astro'
+
+ZumiBot is a chat app for your Claude Code agents. You pick an agent, pick a folder, and talk to it. You can also put several agents in one group room and let a moderator choose who answers next.
+
+<Shot name="get-started-first-look" alt="The ZumiBot home screen: a sidebar listing your agents, and a message box under the question 'What are we building today?' with pickers for the agent and the folder." />
+
+ZumiBot does not host anything for you. You run your own copy, so your chats, agents and keys stay on a machine you control.
+
+## How it works
+
+ZumiBot does not replace Claude Code. It runs the `claude` command for each reply, using the agents you already keep in `~/.claude/agents`. Each approval, question and plan that Claude Code asks for shows up in the chat as a card you can answer.
+
+So the machine where ZumiBot runs needs Claude Code, installed and signed in. The agents you chat with are the ones in that folder.
+
+## What ZumiBot adds
+
+Because each reply is a real Claude Code run, your agents keep the tools, skills, MCP servers, plugins and hooks already in your workflow. ZumiBot adds what a single terminal session does not have: agents that work together, and one place to manage them all.
+
+- **Agents talk to each other.** Put several agents in a [group room](/rooms/rooms-and-moderator/), or let one agent [ask another](/rooms/agent-asks/) for help in the middle of a reply.
+- **Agents share what they know.** Every to-do lands on one [task board](/projects/todos-and-board/), and each agent sees what the others changed there. A [cloned room](/rooms/clone-a-room/) can start from a summary of the old one.
+- **You manage them in one place.** Make and tune agents in [Agent Studio](/agents/agent-studio/), or ask [Zumi Bot](/agents/zumi-bot/) to set them up for you. Turn [servers, plugins, skills and hooks](/agents/extensions/) on or off for each agent.
+
+## Where ZumiBot runs
+
+The app is always a server plus a window onto it. You choose where the server lives. On first start the desktop app asks, under "Connect to a server":
+
+- **Local** (Local mode) runs the server on your computer, inside the desktop app. Your chats stay on that computer, and agents work only while it is on.
+- **VPS** connects to a ZumiBot server you host somewhere else. Agents keep working when your computer is off, and you can open the same chats from any browser or from your phone.
+
+Either way, the screens and features are the same.
+
+| | Local mode | Server |
+| --- | --- | --- |
+| Where the agents run | Your computer | The host you set up |
+| How you open it | The desktop app | A browser, your phone, or the desktop app |
+| While your computer is off | Agents stop | Agents keep going |
+| On Windows | Yes | Yes, through the desktop app or a browser |
+
+## Tips and limits
+
+- Local mode and a server are separate. Each has its own chats, agents, settings and sign-ins. Nothing moves between them unless you sync.
+- On Windows, Local mode runs the server directly on your computer. [Run ZumiBot on your computer](/get-started/run-locally/) shows how to set it up.
+- You can switch between Local mode and a server any time with Ctrl+Shift+S, or with "Switch server…" in Settings.
+- ZumiBot listens only on its own machine. A server is reached through a proxy that adds HTTPS, and the install steps cover that.
+
+## Related
+
+- [What you need](/get-started/what-you-need/): Claude Code, agents and supported systems.
+- [Local mode and server mode](/desktop/local-vs-server/): what changes between the two, and how to switch.
+- [Install the desktop app](/get-started/install-desktop/)
+- [Install on a server](/get-started/install-server/)
+- [First-run setup](/get-started/first-run-setup/)
+- [Your first chat](/get-started/first-chat/)
+- [Use it on your phone](/get-started/phone/)
+- [Group rooms and the moderator](/rooms/rooms-and-moderator/)

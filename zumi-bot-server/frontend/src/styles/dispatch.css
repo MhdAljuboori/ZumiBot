@@ -1,0 +1,287 @@
+/* The routine prompt's / list position, then Dispatched agents. */
+
+/* The routine prompt's / list opens under the field, like its {{ list: above it would cover the card's head. */
+.rt-prompt .command-menu {
+  left: 0;
+  top: calc(100% + 4px);
+  bottom: auto;
+  width: 420px;
+  max-width: 100%;
+  z-index: 20;
+}
+
+/* Dispatched agents: a row per subagent grouped by reply, nested ones indented; then one agent's conversation. */
+.side-menu-count.live {
+  background: color-mix(in srgb, var(--success) 18%, transparent);
+  color: var(--success);
+}
+.dispatch-group {
+  border-bottom: 1px solid var(--border);
+}
+.dispatch-group-head {
+  padding: 7px 16px;
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  border-bottom: 1px solid var(--border);
+}
+.dispatch-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.dispatch-row:last-child {
+  border-bottom: none;
+}
+.dispatch-row:hover {
+  background: var(--bg-hover);
+}
+.dispatch-row:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.dispatch-row.nested {
+  padding-inline-start: 32px;
+}
+.dispatch-row-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+}
+.dispatch-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.dispatch-chev {
+  flex: none;
+  color: var(--fg-muted);
+}
+.dispatch-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fg-muted);
+}
+.dispatch-dot.running {
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent);
+  animation: dispatch-pulse 1.6s ease-in-out infinite;
+}
+.dispatch-dot.failed {
+  background: var(--error);
+}
+.dispatch-dot.stopped,
+.dispatch-dot.interrupted {
+  background: var(--warning);
+}
+@keyframes dispatch-pulse {
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--success) 8%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dispatch-dot.running {
+    animation: none;
+  }
+}
+.dispatch-type {
+  flex: none;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  font-size: 11px;
+}
+.dispatch-now {
+  color: var(--link);
+  font-size: 12px;
+}
+.dispatch-wait {
+  color: var(--warning);
+  font-size: 12px;
+  font-weight: 600;
+}
+.dispatch-wait.boxed {
+  margin: 0 16px 8px;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent);
+  border-radius: 6px;
+}
+.dispatch-usage {
+  color: var(--fg-muted);
+  font-size: 11.5px;
+}
+.dispatch-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 16px;
+}
+.dispatch-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 10px 16px 0;
+}
+.dispatch-box {
+  margin: 0 16px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-raised);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.dispatch-box.report {
+  background: none;
+}
+/* Reports are often headed sections; chat-sized headings would dwarf the panel's 12.5px text. */
+.dispatch-box .markdown :is(h1, h2, h3, h4, h5, h6) {
+  margin: 12px 0 4px;
+  font-size: 14px;
+  line-height: 20px;
+}
+.dispatch-box .markdown > :first-child {
+  margin-top: 0;
+}
+.dispatch-box-label {
+  margin-bottom: 3px;
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.dispatch-plain {
+  white-space: pre-wrap;
+  unicode-bidi: plaintext;
+}
+.dispatch-show-all {
+  margin-top: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.dispatch-text {
+  padding: 0 16px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.dispatch-tool {
+  padding: 0 16px;
+}
+.dispatch-steps-toggle {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 12px;
+  padding: 3px 6px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dispatch-steps-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.dispatch-steps-toggle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.dispatch-steps-toggle[aria-expanded='true'] .tool-run-caret {
+  transform: rotate(90deg);
+}
+/* Here the steps are the content, not a fold under a reply: full-colour titles. */
+.dispatch-tool .tool-head {
+  padding: 4px 8px;
+}
+.dispatch-tool .tool:not(.blocked) .tool-head-title {
+  color: var(--fg);
+}
+.dispatch-child {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 16px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.dispatch-child:hover {
+  background: var(--bg-hover);
+}
+.dispatch-gap {
+  padding: 4px 16px;
+}
+.dispatch-working {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  font-style: italic;
+}
+.tool-head-row {
+  display: flex;
+  align-items: center;
+}
+.tool-head-row .tool-head {
+  flex: 1;
+  min-width: 0;
+}
+.dispatch-watch {
+  flex: none;
+  padding: 3px 8px;
+  border: none;
+  background: none;
+  color: var(--link);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, 'Noto Sans', Helvetica, Arial, sans-serif;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.dispatch-watch:hover {
+  text-decoration: underline;
+}
+.dispatch-watch.running::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-inline-end: 5px;
+  border-radius: 50%;
+  background: var(--success);
+  vertical-align: 1px;
+}

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <!-- The installed app's status bar, in login.css's --bg for the OS scheme (the manifest's white otherwise). -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#13161c" />
+    <title>Sign in - ZumiBot</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="stylesheet" href="/login.css" />
+    <script src="/login.js" defer></script>
+  </head>
+  <body>
+    <main class="card">
+      <h1>ZumiBot</h1>
+      <form id="form" method="post" action="/login" autocomplete="on">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="1024" autofocus />
+
+        <div id="totp-field">
+          <label for="code">6-digit code</label>
+          <input
+            id="code"
+            name="code"
+            type="text"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            pattern="[0-9 ]*"
+            maxlength="12"
+            required
+          />
+        </div>
+        <div id="recovery-field" hidden>
+          <label for="recovery">Recovery code</label>
+          <input
+            id="recovery"
+            name="recovery"
+            type="text"
+            autocomplete="off"
+            autocapitalize="characters"
+            spellcheck="false"
+            maxlength="32"
+          />
+        </div>
+
+        <p id="error" class="error" role="alert" hidden></p>
+        <button id="submit" type="submit">Sign in</button>
+        <button id="toggle" class="link" type="button">Use a recovery code</button>
+        <button id="switch-server" class="link" type="button" hidden>Switch server…</button>
+      </form>
+    </main>
+  </body>
+</html>

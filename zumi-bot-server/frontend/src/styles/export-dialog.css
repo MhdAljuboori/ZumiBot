@@ -1,0 +1,59 @@
+/* The export dialog. */
+
+/* ---- export dialog: the clone dialog's option tiles, a sheet from the bottom on a phone ---- */
+.modal.export-dialog {
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+.modal.export-dialog:focus {
+  outline: none;
+}
+.export-dialog .modal-title {
+  margin: 0;
+}
+.export-for {
+  margin: -6px 0 0;
+  color: var(--fg-muted);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+.export-scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+.export-scope label,
+.export-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.export-dialog .clone-hint {
+  margin: -4px 0 0;
+}
+.export-dialog .clone-error {
+  margin: 0;
+}
+.export-dialog .clone-buttons {
+  margin-top: 6px;
+}
+@media (max-width: 799px) {
+  .export-backdrop {
+    align-items: flex-end;
+  }
+  .modal.export-dialog {
+    width: 100%;
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top));
+    border-width: 1px 0 0;
+    border-radius: 14px 14px 0 0;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  }
+}

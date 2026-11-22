@@ -1,0 +1,143 @@
+/* Pull requests: the chip, the box on a card and in Changes, the Open PR dialog. */
+
+/* ---- Pull requests: the chip beside the git chip, the box on the card and in Changes, and the Open PR dialog ---- */
+.pr-chip {
+  text-decoration: none;
+  gap: 5px;
+}
+.pr-chip .picker-text {
+  flex: none;
+}
+.pr-chip .pr-chip-state {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+}
+.pr-chip-dot {
+  font-size: 9px;
+  line-height: 1;
+}
+.pr-chip-dot.passing {
+  color: var(--success);
+}
+.pr-chip-dot.failing {
+  color: var(--error);
+}
+.pr-chip-dot.pending {
+  color: var(--warning);
+}
+.pr-chip.tone-you {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--error) 45%, transparent);
+}
+.pr-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+}
+.pr-box-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.pr-number {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--sel-fg);
+}
+.pr-state {
+  text-transform: capitalize;
+}
+.pr-state.tone-done {
+  color: var(--success);
+  font-weight: 600;
+}
+.pr-state.tone-you {
+  color: var(--error);
+  font-weight: 600;
+}
+.pr-state.tone-busy {
+  color: var(--accent-text);
+}
+.pr-state.tone-quiet {
+  color: var(--fg-muted);
+}
+.pr-checks {
+  color: var(--fg-muted);
+}
+.pr-failing {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pr-failing li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pr-check-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--error);
+}
+.pr-failing .btn {
+  margin-inline-start: auto;
+}
+.todo-card-pr {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.changes-pr {
+  flex: none;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-raised);
+}
+.pr-branch {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+}
+.pr-branch-name {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+.pr-commits {
+  max-height: 120px;
+  margin: 0 0 10px;
+  overflow-y: auto;
+  padding-inline-start: 18px;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.pr-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.pr-field .field {
+  font-weight: 400;
+}
+.pr-field textarea.field {
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.pr-draft {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+}

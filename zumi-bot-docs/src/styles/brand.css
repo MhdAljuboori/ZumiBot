@@ -1,0 +1,64 @@
+/* The zumibot.run palette (zumi-bot-site/src/styles.css, which mirrors the app's tokens), mapped onto Starlight's variables.
+   Starlight's scale: "white" is the strongest text, "black" the page background, grays between. Dark is its :root default and
+   light is :root[data-theme='light'], so the same two selectors are used here. */
+:root {
+  --sl-font: 'Bricolage Grotesque Variable';
+
+  /* site: --fg #eef2f8, --fg-muted #9aa3b5, --border #262c36, --bg-raised #191d25, --bg #13161c */
+  --sl-color-white: #eef2f8;
+  --sl-color-gray-1: #dde3ee;
+  --sl-color-gray-2: #c3cad8;
+  --sl-color-gray-3: #9aa3b5;
+  --sl-color-gray-4: #5f697b;
+  --sl-color-gray-5: #262c36;
+  --sl-color-gray-6: #191d25;
+  --sl-color-black: #13161c;
+
+  /* site: --sel-bg, --accent, --link */
+  --sl-color-accent-low: #142446;
+  --sl-color-accent: #2f6bf0;
+  --sl-color-accent-high: #6ea1ff;
+
+  /* site: --code-bg */
+  --sl-color-bg-inline-code: #1e232c;
+}
+
+:root[data-theme='light'] {
+  --sl-color-white: #121620;
+  --sl-color-gray-1: #1d2330;
+  --sl-color-gray-2: #343c4e;
+  --sl-color-gray-3: #5a6478;
+  --sl-color-gray-4: #8d96a8;
+  --sl-color-gray-5: #e0e5ee;
+  --sl-color-gray-6: #f7f9fc;
+  --sl-color-gray-7: #f7f9fc;
+  --sl-color-black: #ffffff;
+
+  --sl-color-accent-low: #e5edff;
+  --sl-color-accent: #2563eb;
+  --sl-color-accent-high: #1d4ed8;
+
+  /* Starlight uses the accent for links in light; the site's --link is the darker blue, which reads better on white. */
+  --sl-color-text-accent: #1d4ed8;
+  --sl-color-bg-inline-code: #eef1f7;
+}
+
+/* <Shot>: both theme images are in the page; the one for the active theme shows. Dark is Starlight's default, light is
+   :root[data-theme='light'] (the same selectors as above). max-width keeps a shot inside a phone's width. */
+.zb-shot {
+  margin: 1.5rem 0;
+}
+.zb-shot img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.5rem;
+}
+.zb-shot .zb-shot-light,
+:root[data-theme='light'] .zb-shot .zb-shot-dark {
+  display: none;
+}
+.zb-shot .zb-shot-dark,
+:root[data-theme='light'] .zb-shot .zb-shot-light {
+  display: block;
+}

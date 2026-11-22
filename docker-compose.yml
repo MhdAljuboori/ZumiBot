@@ -1,0 +1,110 @@
+# ZumiBot in Docker. One .env chooses the profile, and `docker compose up -d` is the whole command.
+#
+# Caddy runs in the server's own network namespace (network_mode: service:...), so it reaches the server on
+# 127.0.0.1:4317 while the server still binds nothing but loopback — Caddy is the only listener, and the container
+# that owns the namespace is the one that publishes ports. See docs/architecture/install.md.
+#
+#   COMPOSE_PROFILES=domain   a public https host; Caddy gets the certificate (ports 80 and 443)
+#   COMPOSE_PROFILES=local    no domain: loopback only, for an SSH tunnel or a private network such as Tailscale
+#
+# There is no plain-HTTP mode. The local profile serves https with Caddy's own CA (`tls internal`).
+name: zumibot
+
+x-zumibot: &zumibot
+  build:
+    context: .
+    args:
+      # Namespaced on purpose: a stray CLAUDE_CODE_VERSION in the host's shell must not change the pin.
+      CLAUDE_CODE_VERSION: ${ZUMIBOT_CLAUDE_VERSION:-2.1.325}
+  image: zumibot:${ZUMIBOT_IMAGE_TAG:-local}
+  restart: unless-stopped
+  # The server spawns the claude CLI per turn; an orphaned grandchild would stay a zombie under node as pid 1.
+  init: true
+  # Longer than the server's own 10 s shutdown, so every reply is stopped and the data lock released before the kill.
+  stop_grace_period: 30s
+  volumes:
+    - data:/data
+    - claude:/home/zumibot/.claude
+    - vault:/vault
+  healthcheck:
+    test: ["CMD", "zumibot-server", "busy"]
+    interval: 30s
+    timeout: 5s
+    start_period: 60s
+    retries: 3
+
+x-caddy: &caddy
+  image: caddy:2.11-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0
+  restart: unless-stopped
+
+services:
+  # --- COMPOSE_PROFILES=domain: a public https host ------------------------------------------------------------
+  zumibot:
+    <<: *zumibot
+    profiles: [domain]
+    environment:
+      ZUMIBOT_MODE: vps
+      ZUMIBOT_PORT: "4317"
+      # The fallback is the reserved .invalid TLD on purpose: compose cannot make a variable required for one
+      # profile only, so an unset domain must fail obviously instead of ordering a certificate for a real host.
+      ZUMIBOT_ORIGIN: https://${ZUMIBOT_DOMAIN:-zumibot.invalid}
+    # Caddy, inside this namespace, is what listens here. 80 is needed for the certificate challenge and the
+    # redirect to https.
+    ports:
+      - "80:80"
+      - "443:443"
+
+  caddy:
+    <<: *caddy
+    profiles: [domain]
+    network_mode: "service:zumibot"
+    depends_on:
+      zumibot:
+        condition: service_started
+        # Restarting the namespace owner replaces the namespace, so Caddy has to come up again after it.
+        restart: true
+    environment:
+      ZUMIBOT_DOMAIN: ${ZUMIBOT_DOMAIN:-zumibot.invalid}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+  # --- COMPOSE_PROFILES=local: no domain, loopback only --------------------------------------------------------
+  zumibot-local:
+    <<: *zumibot
+    profiles: [local]
+    environment:
+      ZUMIBOT_MODE: vps
+      ZUMIBOT_PORT: "4317"
+      # Must be exactly what the browser types, including the port: every write and the WebSocket upgrade are
+      # checked against it.
+      ZUMIBOT_ORIGIN: ${ZUMIBOT_LOCAL_ORIGIN:-https://localhost:8443}
+    ports:
+      - "${ZUMIBOT_LOCAL_PUBLISH:-127.0.0.1:8443}:8443"
+
+  caddy-local:
+    <<: *caddy
+    profiles: [local]
+    network_mode: "service:zumibot-local"
+    depends_on:
+      zumibot-local:
+        condition: service_started
+        # Restarting the namespace owner replaces the namespace, so Caddy has to come up again after it.
+        restart: true
+    environment:
+      ZUMIBOT_LOCAL_ORIGIN: ${ZUMIBOT_LOCAL_ORIGIN:-https://localhost:8443}
+    volumes:
+      - ./docker/Caddyfile.local:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  # Chats, settings, attachments, auth.json. Back this up.
+  data:
+  # The claude CLI's login, settings and session logs, and the agent files ZumiBot edits.
+  claude:
+  # The vault key alone, so no copy of `data` ever carries it. Back it up separately (docs/architecture/vault.md).
+  vault:
+  caddy-data:
+  caddy-config:

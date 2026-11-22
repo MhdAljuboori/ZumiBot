@@ -1,0 +1,69 @@
+/* Settings' navigation column. */
+
+/* ---- settings ---- */
+
+/* The nav is a .sidebar, so it takes the sidebar's width and is the drawer on a small screen. */
+.settings-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 32px;
+  margin-left: -10px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.settings-back:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.settings-back:focus-visible,
+.settings-item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.settings-title {
+  margin: 18px 20px 10px;
+  font-size: 15px;
+}
+.settings-list {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 10px 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.settings-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.settings-item:hover {
+  background: var(--bg-hover);
+}
+.settings-item[aria-current='page'] {
+  background: var(--bg-selected);
+  font-weight: 600;
+}
+.settings-item .menu-icon {
+  color: var(--fg-muted);
+}

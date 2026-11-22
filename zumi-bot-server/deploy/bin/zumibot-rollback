@@ -1,0 +1,85 @@
+#!/bin/sh
+# Puts back the app and the data that the last update replaced (app.prev, data.prev), then restarts the service.
+# The update installer made both: `install.sh --snapshot-data` keeps the old data in <dir>/data.prev.
+# What the failed update left is kept aside as app.failed and <data>.failed, never deleted.
+#
+#   <dir>/bin/zumibot-rollback
+set -eu
+
+# This script lives in <dir>/bin, so the install dir is one up from here.
+DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+# The same default as bin/zumibot-server, which is what pins it for the service.
+DATA=${ZUMIBOT_DATA_DIR:-$HOME/.local/share/zumibot}
+DATA=${DATA%/}
+UNIT=zumibot
+
+say() { printf '%s\n' "$*"; }
+warn() { printf 'Note: %s\n' "$*" >&2; }
+die() { printf 'Error: %s\n' "$*" >&2; exit 1; }
+
+# Agents and the server run as one plain user, and this moves their folders.
+[ "$(id -u)" != 0 ] || die "Run this as the account ZumiBot runs as, not as root."
+[ -n "$DATA" ] || die "The data folder is empty or '/'."
+
+# Everything is checked before anything is stopped or moved, so a refusal leaves the install exactly as it was.
+[ -d "$DIR/app" ] || die "$DIR/app is missing, so this is not an installed ZumiBot."
+[ -d "$DIR/app.prev" ] || die "There is no $DIR/app.prev to go back to: nothing was updated since it was last cleared."
+[ -d "$DIR/data.prev" ] || die "There is no $DIR/data.prev. The update was run without --snapshot-data, so there is no data to go back to either, and the old app alone could read data the new one changed."
+[ -d "$DATA" ] || [ ! -e "$DATA" ] || die "$DATA is not a folder."
+
+from=$(cat "$DIR/VERSION" 2>/dev/null || true)
+to=$(cat "$DIR/data.prev/.zumibot-from" 2>/dev/null || true)
+# They go into a JSON file below by hand, so anything odd is just "unknown".
+case $from in ''|*[!A-Za-z0-9._+-]*) from=unknown ;; esac
+case $to in ''|*[!A-Za-z0-9._+-]*) to=unknown ;; esac
+
+say "Rolling back ZumiBot $from to $to"
+
+# A server still running would keep writing into folders that are about to move.
+systemctl --user stop "$UNIT" || die "Could not stop the $UNIT user service, so nothing was changed. Is it installed with systemctl --user?"
+
+# The moves, in order, as the commands to run by hand if one fails. Built first so the list matches what runs:
+# the data folder is only moved aside if it exists. data.prev goes to <data>.restoring first and is renamed into
+# place last: a copy that dies half way (data.prev may be on another filesystem, where mv copies) only ever leaves
+# a stray .restoring, never a half-filled data folder. The last rename is within one parent, so it is atomic.
+PLAN=$(printf '%s\n' "rm -rf '$DATA.restoring'; mv '$DIR/data.prev' '$DATA.restoring'" \
+  "mv '$DIR/app' '$DIR/app.failed'" "mv '$DIR/app.prev' '$DIR/app'")
+[ ! -e "$DATA" ] || PLAN=$(printf '%s\n%s\n' "$PLAN" "mv '$DATA' '$DATA.failed'")
+PLAN=$(printf '%s\n%s\n%s\n' "$PLAN" "mv '$DATA.restoring' '$DATA'" "systemctl --user start $UNIT")
+STEP=0
+
+# If a move fails the server stays stopped, and this lists the steps that have not happened yet (this one first)
+# rather than guessing at a state.
+stuck() {
+  printf 'Error: could not move %s.\nThe server is stopped and the rollback is half done. Run the rest, in order:\n\n' "$1" >&2
+  printf '%s\n' "$PLAN" | tail -n +"$STEP" | sed 's/^/  /' >&2
+  exit 1
+}
+move() { STEP=$((STEP + 1)); mv -- "$1" "$2" || stuck "$1 to $2"; }
+
+# `mv` into an existing folder would nest, so the kept leftovers of an earlier rollback go first.
+rm -rf "$DIR/app.failed" "$DATA.failed" "$DATA.restoring"
+move "$DIR/data.prev" "$DATA.restoring"
+move "$DIR/app" "$DIR/app.failed"
+move "$DIR/app.prev" "$DIR/app"
+[ ! -e "$DATA" ] || move "$DATA" "$DATA.failed"
+move "$DATA.restoring" "$DATA"
+
+# The snapshot left these out (big, and re-downloadable), so take them from the folder it replaced.
+for kept in browsers browser-runtime; do
+  if [ -d "$DATA.failed/$kept" ] && [ ! -e "$DATA/$kept" ]; then
+    mv -- "$DATA.failed/$kept" "$DATA/$kept" || warn "Could not move $kept back; it is in $DATA.failed and the server will fetch it again."
+  fi
+done
+
+rm -f "$DATA/.zumibot-from"
+# The next snapshot reads this to say which version it replaced.
+if [ "$to" = unknown ]; then rm -f "$DIR/VERSION"; else printf '%s\n' "$to" > "$DIR/VERSION"; fi
+# The server reads this at boot to say the update was rolled back.
+printf '{"from":"%s","to":"%s"}\n' "$from" "$to" > "$DATA/update-rolled-back"
+
+if systemctl --user start "$UNIT"; then
+  say "Rolled back to $to. The failed build is in $DIR/app.failed and its data in $DATA.failed; delete them when you no longer need them."
+else
+  die "Rolled back to $to, but the service did not start. See: journalctl --user -u $UNIT -n 50 --no-pager"
+fi

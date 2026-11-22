@@ -1,0 +1,15 @@
+MEASURE {"state":"local: zero browsers","processes":0,"rssMiB":0,"sampleMs":1541,"cpuPercentOneCore":0}
+MEASURE {"state":"local: active unviewed","processes":10,"rssMiB":974.8828125,"sampleMs":1539,"cpuPercentOneCore":6.497725795971411}
+MEASURE {"state":"local: active viewed","processes":10,"rssMiB":1000.578125,"sampleMs":1553,"cpuPercentOneCore":32.83966516419833}
+{"fixtureErrors":[]}
+{"fixture":"main.jsonl","records":[{"name":"before","ok":true},{"name":"handoff","ok":true},{"name":"after","ok":false,"code":"cancelled"},{"name":"blockedAction","ok":false,"code":"cancelled"}]}
+{"fixture":"metrics.jsonl","records":[{"type":"launch"},{"type":"Page.startScreencast"}]}
+file:///home/mhdaljuboori/Developments/AI/ZumiBot/zumi-bot-server/e2e/browser.e2e.mjs:20
+  throw Error(`Timed out: ${label}`)
+        ^
+
+Error: Timed out: competing observe and click reached private IPC service
+    at until (file:///home/mhdaljuboori/Developments/AI/ZumiBot/zumi-bot-server/e2e/browser.e2e.mjs:20:9)
+    at async file:///home/mhdaljuboori/Developments/AI/ZumiBot/zumi-bot-server/e2e/browser.e2e.mjs:175:5
+
+Node.js v22.23.3

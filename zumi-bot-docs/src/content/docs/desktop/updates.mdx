@@ -1,0 +1,68 @@
+---
+title: Desktop app updates
+description: How ZumiBot updates itself in Local mode, what updates when you connect to a server, and when you need to install a newer desktop app.
+sidebar:
+  order: 4
+---
+
+The desktop app has two parts that update in different ways. The server, which holds every feature you use, can update from inside the app in Local mode. The app window itself, with its tray, island and Sync window, changes only when you install a newer desktop app.
+
+## Update in Local mode
+
+ZumiBot looks for a new version by itself. It checks a short time after it starts, then about every hour, and again when you come back to the window after more than 15 minutes. You do not have to ask.
+
+1. **See the notice.** When a newer version is out, a notice appears at the bottom right. It reads, for example, "ZumiBot v0.1.2 is available", and has **Update**, **What's new** and a **✕** button.
+2. **Read what changed.** **What's new** opens **Settings**, **About**, where the release notes are.
+3. **Choose Update.** If agents are working, a window titled "Update ZumiBot" asks first, for example "2 replies are running. Updating stops them. Update anyway?" Choose **Update anyway**, or **Cancel** to wait.
+4. **Wait a moment.** A screen reads "Updating ZumiBot…" and "It will be back in a moment." The app downloads the new version, restarts its server on it, and reloads by itself.
+5. **Check the result.** **Settings**, **About** reads, for example, "Updated from 0.1.1 to 0.1.2" followed by the date and time.
+
+The **✕** button hides the notice for that version. A newer version shows it again.
+
+To check right away, open **Settings**, **About** and choose **Check for updates**. The status line there reads "Not checked yet", "Checking…", "Up to date", or "Version X is available". When there is a newer version, **Install update** appears beside the button. The **Latest** and **Last checked** rows show what ZumiBot found and when.
+
+Before it uses a new version, ZumiBot checks that it came from the ZumiBot publisher and that the download is intact. A release that fails the check is never offered. About then says "The release is not signed by the ZumiBot publisher."
+
+## When you connect to a server
+
+In VPS mode the window shows pages from the server, so a server update changes what you see. On a server installed with the installer, the same notice and **Settings**, **About** appear and update the server, not the app on your computer. If About says "Updates need the installer install", that server cannot update itself from the app.
+
+After a server update, your window may say, for example, "ZumiBot was updated. Reload to use v0.1.2." Choose **Reload**. It never reloads by itself.
+
+The window itself still needs a newer installer, below.
+
+## Update the app itself
+
+The app window does not update in place. The window, the tray, the island, the Sync window and the first screen change only when you install a newer desktop app. A server update cannot change them.
+
+1. Download the newer installer from [zumibot.run](https://zumibot.run/#download).
+2. Install it the way you did the first time. See [Install the desktop app](/get-started/install-desktop/).
+3. Start ZumiBot again.
+
+Your chats and settings are kept in your home folder, not in the app, so an install does not remove them.
+
+The app does not tell you when a newer desktop app is out. Look at the download page now and then. You also need one when something described in these pages is missing in your app. For example, if **Island & startup** is not in **Settings**, or Settings says "Update the desktop app" for a feature, your app is older than the server it connects to.
+
+If a newer desktop app and a version you downloaded in Local mode both exist, ZumiBot runs the newer of the two.
+
+## If an update does not come back
+
+Most updates take a moment. After about 90 seconds, the updating screen adds "This is taking longer than expected." and a **Reload** button.
+
+1. Choose **Reload**. If ZumiBot does not come back, choose **Quit** in the tray menu, then open ZumiBot again.
+2. A version that will not start is set aside, and the version your app came with runs instead.
+3. Open **Settings**, **About**. It reads, for example, "Update to 0.1.2 failed" with the date and the last lines of the log.
+
+## Tips and limits
+
+- **Version numbers.** About shows the version of the server you are using. After an update in Local mode, that is newer than the version of the app you installed. That is normal.
+- **Local mode has no Roll back.** A server install can go back to its earlier version right after an update. Local mode cannot, and it makes no copy of your data before updating. A version that starts but misbehaves stays until a newer one replaces it.
+- **Replies stop for an update.** The app asks first and lets you wait.
+- **Where Local mode looks.** It checks the ZumiBot website and nothing else.
+
+## Related
+
+- [Install the desktop app](/get-started/install-desktop/)
+- [Local mode and server mode](/desktop/local-vs-server/)
+- [The island and the tray](/desktop/island-and-tray/)
+- [Sync](/desktop/sync/)

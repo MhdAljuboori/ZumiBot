@@ -1,0 +1,42 @@
+/* Error boundaries: a broken item, or the whole app. */
+
+/* Error boundaries (ErrorBoundary.tsx): one broken item, or the whole app, shows its error instead of a blank page. */
+.item-error {
+  margin: 6px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--error);
+  border-radius: 9px;
+  background: var(--error-bg);
+  color: var(--error);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.app-error {
+  box-sizing: border-box;
+  min-height: 100dvh;
+  padding: calc(24px + env(safe-area-inset-top)) 16px 24px;
+  background: var(--bg);
+  color: var(--fg);
+  overflow: auto;
+}
+.app-error h1 {
+  font-size: 20px;
+  margin: 0 0 8px;
+}
+.app-error p {
+  color: var(--error);
+  overflow-wrap: anywhere;
+}
+.app-error pre {
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--fg-muted);
+  max-height: 50dvh;
+  overflow: auto;
+}
+.app-error-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}

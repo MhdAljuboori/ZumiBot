@@ -1,0 +1,44 @@
+/* Page resets, body type, safe-area insets and the layout while a phone keyboard covers the page. */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  /* system-ui and Noto Sans before Helvetica: on Linux, Helvetica resolves to Nimbus Sans, a print face that reads poorly on screen. */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, 'Noto Sans', Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  /* Phones: no text inflation in landscape, no gray flash over tapped controls (they have their own pressed look). */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  /* viewport-fit=cover (index.html) runs the page under a phone's status and navigation bars, so they show this
+     background: the layout steps inside them here, and each fixed layer that covers the window pads itself. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* A keyboard that covers the page instead of shrinking it (keyboardCover.ts): the app fills only the part left on
+   screen, wherever the browser has panned to. #root, not body, moves, so popups placed in body keep their coordinates.
+   The keyboard sits over the navigation bar, so there is no bottom inset. */
+html.kb-cover #root {
+  position: fixed;
+  top: var(--vv-top);
+  left: 0;
+  right: 0;
+  height: var(--vv-height);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}

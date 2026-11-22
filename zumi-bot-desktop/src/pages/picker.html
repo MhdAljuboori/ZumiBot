@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ZumiBot</title>
+    <link rel="stylesheet" href="./picker.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Connect to a server</h1>
+      <p class="hint">ZumiBot runs on a server. Pick where yours lives.</p>
+      <form id="form" novalidate>
+        <label class="card"
+          ><input type="radio" name="kind" value="local" checked />
+          <span><strong>Local</strong><small id="local-note">Run the server on this computer. Your chats stay here.</small></span>
+        </label>
+        <label id="port-row" class="port"
+          >Port
+          <input id="port" type="number" min="1024" max="65535" step="1" value="4318" inputmode="numeric" />
+        </label>
+        <label class="card"
+          ><input type="radio" name="kind" value="vps" />
+          <span><strong>VPS</strong><small>Connect to a ZumiBot server you host.</small></span>
+        </label>
+        <input
+          id="url"
+          type="url"
+          placeholder="https://zumibot.example.com"
+          aria-label="Server address"
+          spellcheck="false"
+          autocomplete="off"
+          hidden
+        />
+        <p id="error" role="alert"></p>
+        <button id="go" type="submit">Continue</button>
+      </form>
+      <p class="hint">To come back here later, press <kbd class="switch-key">Ctrl+Shift+S</kbd>.</p>
+    </main>
+    <script src="./picker.js" defer></script>
+  </body>
+</html>

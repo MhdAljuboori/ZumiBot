@@ -1,0 +1,76 @@
+--- a/zumi-bot-server/deploy/sync.mjs
++++ b/zumi-bot-server/deploy/sync.mjs
+@@ -1,7 +1,7 @@
+ import { createHash } from 'node:crypto'
+ import { copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
+ import { tmpdir } from 'node:os'
+-import { dirname, join } from 'node:path'
++import { dirname, join, relative } from 'node:path'
+ import { fileURLToPath } from 'node:url'
+ import { RSYNC_SSH, SAFE_DIR, SAFE_HOST, SSH_OPTS, parseEnvFile, realRun, shq } from './deploy.mjs'
+ 
+@@ -18,7 +18,8 @@
+   ['file-history', []],
+ ]
+ // The lock and socket belong to the running server; auth.json is the VPS sign-in, which Local mode never uses.
+-const PULL_EXCLUDES = ['server.lock', 'control.sock', 'auth.json', '*.pre-rename'].map((p) => `--exclude=${p}`)
++const BROWSER_EXCLUDES = ['browsers', 'browser-runtime']
++const PULL_EXCLUDES = [...BROWSER_EXCLUDES.map(p => `/${p}/`), 'server.lock', 'control.sock', 'auth.json', '*.pre-rename'].map((p) => `--exclude=${p}`)
+ // Whole-file settings: the side that changed them last wins.
+ const NEWEST_WINS = ['routine-runs.json', 'usage.json', 'sidebar.json', 'settings.json']
+ 
+@@ -188,7 +189,7 @@
+   const rbk = `${remoteHome}/${name}`
+   log(`Backing up to ${bk} (this PC) and ${rbk} (VPS)...`)
+   mkdirSync(bk, { recursive: true })
+-  if (existsSync(data)) cpSync(data, join(bk, 'zumibot-data'), { recursive: true, preserveTimestamps: true, filter: (src) => !lstatSync(src).isSocket() })
++  if (existsSync(data)) cpSync(data, join(bk, 'zumibot-data'), { recursive: true, preserveTimestamps: true, filter: (src) => !BROWSER_EXCLUDES.includes(relative(data, src).split('/')[0]) && !lstatSync(src).isSocket() })
+   for (const f of ['agents', 'history.jsonl', 'CLAUDE.md']) {
+     if (existsSync(join(claude, f))) cpSync(join(claude, f), join(bk, f), { recursive: true, preserveTimestamps: true })
+   }
+@@ -196,7 +197,7 @@
+     'set -e',
+     `B=${shq(rbk)}`,
+     'mkdir -p "$B" ~/.claude/agents ~/.claude/skills ~/.claude/projects ~/.claude/file-history',
+-    `[ ! -d ~/${DATA} ] || rsync -a --exclude=control.sock ~/${DATA}/ "$B/zumibot-data/"`,
++    `[ ! -d ~/${DATA} ] || rsync -a --exclude=control.sock ${BROWSER_EXCLUDES.map(p => `--exclude=/${p}/`).join(' ')} ~/${DATA}/ "$B/zumibot-data/"`,
+     'for f in agents history.jsonl CLAUDE.md; do [ ! -e ~/.claude/$f ] || cp -a ~/.claude/$f "$B/"; done',
+   ].join('\n'))
+   if (rb.code !== 0) {
+--- a/zumi-bot-server/backend/tests/sync.test.ts
++++ b/zumi-bot-server/backend/tests/sync.test.ts
+@@ -156,6 +156,34 @@
+     expect(calls.some((c) => c.args.some((a) => a.startsWith('--delete')))).toBe(false)
+   })
+ 
++  it('keeps browser profiles and runtimes private on each machine and out of all data backups', async () => {
++    for (const home of [pc, vps]) for (const folder of ['browsers', 'browser-runtime']) {
++      write(data(home, `${folder}/local-marker`), home === pc ? 'pc' : 'vps')
++      write(data(home, `${folder}/only-${home === pc ? 'pc' : 'vps'}`), 'private')
++    }
++    const run = fakeRun()
++    let pulled = false
++    expect(await go(async (cmd: string, args: string[]) => {
++      const result = await run(cmd, args)
++      if (cmd === 'rsync' && args.includes('bot@vps.example:.local/share/zumibot/')) {
++        pulled = true
++        for (const folder of ['browsers', 'browser-runtime']) expect(existsSync(join(args.at(-1)!, folder))).toBe(false)
++      }
++      return result
++    })).toBe(0)
++    expect(pulled).toBe(true)
++    const push = calls.find(c => c.cmd === 'rsync' && c.args.at(-1)!.endsWith('/incoming/'))!
++    expect(push.args.slice(3, -1)).toEqual(['chats.json', 'sidebar.json', 'chats', 'attachments'].map(f => data(pc, f)))
++    for (const home of [pc, vps]) for (const folder of ['browsers', 'browser-runtime']) {
++      expect(readFileSync(data(home, `${folder}/local-marker`), 'utf8')).toBe(home === pc ? 'pc' : 'vps')
++      expect(existsSync(data(home, `${folder}/only-${home === pc ? 'vps' : 'pc'}`))).toBe(false)
++      // Derive the actual backup location from the operation's reported path.
++      const line = logs.find((l) => l.startsWith('Synced'))!
++      const paths = line.match(/Backups: (\S+) \(this PC\), (\S+) \(VPS\)/)!
++      expect(existsSync(join(home === pc ? paths[1]! : paths[2]!, 'zumibot-data', folder))).toBe(false)
++    }
++  })
++
+   it('a second run changes nothing', async () => {
+     expect(await go()).toBe(0)
+     const before = readFileSync(data(vps, 'chats/shared.json'), 'utf8')

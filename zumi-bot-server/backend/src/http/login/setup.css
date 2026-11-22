@@ -1,0 +1,152 @@
+/* Additions to login.css for the wizard: a wider card, the QR, the code list and the CLI check. */
+.card.wide {
+  max-width: 440px;
+}
+
+h2 {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.muted {
+  margin: 0 0 10px;
+  color: var(--fg-muted);
+}
+.muted.tight {
+  margin: 0 0 12px;
+  padding-left: 18px;
+}
+.muted.tight li {
+  margin: 2px 0;
+}
+
+#progress {
+  margin: -12px 0 18px;
+  font-size: 12px;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.qr {
+  align-self: center;
+  width: 240px;
+  height: 240px;
+  margin: 4px 0 10px;
+  /* The PNG is black on transparent, so it needs a light plate in either theme. */
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+details {
+  margin-bottom: 8px;
+  color: var(--fg-muted);
+}
+summary {
+  cursor: pointer;
+}
+.secret {
+  display: block;
+  margin-top: 6px;
+  word-break: break-all;
+}
+
+.codes {
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.warn {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  background: var(--error-bg);
+  color: var(--error);
+  border-radius: 8px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  color: var(--fg);
+  font-size: 14px;
+}
+.check input {
+  width: auto;
+}
+
+.status {
+  margin: 0 0 10px;
+}
+.status.ok::before {
+  content: '\2713\00a0';
+}
+.status.bad::before {
+  content: '\26a0\00a0';
+}
+
+pre {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+#submit-code,
+#submit-password,
+#submit-totp,
+#submit-recovery,
+#submit-finish {
+  margin-top: 16px;
+  padding: 10px 12px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  border: 0;
+  border-radius: 8px;
+  font-weight: 600;
+}
+#submit-code:disabled,
+#submit-password:disabled,
+#submit-totp:disabled,
+#submit-recovery:disabled,
+#submit-finish:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+#sign-in {
+  color: var(--link);
+}
+
+@media (pointer: coarse) {
+  #submit-code,
+  #submit-password,
+  #submit-totp,
+  #submit-recovery,
+  #submit-finish {
+    padding: 12px;
+  }
+}

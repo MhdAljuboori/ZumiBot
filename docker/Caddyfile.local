@@ -1,0 +1,25 @@
+# COMPOSE_PROFILES=local. No domain and no public listener: this is published on loopback only, for an SSH tunnel
+# (ssh -L 8443:127.0.0.1:8443 you@host) or a private network such as Tailscale.
+#
+# `tls internal` means Caddy's own CA signs the certificate, so a browser warns until you trust its root:
+#   docker compose cp caddy-local:/data/caddy/pki/authorities/local/root.crt ./zumibot-local-ca.crt
+# and add that to your trust store. There is no plain-HTTP mode: the session cookie is Secure, and the origin
+# check needs the https origin below.
+{
+	# See docker/Caddyfile: the admin API would be reachable from the server's container through the shared
+	# network namespace.
+	admin off
+	# No plain-HTTP anything: this profile has no certificate challenge to answer and nothing to redirect, so
+	# Caddy should not open :80 at all.
+	auto_https disable_redirects
+}
+
+{$ZUMIBOT_LOCAL_ORIGIN} {
+	tls internal
+	request_body {
+		max_size 26MiB
+	}
+	reverse_proxy 127.0.0.1:4317 {
+		header_up X-Forwarded-For {remote_host}
+	}
+}

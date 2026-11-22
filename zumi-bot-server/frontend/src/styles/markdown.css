@@ -1,0 +1,220 @@
+/* Rendered replies: Markdown, code blocks, Mermaid diagrams, math and tables. */
+
+.markdown > :first-child {
+  margin-top: 0;
+}
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown .code-block,
+.markdown table,
+.markdown blockquote {
+  margin: 10px 0;
+}
+/* Headings stay near body size: a reply is one message, not a page, and a long card title must not shout across two lines.
+   Weight and the space above them mark the sections. */
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  margin: 22px 0 6px;
+  font-weight: 600;
+  text-wrap: pretty;
+}
+.markdown h1 {
+  font-size: 20px;
+  line-height: 28px;
+}
+.markdown h2 {
+  font-size: 17.5px;
+  line-height: 26px;
+}
+.markdown h3 {
+  font-size: 16px;
+  line-height: 24px;
+}
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  font-size: 15px;
+  line-height: 22px;
+}
+.markdown :is(h1, h2, h3, h4, h5, h6) + :is(h2, h3, h4, h5, h6) {
+  margin-top: 10px;
+}
+.markdown strong {
+  font-weight: 600;
+}
+.markdown ul,
+.markdown ol {
+  padding-left: 22px;
+}
+.markdown li + li {
+  margin-top: 4px;
+}
+/* A nested list and a loose list's paragraphs sit close to their item, so the items still read as one list. */
+.markdown li > ul,
+.markdown li > ol {
+  margin: 4px 0;
+}
+.markdown li > p {
+  margin: 0;
+}
+.markdown li > p + p {
+  margin-top: 6px;
+}
+.markdown li::marker {
+  color: var(--fg-muted);
+}
+.markdown a {
+  color: var(--link);
+}
+.markdown hr {
+  margin: 18px 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+/* Mono glyphs run small: at 0.93em their cap and x heights match the text around them, which a fixed 13px left looking sunk.
+   line-height 1 keeps a line holding code as tall as the others; at the reply's 24px the mono line box grew it by 1px. */
+.markdown code {
+  font-family: var(--font-mono);
+  font-size: 0.93em;
+  line-height: 1;
+  color: var(--fg);
+  background: var(--code-bg);
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+.markdown pre {
+  margin: 0;
+  background: var(--code-bg);
+  padding: 8px 10px;
+  border-radius: 8px;
+  overflow-x: auto;
+  line-height: 20px;
+}
+.markdown pre code {
+  font-size: 13px;
+  line-height: inherit;
+  color: var(--fg);
+  background: none;
+  padding: 0;
+}
+/* The copy button sits outside the pre, so it stays put while a long line scrolls sideways. Its background hides the code under it. */
+.code-block {
+  position: relative;
+}
+.code-copy {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: var(--code-bg);
+  color: var(--fg-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.code-copy svg {
+  width: 16px;
+  height: 16px;
+}
+.code-block:hover .code-copy,
+.code-copy:focus-visible {
+  opacity: 1;
+}
+.code-copy:hover {
+  background: color-mix(in srgb, var(--fg) 10%, var(--code-bg));
+  color: var(--fg);
+}
+.code-copy:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.code-tools {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 2px;
+}
+.code-tools .code-copy {
+  position: static;
+}
+/* Mermaid measures labels in a scratch div on <body>, so the diagram undoes what the bubble would change about them. */
+.mermaid-diagram {
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  overflow-x: auto;
+  font-size: 14px;
+  line-height: normal;
+  overflow-wrap: normal;
+}
+.mermaid-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+.markdown .mermaid-diagram :is(p, ul, ol) {
+  margin: 0;
+}
+.diagram-error {
+  margin-top: 4px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+/* Diagrams and display math need width the way tables do. */
+.bubble.assistant:has(.mermaid-diagram) {
+  max-width: 100%;
+}
+.markdown .katex-display {
+  margin: 10px 0;
+  padding: 2px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.markdown blockquote {
+  padding-left: 10px;
+  border-left: 3px solid var(--border);
+  color: var(--fg-muted);
+}
+/* A table's cells need width more than its lines need shortness, so its bubble may span the whole column. */
+.bubble.assistant:has(table) {
+  max-width: 100%;
+}
+.markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 20px;
+}
+/* Cells wrap only between words: the bubble's overflow-wrap: anywhere would let a short column shrink to one letter. */
+.markdown th,
+.markdown td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  overflow-wrap: normal;
+  vertical-align: top;
+}
+.markdown th {
+  text-align: start;
+  font-weight: 600;
+  background: var(--bg-hover);
+}

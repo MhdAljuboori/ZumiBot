@@ -1,0 +1,3 @@
+# Preserve command output and unified-patch context whitespace as evidence.
+*.log -whitespace
+*.patch -whitespace

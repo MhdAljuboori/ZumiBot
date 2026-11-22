@@ -1,0 +1,98 @@
+---
+title: Codex agents
+description: Run an agent on OpenAI's Codex instead of Claude Code, and see what works the same and what does not.
+sidebar:
+  order: 1
+---
+
+import Shot from '../../../components/Shot.astro'
+import { Steps } from '@astrojs/starlight/components'
+
+Every agent runs on Claude Code unless you say otherwise. A Codex agent runs on OpenAI's Codex instead. You chat with it, approve its steps and put it in rooms, routines and workflows the same way. The engine is the only thing that changes, and it is a choice you make per agent in [Agent Studio](/agents/agent-studio/).
+
+## Before you start
+
+Codex must be installed and signed in on the computer that runs your ZumiBot server. That is your PC in Local mode, and your server otherwise. ZumiBot does not install it or sign you in.
+
+- Install OpenAI's Codex command line tool there. OpenAI's own documentation has the steps.
+- Open a terminal on that computer and run `codex login`.
+
+Until the tool is installed, **Codex** is grayed out in the Engine list, with the line "Codex CLI not found. Install it and run `codex login` on this machine." If it is installed but you are signed out, a message fails with "Codex is not signed in on this machine. Run `codex login` in a terminal."
+
+## Make an agent run on Codex
+
+<Steps>
+
+1. **Open the agent in Agent Studio**, or make a new one. See [Agent Studio](/agents/agent-studio/).
+
+2. **Open the Engine list** in the "Engine & model" card and choose **Codex**. The list offers Claude, Codex, ACP agent and Remote agent (AG-UI). The last two are for [other kinds of agents](/engines/acp-and-ag-ui/).
+
+3. **Pick a model, or leave it on Default.** The buttons under the list are **Default** and the models your Codex tool offers. A **Custom model** box takes a model name that is not listed.
+
+4. **Choose Save changes.** The agent shows a small **Codex** tag beside its name in the sidebar.
+
+</Steps>
+
+<Shot name="engines-engine-select" alt="The Engine and model card in Agent Studio with the Engine list open. The list holds four choices: Claude, with a check mark, Codex, ACP agent and Remote agent (AG-UI)." />
+
+You can also ask [Zumi Bot](/agents/zumi-bot/) for a Codex agent. It writes one only when you ask for it.
+
+When you change an agent's engine, the model is kept only if the new engine can use it. Otherwise it goes back to Default. A daily spend cap is dropped too if the new engine cannot hold one. See [Spend caps](/safety/spend-caps/).
+
+## Chat with it
+
+Start a chat with the agent as you would with any other. Its replies stream, its commands and file changes show as steps, and its approvals arrive as cards.
+
+<Shot name="engines-codex-chat" alt="A chat with the agent Test Writer, which has a Codex tag in the sidebar. The user asked 'Add tests for the cart total'. Under the agent's name the line 'Thought for 1s' is open and shows one Bash step, npm test -- cart. The reply reads 'I ran the cart tests and all three pass. I added two more cases for an empty cart and a removed item.' The row under the message box has only two pickers, Default and Auto, and the folder my-project." />
+
+Two things look a little different from a Claude Code chat:
+
+- **The mode picker offers Auto and Ask permissions only.** In Auto, Codex runs what its own reviewer finds safe and asks about the rest. In Ask permissions it asks before anything it does not know to be safe. Even then, a harmless read such as listing a folder may run without a card. Plan mode and Accept edits are for Claude Code agents.
+- **There is no effort picker.** The model picker lists the models Codex offers.
+
+Approvals, questions and file changes are covered in [Approvals, questions and plans](/chatting/approvals-questions-plans/) and [Files and Restore](/projects/files-and-restore/). The Usage popover also shows a block headed "Codex usage limits" with the limits Codex reports, beside the Claude Code ones.
+
+## What works on each kind of agent
+
+Some features belong to one engine only. Where a feature is missing, ZumiBot hides its button instead of showing one that fails. A small "i" beside the agent in a chat lists what that agent cannot do.
+
+| | Claude Code | Codex | ACP agent | Remote agent |
+| --- | --- | --- | --- | --- |
+| Edit, Resend and Fork | Yes | Yes | No | Yes |
+| Pause | Yes | Yes | No | No |
+| Side questions | Yes | Yes | No | No |
+| Compact | Yes | Yes | No | No |
+| Model picker | Yes | Yes | No | No |
+| Spend caps | Yes | Yes | No | No |
+| Group rooms | Yes | Yes | Yes | No |
+| Files panel and Restore | Yes | Yes | Yes | No |
+| Question cards | Yes | Yes | Yes | Yes |
+| To-do, Vault, ask and browser tools | Yes | Yes | No | No |
+| Plan mode, memory, computer use | Yes | No | No | No |
+| Sandboxed and Container isolation | Yes | No | No | No |
+
+More detail on Codex:
+
+- **Rooms.** A Codex agent can be a room member. The moderator that picks who speaks, and the room summary, always run on Claude Code, so a room still needs Claude Code installed. See [Group rooms and the moderator](/rooms/rooms-and-moderator/).
+- **Routines and workflows.** A Codex agent runs in routines and in the Agent steps of workflows like any other agent.
+- **Asks.** A Codex agent can ask another agent, and be asked. See [Agent asks](/rooms/agent-asks/). When a Codex agent is the one being asked and wants to ask a question of its own, that question gets an empty answer.
+- **Compact.** It works, but the note box is hidden and the meter reads "Compacted" with no sizes, since Codex reports none.
+- **Subagents.** A Codex agent can send out helpers. They show in [Dispatched agents](/rooms/dispatched-agents/).
+- **Not available.** Computer use, memory, Plan mode, the keep-warm setting, the background-process tool, Claude Code servers, plugins, skills and hooks, and claude.ai connectors are for Claude Code agents. The cards for them are hidden or view-only on a Codex agent.
+
+## Tips and limits
+
+- **Isolation is refused.** Sandboxed and Container isolation cannot hold a Codex agent. Agent Studio says so, and a Codex agent that is saved with one of them will not run. Codex keeps its own sandbox, which ZumiBot leaves as it is. See [Audit log and isolation](/safety/audit-and-isolation/).
+- **API keys from the Vault.** A Codex agent can use them, but only when ZumiBot's guard for it starts. The guard is a speed bump, as it is for Claude Code agents, not a wall. If Codex does not confirm it, the reply runs without the guard and without the agent's API keys, and the chat says so first: "Codex didn't confirm ZumiBot's hooks, so this reply runs without the vault guard or the agent's API keys". Pause then lands only when the reply ends. See [Vault](/safety/vault/).
+- **Keys that Codex reads for itself.** A key whose name starts with `CODEX_` or `OPENAI_` is not passed to a Codex agent, so it cannot change Codex's own sign-in.
+- **A printed value stays in Codex's own history.** If a command prints a secret, Codex keeps that text in its own session files, and ZumiBot does not clean them.
+- **Switching an agent between engines starts the conversation over.** A chat cannot carry one engine's memory to the other. The next message continues in a new session that uses the chat's history as context, and the chat says "Earlier session expired. Continued in a new session using this chat's history as context."
+- **Usage limits.** When Codex reports that its limit is reached, the chat waits as described in [Usage limit waits](/chatting/usage-limit-waits/).
+
+## Related
+
+- [Agent Studio](/agents/agent-studio/)
+- [ACP & AG-UI](/engines/acp-and-ag-ui/): other kinds of agents.
+- [Mode, effort and model](/chatting/mode-effort-model/)
+- [Group rooms and the moderator](/rooms/rooms-and-moderator/)
+- [Spend caps](/safety/spend-caps/)

@@ -1,0 +1,113 @@
+/* The Changes panel (git). */
+
+/* ---- Changes panel (git): the Files panel's layout, with a branch line and a status letter per file ---- */
+.changes-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.changes-refresh {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 7px;
+  color: var(--fg-muted);
+}
+.changes-refresh:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.changes-refresh:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.changes-refresh.spinning .glyph {
+  animation: spin 0.8s linear infinite;
+}
+.changes-sum {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.changes-sum .git-icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+.changes-branch {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+.changes-files {
+  flex: none;
+  white-space: nowrap;
+}
+.changes-sum .change-lines {
+  margin-inline-start: auto;
+}
+.changes-error {
+  flex: none;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--error-bg);
+  color: var(--error);
+  font-size: 12px;
+}
+.change-kind {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+}
+.change-kind:is([data-kind='added'], [data-kind='untracked']) {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+}
+.change-kind:is([data-kind='deleted'], [data-kind='conflicted']) {
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 14%, transparent);
+}
+.change-kind:is([data-kind='renamed'], [data-kind='copied']) {
+  color: var(--sel-fg);
+  background: var(--tile-bg);
+}
+.change-lines {
+  flex: none;
+  display: inline-flex;
+  gap: 6px;
+  margin-inline-start: auto;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.file-meta .change-lines {
+  margin-inline-start: 0;
+}
+.change-add {
+  color: var(--success);
+}
+.change-del {
+  color: var(--error);
+}

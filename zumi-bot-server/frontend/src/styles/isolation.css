@@ -1,0 +1,75 @@
+/* Agent Studio › Isolation, and a chat's sandbox-blocked line. */
+
+/* Agent Studio › Isolation (AgentIsolation.tsx): stacked, since it holds lists. */
+.isolation-settings {
+  flex-direction: column;
+  align-items: stretch;
+}
+.isolation-settings > div {
+  flex: none;
+}
+.isolation-settings .desktop-missing {
+  color: var(--warning);
+}
+.isolation-levels {
+  display: flex;
+  gap: 18px;
+  font-size: 13px;
+}
+.isolation-levels label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.isolation-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--fg-muted);
+}
+.isolation-fields > label:not(.isolation-check) {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.isolation-fields textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--mono, monospace);
+  font-size: 12.5px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  resize: vertical;
+}
+.isolation-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--fg);
+}
+.isolation-grants {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  overflow-wrap: anywhere;
+}
+.isolation-grants p {
+  margin: 2px 0;
+}
+.isolation-actions {
+  display: flex;
+  gap: 8px;
+}
+/* The line a chat shows under a tool row the sandbox blocked. */
+.tool-sandbox-line {
+  margin: 2px 0 2px 26px;
+  color: var(--warning);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}

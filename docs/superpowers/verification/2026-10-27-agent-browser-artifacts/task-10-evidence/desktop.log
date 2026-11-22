@@ -1,0 +1,109 @@
+
+> e2e:desktop
+> npm run e2e -w zumibot
+
+
+> zumibot@1.17.0 e2e
+> npm --prefix .. run build && electron-builder --linux --dir && node e2e/local.e2e.mjs
+
+
+> build
+> npm run build:server && npm run build -w zumibot
+
+
+> build:server
+> npm run build -w @zumibot/frontend && npm run build -w @zumibot/backend
+
+
+> @zumibot/frontend@1.17.0 build
+> vite build
+
+vite v8.3.5 building client environment for production...
+transforming...
+✓ 498 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                0.59 kB │ gzip:   0.37 kB
+dist/assets/zumi-bot-dark-Cs7fWUPW.png      27.17 kB
+dist/assets/zumi-bot-light-BxYq7vcV.png     28.79 kB
+dist/assets/index-D_epifzm.css                82.75 kB │ gzip:  15.47 kB
+dist/assets/index-D0TxI4El.js              1,073.59 kB │ gzip: 327.19 kB
+
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 380ms
+
+> @zumibot/backend@1.17.0 build
+> vite build
+
+vite v8.3.5 building ssr environment for production...
+transforming...
+✓ 477 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/types-D76km6Gu.mjs              0.36 kB │ gzip:   0.23 kB
+dist/attachments-DqZ_UuTL.mjs        0.74 kB │ gzip:   0.41 kB
+dist/browserWorker.mjs               5.81 kB │ gzip:   1.96 kB
+dist/browser-DvfwNj-Z.mjs            9.34 kB │ gzip:   2.97 kB
+dist/browserProcess-SlFeNSGw.mjs     9.86 kB │ gzip:   2.78 kB
+dist/browserRuntime.mjs             10.37 kB │ gzip:   3.85 kB
+dist/workerAdapter.mjs              10.62 kB │ gzip:   3.35 kB
+dist/browserIpc-1H7QcHEv.mjs        18.68 kB │ gzip:   6.26 kB
+dist/chromiumAdapter-B2jhyKtL.mjs   24.66 kB │ gzip:   7.34 kB
+dist/browserBridge.mjs             564.18 kB │ gzip: 123.53 kB
+dist/server.mjs                    797.33 kB │ gzip: 196.05 kB
+
+✓ built in 161ms
+
+> zumibot@1.17.0 build
+> electron-vite build
+
+(!) renderer config is missing
+
+vite v8.3.5 building ssr environment for production...
+transforming...
+✓ 19 modules transformed.
+rendering chunks...
+out/main/index.js  36.69 kB
+
+✓ built in 32ms
+vite v8.3.5 building ssr environment for production...
+transforming...
+✓ 2 modules transformed.
+rendering chunks...
+out/preload/index.js  1.64 kB
+
+✓ built in 10ms
+  • electron-builder  version=26.15.3 os=7.0.0-38-generic
+  • loaded configuration  file=/home/mhdaljuboori/Developments/AI/ZumiBot/zumi-bot-desktop/electron-builder.yml
+  • packageManager not detected by file, falling back to environment detection  resolvedPackageManager=npm detected=/home/mhdaljuboori/Developments/AI/ZumiBot/zumi-bot-desktop
+  • detected workspace root for project using lock file  pm=npm config=undefined resolved=/home/mhdaljuboori/Developments/AI/ZumiBot projectDir=/home/mhdaljuboori/Developments/AI/ZumiBot/zumi-bot-desktop
+  • executing @electron/rebuild  electronVersion=45.0.0 arch=x64 buildFromSource=false workspaceRoot=/home/mhdaljuboori/Developments/AI/ZumiBot projectDir=./ appDir=./
+  • installing native dependencies  arch=x64
+  • completed installing native dependencies
+  • packaging       platform=linux arch=x64 electron=45.0.0 appOutDir=dist/linux-unpacked
+  • downloaded      label=electron progress=100%
+  • downloaded electron zip extracted successfully  output=/home/mhdaljuboori/Developments/AI/ZumiBot/zumi-bot-desktop/dist/linux-unpacked
+  • searching for node modules  pm=npm searchDir=/home/mhdaljuboori/Developments/AI/ZumiBot/zumi-bot-desktop
+  • no node modules found in collection, trying next search directory  searchDir=/home/mhdaljuboori/Developments/AI/ZumiBot/zumi-bot-desktop attempt=0
+  • searching for node modules  pm=npm searchDir=/home/mhdaljuboori/Developments/AI/ZumiBot
+  • searching for node modules  pm=traversal searchDir=/home/mhdaljuboori/Developments/AI/ZumiBot/zumi-bot-desktop
+  • using manual traversal of node_modules to build dependency tree
+  • no node modules found in collection, trying next search directory  searchDir=/home/mhdaljuboori/Developments/AI/ZumiBot/zumi-bot-desktop attempt=0
+  • searching for node modules  pm=traversal searchDir=/home/mhdaljuboori/Developments/AI/ZumiBot
+  • using manual traversal of node_modules to build dependency tree
+  • no node modules returned while searching directories  searchDirectories=["","/home/mhdaljuboori/Developments/AI/ZumiBot"]
+PASS copied packaged browser-check uses Electron Node and sandboxed worker, with ephemeral profile only
+PASS copied packaged MCP bridge discovers and routes with Electron Node
+PASS explicit installer uses Electron Node and private cache; downloader intercepted, no installation or network
+PASS launched packaged executable, userData is the tmp dir
+PASS local server up on 127.0.0.1:44773 (pid 638879)
+PASS migration: 2 group chats and 1 single chat in the sidebar
+PASS production Local server launches sandboxed browser through Electron Node after environment scrubbing
+PASS account menu: "Switch server…" present, no "Sign out"
+PASS closing the window ended Electron, server, worker and Chromium processes
+PASS 4 fixture files byte-identical
+E2E PASS

@@ -1,0 +1,179 @@
+/* Agent asks: the asked bar, the ask card, and the asking agent's name over its message. */
+
+/* Where the composer would be in a chat another agent started: read only, with the way back to where it began. */
+.asked-bar {
+  flex: none;
+  margin: 0 16px 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  font-size: 13px;
+  line-height: 20px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.asked-source {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.asked-source:hover {
+  text-decoration: underline;
+}
+.asked-source:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.asked-source-gone {
+  font-style: italic;
+}
+/* An agent's ask to another agent, in the asking chat: who, what, how it is going, and the way into the conversation. */
+.ask-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 100%;
+  margin: 6px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-raised);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.ask-card.waiting {
+  border-color: var(--sel-border);
+}
+.ask-card.failed {
+  border-color: var(--error);
+}
+.ask-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+.ask-head .bot-icon,
+.ask-head svg {
+  flex: none;
+}
+.ask-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ask-verb {
+  color: var(--fg-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.ask-message {
+  margin: 0;
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.ask-message.open {
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  overflow: visible;
+}
+.ask-toggle {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ask-toggle:hover {
+  color: var(--fg);
+  text-decoration: underline;
+}
+.ask-toggle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.ask-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.ask-card.waiting .ask-status {
+  color: var(--sel-fg);
+}
+.ask-card.failed .ask-status {
+  color: var(--error);
+}
+.ask-status .spinner {
+  flex: none;
+  width: 11px;
+  height: 11px;
+}
+.ask-further {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.ask-card.side-ask-card {
+  border-style: dashed;
+}
+.ask-reply {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 100%;
+}
+.ask-reply-body {
+  max-width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  overflow-wrap: anywhere;
+}
+/* The asking agent over its message in an asked chat, in place of "You". */
+.user-from {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--fg-muted);
+}
+.user-from .bot-icon,
+.user-from svg {
+  flex: none;
+}
+.wf-from .glyph {
+  width: 14px;
+  height: 14px;
+}
+.wf-from-link {
+  color: inherit;
+  text-decoration: none;
+}
+.wf-from-link:hover {
+  color: var(--link);
+  text-decoration: underline;
+}

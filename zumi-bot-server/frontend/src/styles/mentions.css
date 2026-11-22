@@ -1,0 +1,301 @@
+/* Mentions and command chips, the @ and / menus, the Members checklist and list. */
+
+/* A mention in a sent message: icon and name in the agent's color (--mention); greyed @handle once the agent is gone.
+   The name sets the chip's baseline, so it sits on the line with the text around it; the icons stay centered in the chip. */
+.mention {
+  --mention: var(--fg);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 0 6px 0 4px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--mention) 14%, transparent);
+  color: var(--mention);
+  font-weight: 600;
+  line-height: 20px;
+  white-space: nowrap;
+}
+.mention > * {
+  align-self: center;
+}
+.mention.everyone {
+  --mention: var(--fg);
+}
+.mention.everyone .member-stack {
+  --stack-ring: var(--bg-hover);
+}
+.mention.broken {
+  color: var(--fg-muted);
+  background: var(--bg-hover);
+}
+.mention.missing {
+  padding: 0;
+  background: none;
+  color: var(--fg-muted);
+  font-weight: 400;
+}
+
+/* A sent command: `/name` is a button chip in the agent's color; under the bubble a small "Full prompt" toggle opens the
+   exact text the agent read. In a message that failed or is still on its way the toggle sits in a column with a 16px gap,
+   so the negative top margins cancel most of it and the toggle hugs its bubble; a sent message's .user-msg has 4px. */
+button.command-chip {
+  border: 0;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+/* /todo is built in, not an agent's: the neutral chip color, and no button. */
+.mention.command-chip.todo {
+  --mention: var(--fg);
+  font-weight: 600;
+}
+button.command-chip:not(.broken):hover {
+  background: color-mix(in srgb, var(--mention) 22%, transparent);
+}
+.full-prompt-toggle {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: -10px 4px 0 0;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}
+.full-prompt-toggle:hover {
+  color: var(--fg);
+}
+.full-prompt-toggle .caret {
+  width: 0;
+  height: 0;
+  border-left: 4px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform 0.12s;
+}
+.full-prompt-toggle.open .caret {
+  transform: rotate(90deg);
+}
+.full-prompt {
+  align-self: flex-end;
+  box-sizing: border-box;
+  max-width: min(560px, 100%);
+  margin-top: -6px;
+  padding: 8px 11px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 19px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.user-msg > .full-prompt-toggle {
+  margin-top: 2px;
+}
+.user-msg > .full-prompt {
+  margin-top: 6px;
+}
+
+/* The group composer colors each @mention in its agent's color as it is typed. */
+.composer-field {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+.composer-mark {
+  --mention: var(--fg);
+  color: var(--mention);
+  background: color-mix(in srgb, var(--mention) 14%, transparent);
+  border-radius: 3px;
+}
+/* Away from the caret a mention reads by its display name: the handle stays in the draft, hidden, and the name is drawn
+   in its place (see MentionHighlight). */
+.composer-mention {
+  white-space: nowrap;
+}
+.composer-mention-raw {
+  display: none;
+}
+
+/* The @ list opens above the text, inside the composer box. */
+.mention-menu {
+  position: absolute;
+  left: -10px;
+  bottom: calc(100% + 14px);
+  min-width: 240px;
+  max-width: 360px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.mention-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mention-menu button.on {
+  background: var(--bg-hover);
+}
+.mention-handle {
+  margin-left: auto;
+  padding-left: 16px;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+/* The / list: two-line rows (the command, its description under it), in a room under a header per agent. */
+/* Anchored at the text, right of the attach button: the width leaves room for that offset on a phone. */
+.command-menu {
+  width: 420px;
+  max-width: calc(100vw - 64px);
+}
+.mention-menu .command-option {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+.command-name {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.command-todos {
+  margin-left: 6px;
+  color: var(--fg-muted);
+  font-family: inherit;
+  font-weight: 400;
+}
+.command-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+}
+.command-model {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-muted);
+  font-size: 12.5px;
+}
+.command-model .search-select {
+  width: auto;
+  min-width: 132px;
+  padding-block: 4px;
+}
+/* A chat a command started on another model: the chip names it, and its × puts the chat back on the agent's model. */
+.picker-menu-note {
+  max-width: 290px;
+  padding: 6px 10px 4px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--fg-muted);
+  white-space: normal;
+}
+.command-desc {
+  color: var(--fg-muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.command-agent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 3px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.command-group + .command-group {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+.command-group:first-child .command-agent {
+  padding-top: 5px;
+}
+/* The edit box's lists (`/` and `@`) float over the chat, fixed next to the box (above it, or below near the window's top): the chat's scroll box would clip them. */
+.msg-edit-menu {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+}
+.msg-edit-menu .menu {
+  position: static;
+  max-height: inherit;
+}
+
+/* The Members checklist. */
+.member-option .check {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--ring);
+  border-radius: 4px;
+}
+.member-option[aria-checked='true'] .check {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.member-option .check svg {
+  width: 12px;
+  height: 12px;
+}
+.menu .member-option[aria-disabled='true'] {
+  cursor: default;
+}
+.menu .member-option[aria-disabled='true']:hover {
+  background: none;
+}
+.member-option[aria-disabled='true'] .check {
+  opacity: 0.45;
+}
+.member-option[aria-disabled='true']:not([aria-checked='true']) .picker-text,
+.member-option.gone .picker-text {
+  color: var(--fg-muted);
+}
+.member-option[aria-disabled='true']:not([aria-checked='true']) .bot,
+.member-option.gone .bot {
+  opacity: 0.5;
+}
+.member-note {
+  margin-left: auto;
+  padding-left: 16px;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+/* An open group's members: a read-only list, rows laid out like the checklist's. */
+.member-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+}
+.member-row.gone .picker-text {
+  color: var(--fg-muted);
+}
+.member-row.gone .bot {
+  opacity: 0.5;
+}

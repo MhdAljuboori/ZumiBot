@@ -1,0 +1,370 @@
+/* A card's comments, replies, questions and answers, and the side panel's card. */
+
+.todo-card-notes {
+  font-size: 13px;
+}
+.todo-comments {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+}
+.todo-thread {
+  min-width: 0;
+}
+.todo-comment {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+.todo-comment > .avatar,
+.todo-comment > .todo-face {
+  flex: none;
+  margin-top: 2px;
+}
+.todo-comment-main {
+  flex: 1;
+  min-width: 0;
+}
+/* Each comment sits in its own soft bubble; the user's own get the selection tint, so a thread reads at a glance. */
+.todo-comment-bubble {
+  padding: 8px 11px 9px;
+  border-radius: 4px 12px 12px 12px;
+  background: var(--bg-hover);
+}
+.todo-comment.mine .todo-comment-bubble {
+  background: var(--sel-bg);
+  box-shadow: inset 0 0 0 1px var(--sel-border);
+}
+.todo-comment-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 7px;
+  font-size: 12.5px;
+}
+.todo-comment-head strong {
+  font-weight: 650;
+}
+.todo-comment-time {
+  color: var(--fg-muted);
+  font-size: 11.5px;
+}
+.todo-comment-text {
+  margin-top: 3px;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.todo-comment-text > .markdown > :first-child,
+.todo-comment-text > :first-child {
+  margin-top: 0;
+}
+.todo-comment-text > .markdown > :last-child,
+.todo-comment-text > :last-child {
+  margin-bottom: 0;
+}
+.todo-comment-gone {
+  margin: 3px 0 0;
+  color: var(--fg-muted);
+  font-size: 12.5px;
+  font-style: italic;
+}
+/* Reply, Edit, Delete under the bubble: quiet until the comment is hovered or focused within (always on touch). */
+.todo-comment-actions {
+  display: flex;
+  gap: 12px;
+  margin: 3px 0 0 4px;
+  font-size: 12px;
+  opacity: 0.55;
+  transition: opacity 0.12s;
+}
+.todo-comment:hover > .todo-comment-main > .todo-comment-actions,
+.todo-comment:focus-within > .todo-comment-main > .todo-comment-actions {
+  opacity: 1;
+}
+@media (hover: none) {
+  .todo-comment-actions {
+    opacity: 1;
+  }
+}
+.todo-comment-actions .inbox-link.danger {
+  color: var(--error);
+}
+/* The agents a comment asked: who, where its answer stands, and its chat. */
+.todo-comment-asks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 0 2px;
+}
+.todo-comment-ask {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 2px 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+}
+.todo-comment-ask-state {
+  color: var(--fg-muted);
+}
+.todo-comment-ask.working .todo-comment-ask-state,
+.todo-comment-ask.starting .todo-comment-ask-state {
+  color: var(--agent-orange-ink); /* --status-progress as text: the fill is 2.8:1 on white */
+}
+.todo-comment-ask.answered .todo-comment-ask-state {
+  color: var(--status-done, var(--fg-muted));
+}
+/* Replies hang under their comment, behind a thin rail. */
+.todo-replies {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 0 0 13px;
+  padding: 0 0 0 22px;
+  border-left: 2px solid var(--border);
+  list-style: none;
+}
+.todo-replies .todo-comment-bubble {
+  padding: 7px 10px 8px;
+}
+.todo-comment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+.todo-comment-field {
+  position: relative;
+}
+/* A contenteditable drawn as a .field: the comment's lines as typed, each @handle shown as its agent's chip (MentionHighlight). */
+.todo-comment-field .todo-comment-input {
+  min-height: 56px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 6px 8px;
+  box-sizing: border-box;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  unicode-bidi: plaintext;
+  text-align: start;
+  cursor: text;
+}
+.todo-comment-field .todo-comment-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+/* The @ and / lists float over the drawer (a portal on the body), so the comments never move under them. */
+.todo-comment-pop {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+.todo-comment-pop .mention-menu {
+  position: static;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  max-height: inherit;
+  box-sizing: border-box;
+}
+.todo-comment-tip {
+  min-width: 0;
+  margin-right: auto;
+  align-self: center;
+  overflow: hidden;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.todo-comment-bubble .todo-comment-form {
+  margin-top: 6px;
+}
+.todo-card-notes > .markdown > :first-child {
+  margin-top: 0;
+}
+.todo-card-notes > .markdown > :last-child {
+  margin-bottom: 4px;
+}
+.todo-card-edit,
+.todo-give-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.todo-card-edit .field,
+.todo-card-reply .field,
+.todo-question .field,
+.todo-give-form .search-select.field {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 13px;
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+.todo-card-edit textarea,
+.todo-card-reply textarea,
+.todo-question textarea {
+  resize: vertical;
+}
+.todo-card-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 6px 0 4px;
+}
+.todo-card-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px 0 6px;
+}
+.todo-card-review {
+  margin: 4px 0 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--sel-bg);
+  box-shadow: inset 0 0 0 1px var(--sel-border);
+  font-size: 13px;
+}
+.todo-card-review-head {
+  margin-bottom: 2px;
+  color: var(--sel-fg);
+  font-size: 12px;
+  font-weight: 650;
+}
+.todo-card-review .markdown > :first-child {
+  margin-top: 0;
+}
+.todo-card-review .todo-card-hint {
+  margin-bottom: 0;
+}
+.todo-questions {
+  margin: 4px 0 0;
+  padding: 0 0 0 18px;
+}
+.todo-question {
+  min-width: 0;
+  margin: 0 0 10px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.todo-question-text .markdown > :first-child {
+  margin-top: 0;
+}
+.todo-question-text .markdown > :last-child {
+  margin-bottom: 4px;
+}
+.todo-answer {
+  padding: 4px 10px;
+  border-left: 2px solid var(--sel-border);
+  color: var(--fg);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.todo-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 6px;
+}
+.todo-option {
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.todo-option:hover {
+  background: var(--bg-hover);
+}
+.todo-option.on {
+  border-color: var(--sel-border);
+  background: var(--sel-bg);
+  color: var(--sel-fg);
+}
+.todo-card-reply {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 8px 0 2px;
+}
+.todo-card-reply .field {
+  flex: 1;
+  min-width: 0;
+}
+.todo-give-folder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.todo-give-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.todo-card-error {
+  margin: 6px 0 0;
+  padding: 0;
+}
+.todos-nav-questions {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--sel-bg);
+  box-shadow: inset 0 0 0 1px var(--sel-border);
+  color: var(--sel-fg);
+  font-size: 11px;
+  font-weight: 700;
+}
+.todos-nav-questions + .approval-badge,
+.todos-nav-questions + .count-badge,
+.todos-nav-questions + .spinner {
+  margin-left: 0;
+}
+/* A narrow side panel gives the card the row's whole width. */
+.todos-panel .todo-card {
+  margin-left: 0;
+}
+
+@media (max-width: 799px) {
+  .browser-workspace {
+    position: relative;
+  }
+  .files-panel,
+  .side-menu {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    border-left: none;
+  }
+  .files-list {
+    max-height: 34%;
+  }
+}

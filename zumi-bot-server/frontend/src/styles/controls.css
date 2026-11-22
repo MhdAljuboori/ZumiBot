@@ -1,0 +1,106 @@
+/* Shared controls: buttons, icon buttons, fields, focus rings, the spinner. */
+
+/* ---- shared controls ---- */
+
+.btn {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 12px;
+  background: var(--bg-raised);
+  cursor: pointer;
+}
+.btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+a.btn {
+  display: inline-block;
+  color: inherit;
+  text-align: center;
+  text-decoration: none;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.btn.small {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+.btn.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.btn.danger {
+  background: var(--error);
+  border-color: var(--error);
+  color: var(--bg);
+}
+.btn.danger:hover:not(:disabled) {
+  background: var(--error);
+  filter: brightness(1.08);
+}
+.btn.danger-outline {
+  color: var(--error);
+}
+
+.icon-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.icon-btn:hover {
+  background: var(--bg-hover);
+}
+
+.field {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+.field:focus-visible,
+.btn:focus-visible,
+.row:focus-visible,
+.tool-head:focus-visible,
+.tool-run-head:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.spinner {
+  display: inline-block;
+  flex: none;
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.grow {
+  flex: 1;
+}
+
+/* Sized by the surrounding text; inline next to a label, so it brings its own gap. */
+.folder-icon {
+  flex: none;
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.45em;
+  vertical-align: -0.125em;
+}

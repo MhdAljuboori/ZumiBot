@@ -1,0 +1,181 @@
+/* Settings › Vault. */
+
+/* ---- settings: vault ---- */
+
+.vault-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.vault-toolbar .field {
+  flex: 1;
+  min-width: 0;
+}
+.vault-add {
+  position: relative;
+  flex: none;
+}
+.vault-add .menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  left: auto;
+}
+.vault-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.vault-row:first-child {
+  border-radius: 10px 10px 0 0;
+}
+.vault-row:last-child {
+  border-radius: 0 0 10px 10px;
+}
+.vault-row:only-child {
+  border-radius: 10px;
+}
+.vault-row:hover {
+  background: var(--bg-hover);
+}
+.vault-row:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.vault-row .set-value {
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.vault-line {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.vault-form-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.vault-form-title {
+  margin: 0;
+  font-size: 15px;
+}
+.vault-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.vault-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.vault-field > .field {
+  width: 100%;
+}
+.vault-field textarea.field {
+  resize: vertical;
+}
+.vault-label {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.vault-mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+.vault-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.vault-secret {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.vault-secret .field {
+  flex: 1;
+  min-width: 0;
+}
+.vault-problem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.vault-problem > p {
+  margin: 0;
+}
+.vault-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.vault-agents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding-top: 2px;
+}
+.vault-sites {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.vault-sites li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.vault-site {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.vault-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+.set-note.warn {
+  margin: 0;
+  color: var(--warning);
+}
+
+@media (max-width: 799px) {
+  .vault-grid {
+    grid-template-columns: 1fr;
+  }
+  .vault-row {
+    padding: 12px 14px;
+  }
+}
+
+/* A secret field's Show and Copy drop under the input, so its placeholder keeps the whole row. */
+@media (max-width: 520px) {
+  .vault-secret {
+    flex-wrap: wrap;
+  }
+  .vault-secret .field {
+    flex: 1 1 100%;
+  }
+}

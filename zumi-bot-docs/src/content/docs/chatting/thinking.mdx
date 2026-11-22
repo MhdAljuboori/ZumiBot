@@ -1,0 +1,48 @@
+---
+title: Thinking
+description: See what the agent is thinking about while it works, and read its short thought summaries after.
+sidebar:
+  order: 7
+---
+
+import Shot from '../../../components/Shot.astro'
+import { Steps } from '@astrojs/starlight/components'
+
+Before an agent answers, it often thinks. ZumiBot shows a short summary of that thinking, so you can see what the agent is working on and why it took the steps it did. You do not turn anything on. The summaries show up on their own.
+
+<Shot name="chatting-thinking" alt="A finished reply from the Code Reviewer agent. A row reads 'Thought for 3s' and is open. Inside it, a thought row reads 'Thought for 3s' and is open too: a bold title 'Finding the failing test' and two short paragraphs. Under it is a card for the command 'npm test', then the agent's answer." />
+
+## While the agent is thinking
+
+While a reply runs, the row for the agent's work reads **Thinking…** with a small spinner. Next to it, ZumiBot shows the latest line of the thought, so you can follow along. The line under the reply reads "Thinking…" too, instead of "Working…".
+
+## Read a thought afterward
+
+<Steps>
+
+1. **Find the row that reads "Thought for" and a time**, such as "Thought for 3s". It sits above the agent's answer and groups the agent's thinking and tool steps in one place.
+
+2. **Choose the row to open it.** Each thought inside is a line that reads "Thought for" and a time, with its first paragraph dimmed beside it. The tool steps the agent took, such as a command it ran, are listed between the thoughts.
+
+3. **Choose a thought to read all of it.** It opens as the full summary, written the same way as a reply, with bold titles and short paragraphs.
+
+</Steps>
+
+If a thought has no time (ZumiBot did not see both its start and its end), the row reads just "Thought".
+
+## Tips and limits
+
+- What you read is a summary the model writes about its thinking, not every word of it. It is often a bold title and a paragraph or two.
+- The summary costs nothing extra. Thinking is billed the same whether or not you see it.
+- If you press Stop while the agent is thinking, that thought is not kept.
+- A reply with no thinking has no "Thought for" row. A reply with only tool steps still groups them in the same kind of row.
+- If the Claude Code on your computer or server is too old to share summaries, your chats show no thoughts. Everything else works as before. Update Claude Code to get them.
+- Thoughts are not part of search or Export.
+
+## Related
+
+- [Chats and the message box](/chatting/chats-and-composer/)
+- [Mode, effort and model](/chatting/mode-effort-model/)
+- [Approvals, questions and plans](/chatting/approvals-questions-plans/)
+- [Export a chat](/chatting/export/)
+- [Dispatched agents](/rooms/dispatched-agents/)

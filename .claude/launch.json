@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "site",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "-w", "@zumibot/site", "--", "--port", "5179", "--strictPort"],
+      "port": 5179
+    },
+    {
+      "name": "docs",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "-w", "@zumibot/docs"],
+      "port": 4321
+    }
+  ]
+}

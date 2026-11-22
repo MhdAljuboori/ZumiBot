@@ -1,0 +1,104 @@
+/* Agent Studio's "What this agent loads" card. */
+
+/* Agent Studio's "What this agent loads" card. */
+.agent-loadout {
+  margin: 0 20px 14px;
+}
+.al-totals {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.al-section {
+  min-width: 0;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+.al-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 2px 0;
+  border-radius: 6px;
+  list-style: none;
+}
+.al-summary::-webkit-details-marker {
+  display: none;
+}
+/* display: flex drops the details marker, so a chevron shows the section folds: right when closed, down when open. */
+.al-summary::before {
+  content: '';
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin: 0 3px 0 1px;
+  border-right: 2px solid var(--fg-muted);
+  border-bottom: 2px solid var(--fg-muted);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+}
+.al-section[open] > .al-summary::before {
+  transform: rotate(45deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .al-summary::before {
+    transition: none;
+  }
+}
+.al-summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.al-section-title {
+  font-size: 13.5px;
+  font-weight: 650;
+}
+.al-count {
+  padding: 0 7px;
+  border-radius: 10px;
+  background: var(--bg-selected);
+  color: var(--fg-muted);
+  font-size: 12px;
+  line-height: 20px;
+}
+.al-empty {
+  margin-top: 6px;
+}
+.al-group {
+  margin-top: 10px;
+}
+.al-group-title {
+  margin: 0 0 6px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.al-sub {
+  min-width: 0;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.al-sub-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.al-sub-title {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 650;
+}
+
+@media (max-width: 799px) {
+  .ext-row {
+    padding: 12px 14px;
+  }
+  .agent-loadout {
+    margin: 0 12px 14px;
+  }
+}

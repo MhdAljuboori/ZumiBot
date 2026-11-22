@@ -1,0 +1,5 @@
+# LF in every checkout, whatever core.autocrlf says (Windows defaults it on): tests compare file bytes, and the shell
+# scripts (install.sh, the Docker entrypoint) run on Linux, where a CR breaks them.
+* text=auto eol=lf
+# These fixtures test CRLF input, so they keep their CRLF.
+**/fixtures/agents/crlf.md -text

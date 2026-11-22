@@ -1,0 +1,55 @@
+appId: com.mhdaljuboori.zumibot
+productName: ZumiBot
+directories: { buildResources: build, output: dist }
+files: [out/**, '!out/main/sync/**', package.json]
+protocols:
+  - name: ZumiBot sync
+    schemes: [zumibot]
+# Ship the complete dist: server, worker, MCP bridge, shared chunks and pinned Playwright assets.
+# Chromium is installed explicitly into the user data dir, never downloaded at app startup.
+extraResources:
+  - { from: out/main/sync, to: sync }
+  - { from: ../zumi-bot-server/backend/dist, to: server }
+  # electron-builder excludes node_modules from a whole-directory extraResources copy.
+  - { from: ../zumi-bot-server/backend/dist/node_modules/playwright-core, to: server/node_modules/playwright-core, filter: ["**/*"] }
+# No publish config: every build passes --publish never (see docs/ELECTRON_CLOUD_BUILD.md to turn on GitHub Releases).
+linux:
+  # `npm run dist` still builds only the .deb (it names its target); CI asks for both.
+  target: [deb, AppImage]
+  category: Development
+  icon: build/icon.png
+  executableName: zumibot
+  synopsis: Manage and chat with your Claude Code agents
+  artifactName: ZumiBot_${version}_${arch}.${ext}
+deb:
+  # The island's hidden desktop entry (see build/zumibot-island.desktop). A path relative to this folder, where
+  # electron-builder runs fpm.
+  fpm: [build/zumibot-island.desktop=/usr/share/applications/zumibot-island.desktop]
+# Windows and macOS are built unsigned by .github/workflows/electron-build.yml. Signing turns on by itself once the
+# CSC_LINK / CSC_KEY_PASSWORD (and for macOS APPLE_*) secrets are set, see docs/ELECTRON_CLOUD_BUILD.md.
+win:
+  target: [nsis]
+  icon: build/icon.png
+  executableName: ZumiBot
+  artifactName: ZumiBot-Setup-${version}-${arch}.${ext}
+# Per-user only: build/installer.nsh skips the install-mode page (see there for why).
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+# Without a certificate the cloud build signs ad-hoc (-c.mac.identity=-, see electron-build.yml): an Apple silicon Mac
+# will not run an app with no signature at all, it calls it damaged.
+mac:
+  target: [dmg]
+  icon: build/icon.png
+  category: public.app-category.developer-tools
+  artifactName: ZumiBot-${version}-${arch}.${ext}
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    # macOS ends an app that asks for the microphone without saying why (dictation, voice requests).
+    NSMicrophoneUsageDescription: ZumiBot uses the microphone for dictation and voice requests.
+dmg:
+  # The window shows the app and an Applications link to drag it to.
+  title: ZumiBot ${version}

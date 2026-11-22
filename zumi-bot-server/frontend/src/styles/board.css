@@ -1,0 +1,1617 @@
+/* The task board: filters, columns, cards, the card drawer. */
+
+/* ---- The task board: a column per status side by side (scrolled sideways on a phone), cards dragged between them, a
+   floating drawer with the card over the right side, the board dimmed under it. ---- */
+.board-page {
+  overflow: hidden;
+}
+.board-page .todos-page-head {
+  min-height: 0;
+  padding-top: 18px;
+  padding-bottom: 2px;
+  border-bottom: none;
+}
+.board-head .todos-page-title {
+  gap: 2px;
+}
+.board-head .todos-page-title h2 {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.board-head .todos-page-who {
+  font-size: 13px;
+}
+.board-filter {
+  width: auto;
+  max-width: 220px;
+  font-size: 12.5px;
+  padding: 5px 10px;
+  border-radius: 8px;
+}
+.board-add .todo-add {
+  max-width: 760px;
+  margin-inline: 0;
+  gap: 10px;
+  padding-top: 12px;
+  padding-bottom: 10px;
+  border-bottom: none;
+}
+/* Filters, for both views: a search box, the assignee and creator, Clear, and the grid's Show completed switch. */
+.board-tools {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 0 var(--board-gutter) 14px;
+}
+.board-search {
+  position: relative;
+  flex: 0 1 280px;
+  min-width: 180px;
+  display: flex;
+  align-items: center;
+}
+.board-search svg {
+  position: absolute;
+  left: 11px;
+  width: 14px;
+  height: 14px;
+  color: var(--fg-muted);
+  pointer-events: none;
+}
+.board-search .field {
+  width: 100%;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 10px 0 32px;
+  border-radius: 9px;
+  font-size: 13px;
+}
+.board-tools .board-filter {
+  height: 34px;
+  max-width: 220px;
+  padding: 0 30px 0 12px;
+  border-radius: 9px;
+  font-size: 13px;
+  appearance: none;
+  background: var(--bg)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4' fill='none' stroke='%238a8a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    no-repeat right 10px center / 14px;
+  cursor: pointer;
+}
+.board-clear {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sel-fg);
+}
+.board-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  margin-left: auto;
+  padding: 0 4px;
+  border: none;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.board-switch:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.board-switch-track {
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fg-muted) 40%, transparent);
+  transition: background-color 0.15s;
+}
+.board-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.25);
+  transition: transform 0.15s;
+}
+.board-switch.on .board-switch-track {
+  background: var(--accent);
+}
+.board-switch.on .board-switch-thumb {
+  transform: translateX(14px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .board-switch-track,
+  .board-switch-thumb {
+    transition: none;
+  }
+}
+.board-add .todo-add-input {
+  height: 42px;
+  box-sizing: border-box;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+.board-add .todo-add .btn.primary {
+  height: 42px;
+  padding: 0 22px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.board-add .todo-add-note {
+  padding-top: 0;
+}
+.board-bar {
+  flex: none;
+}
+/* Wider than a phone, the add box and the filters share one row, so the board starts higher: the add box takes what the
+   filters leave, and the filters wrap under it as one block when both do not fit. One control height across the row. */
+@media (min-width: 800px) {
+  .board-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px 16px;
+    padding: 12px var(--board-gutter) 14px;
+  }
+  .board-bar .board-add {
+    flex: 1 1 260px;
+    min-width: 220px;
+    max-width: 640px;
+  }
+  .board-bar .board-add .todo-add {
+    max-width: none;
+    gap: 8px;
+    padding: 0;
+  }
+  .board-bar .board-add .todo-add-note {
+    padding: 4px 0 0;
+  }
+  .board-bar .todo-add-input,
+  .board-bar .todo-add .btn.primary {
+    height: 34px;
+    border-radius: 9px;
+    font-size: 13px;
+  }
+  .board-bar .todo-add .btn.primary {
+    padding: 0 16px;
+  }
+  .board-bar .board-tools {
+    flex: 0 1 auto;
+    padding: 0;
+  }
+  /* A set width, not a flex basis: the row measures the filters by their content to decide whether they fit beside the
+     add box, and a basis-sized search counted short, so the filters stayed and wrapped inside themselves instead. */
+  .board-bar .board-search {
+    flex: none;
+    width: 240px;
+  }
+}
+/* One gutter for the whole page (header, add box, columns), 24px, 16px on a phone. Snapping aligns a column to the
+   scroll padding, not the padding, so both are set; the ::after keeps the same gap after the last column, which a
+   scrolled flex row's end padding does not give in every browser. */
+.board-page {
+  --board-gutter: 24px;
+  --board-gap: 14px;
+}
+.board-columns {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: var(--board-gap);
+  padding: 2px 0 20px var(--board-gutter);
+  scroll-padding-inline: var(--board-gutter);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+}
+.board-columns::after {
+  content: '';
+  flex: 0 0 calc(var(--board-gutter) - var(--board-gap));
+}
+.board-page .todos-page-head,
+.board-add .todo-add {
+  padding-inline: var(--board-gutter);
+}
+.board-page .todo-error {
+  padding-inline: var(--board-gutter);
+}
+/* Each status has its dot: on the column head and beside the drawer's Status. */
+:is(.board-col, .todo-card-status-wrap, .todo-row-dot, .todo-status-option-dot) {
+  --col-dot: var(--status-new);
+}
+:is(.board-col, .todo-card-status-wrap, .todo-row-dot, .todo-status-option-dot)[data-col='todo'] {
+  --col-dot: var(--status-todo);
+}
+:is(.board-col, .todo-card-status-wrap, .todo-row-dot, .todo-status-option-dot)[data-col='blocked'] {
+  --col-dot: var(--status-blocked);
+}
+:is(.board-col, .todo-card-status-wrap, .todo-row-dot, .todo-status-option-dot)[data-col='progress'] {
+  --col-dot: var(--status-progress);
+}
+:is(.board-col, .todo-card-status-wrap, .todo-row-dot, .todo-status-option-dot)[data-col='review'] {
+  --col-dot: var(--status-review);
+}
+:is(.board-col, .todo-card-status-wrap, .todo-row-dot, .todo-status-option-dot)[data-col='done'] {
+  --col-dot: var(--status-done);
+}
+.board-col {
+  flex: 0 0 280px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--bg-hover) 65%, var(--bg));
+  scroll-snap-align: start;
+  transition:
+    background-color 0.12s,
+    border-color 0.12s;
+}
+.board-col.can-drop {
+  border-style: dashed;
+  border-color: var(--sel-border);
+}
+.board-col.over {
+  background: var(--sel-bg);
+}
+.board-col-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px 10px;
+}
+.board-col-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--col-dot);
+}
+.board-col-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+.board-col-head .count-badge {
+  min-width: 20px;
+  box-sizing: border-box;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}
+.board-col-collapse {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-left: auto;
+  padding: 0;
+  border-radius: 7px;
+  color: var(--fg-muted);
+}
+.board-col-collapse:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.board-col-collapse:focus-visible,
+.board-col-strip:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.board-col-collapse svg,
+.board-col-strip svg {
+  width: 14px;
+  height: 14px;
+}
+/* A collapsed column: a slim strip with its dot, count and name read top to bottom; a click opens it, and it still
+   takes a drop. */
+.board-col.collapsed {
+  flex: 0 0 52px;
+}
+.board-col-strip {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0 16px;
+  border: none;
+  border-radius: 15px;
+  background: none;
+  color: var(--fg-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.board-col-strip:hover {
+  background: color-mix(in srgb, var(--bg-hover) 70%, transparent);
+  color: var(--fg);
+}
+.board-col-strip .count-badge {
+  min-width: 20px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}
+.board-col-name {
+  writing-mode: vertical-rl;
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.board-col-cards {
+  flex: 1;
+  min-height: 40px;
+  overflow-y: auto;
+  padding: 2px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.board-col-empty {
+  margin: 0;
+  padding: 24px 12px;
+  border: 1.5px dashed color-mix(in srgb, var(--fg-muted) 32%, transparent);
+  border-radius: 12px;
+  color: var(--fg-muted);
+  font-size: 12.5px;
+  text-align: center;
+}
+.board-col-more {
+  margin: 2px 4px 0;
+  color: var(--fg-muted);
+  font-size: 12px;
+  text-align: center;
+}
+.board-card {
+  position: relative;
+  padding: 12px 10px 11px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  cursor: grab;
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s;
+}
+.board-card:hover {
+  border-color: var(--sel-border);
+  box-shadow: 0 4px 14px rgba(16, 24, 40, 0.08);
+}
+.board-card.open {
+  border-color: var(--ring);
+  box-shadow:
+    0 0 0 1px var(--ring),
+    0 4px 14px rgba(16, 24, 40, 0.08);
+}
+.board-card.dragging {
+  opacity: 0.45;
+}
+.board-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.board-card-open {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: start;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  unicode-bidi: plaintext;
+}
+.board-card-open:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.board-card-open .todo-hints {
+  font-weight: 400;
+}
+.board-card-open a,
+.grid-open a {
+  position: relative;
+  color: var(--link);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.board-card[data-col='done'] .board-card-open {
+  color: var(--fg-muted);
+  text-decoration: line-through;
+}
+.board-card-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 12px 0 0;
+  font-size: 13px;
+}
+.board-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.board-field-icon {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  color: var(--fg-muted);
+}
+.board-field-label {
+  flex: none;
+  color: var(--fg-muted);
+}
+.board-field-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--fg);
+  font-weight: 600;
+  overflow: hidden;
+}
+.board-card-by {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Tinted tags like the screenshot's: a soft fill of the colour, text in the colour itself. */
+.board-tag,
+.board-pill,
+.board-card-fields .todo-status {
+  display: inline-block;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A wash of the column's dot with the dot's hue as text. Orange and yellow are too light to mix their way to 4.5:1 in
+   light (3.9:1 and 2.9:1), so they take their agent inks; New is neutral, so its text is --fg on the gray wash. */
+.board-tag.status {
+  --col-dot: var(--status-new);
+  background: color-mix(in srgb, var(--col-dot) 22%, transparent);
+  color: var(--col-ink, color-mix(in srgb, var(--col-dot) 70%, var(--fg)));
+}
+.board-tag.status[data-col='new'] {
+  --col-ink: var(--fg);
+}
+.board-tag.status[data-col='todo'] {
+  --col-dot: var(--status-todo);
+}
+.board-tag.status[data-col='blocked'] {
+  --col-dot: var(--status-blocked);
+}
+.board-tag.status[data-col='progress'] {
+  --col-dot: var(--status-progress);
+  --col-ink: var(--agent-orange-ink);
+}
+.board-tag.status[data-col='review'] {
+  --col-dot: var(--status-review);
+  --col-ink: var(--agent-yellow-ink);
+}
+.board-tag.status[data-col='done'] {
+  --col-dot: var(--status-done);
+}
+.board-pill.you {
+  background: color-mix(in srgb, var(--agent-blue) 20%, transparent);
+  color: var(--agent-blue-ink);
+}
+.board-pill.agent {
+  background: color-mix(in srgb, var(--agent-pink) 18%, transparent);
+  color: var(--agent-pink-ink);
+}
+.board-pill.nobody {
+  border: 1px dashed color-mix(in srgb, var(--fg-muted) 45%, transparent);
+  color: var(--fg-muted);
+  line-height: 18px;
+}
+.board-card-fields .todo-status.you {
+  background: color-mix(in srgb, var(--status-blocked) 16%, transparent);
+  color: color-mix(in srgb, var(--status-blocked) 75%, var(--fg));
+  box-shadow: none;
+}
+.board-card-fields .todo-status.busy {
+  background: color-mix(in srgb, var(--status-progress) 18%, transparent);
+  color: var(--agent-orange-ink);
+}
+.board-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+.board-avatar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: 6px;
+  background: var(--fg-muted);
+  /* The fill is an agent ink (dark in light, bright in dark), so the initials flip to keep 4.5:1. */
+  color: light-dark(#ffffff, #0e1013);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.board-avatar.nobody {
+  background: none;
+  border: 1px dashed color-mix(in srgb, var(--fg-muted) 50%, transparent);
+}
+.board-card-sep {
+  flex: none;
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+}
+.board-card-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  border: 1px dashed color-mix(in srgb, var(--fg-muted) 40%, transparent);
+  border-radius: 6px;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.board-card-date.old {
+  color: var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 50%, transparent);
+  font-weight: 600;
+}
+.board-card-date-icon {
+  width: 13px;
+  height: 13px;
+}
+.assignee-menu {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+}
+.assignee-menu-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 1px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--fg-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.assignee-menu-button:hover .assignee-menu-caret,
+.assignee-menu-button[aria-expanded='true'] .assignee-menu-caret {
+  opacity: 1;
+}
+.assignee-menu-button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.assignee-menu-caret {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  opacity: 0.55;
+}
+.assignee-menu-button.big {
+  gap: 6px;
+  padding: 0;
+  border-radius: 999px;
+  color: var(--fg);
+}
+.assignee-menu-button.big .todo-person {
+  padding-right: 8px;
+  transition:
+    border-color 0.12s,
+    background 0.12s;
+}
+.assignee-menu-button.big:hover .todo-person {
+  border-color: var(--sel-border);
+  background: var(--bg-hover);
+}
+.assignee-menu-button.big .todo-card-nobody {
+  padding: 4px 10px;
+  border: 1px dashed color-mix(in srgb, var(--fg-muted) 45%, transparent);
+  border-radius: 999px;
+}
+.assignee-menu-button.big:hover .todo-card-nobody {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+.assignee-menu-button.bare {
+  padding: 0;
+  border-radius: 6px;
+}
+.assignee-menu-button.bare:hover .board-avatar {
+  filter: brightness(1.1);
+}
+.assignee-menu-button.bare:hover .board-avatar.nobody {
+  border-color: var(--fg-muted);
+  background: var(--bg-hover);
+}
+.assignee-menu-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.assignee-menu-list {
+  left: 0;
+  right: auto;
+  top: calc(100% + 4px);
+  max-height: 260px;
+  overflow-y: auto;
+  font-weight: 400;
+}
+.assignee-menu-list [aria-checked='true'] {
+  font-weight: 650;
+}
+.board-card-menu {
+  position: relative;
+  flex: none;
+}
+.board-card-menu .icon-btn {
+  padding: 0 6px;
+  border-radius: 6px;
+  color: var(--fg-muted);
+  font-size: 15px;
+  line-height: 20px;
+}
+.board-card-menu .icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.board-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  min-width: 190px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: 0 10px 28px rgba(16, 24, 40, 0.16);
+}
+.board-menu button {
+  padding: 7px 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  text-align: start;
+  cursor: pointer;
+}
+.board-menu button:hover,
+.board-menu button:focus-visible {
+  background: var(--bg-hover);
+  outline: none;
+}
+.board-menu button.danger {
+  color: var(--error);
+}
+/* The drawer floats over the board, which dims under it. */
+.board-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 14;
+  background: light-dark(rgba(16, 24, 40, 0.16), rgba(0, 0, 0, 0.5));
+  animation: board-fade 0.16s ease-out;
+}
+.board-drawer {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 15;
+  width: min(500px, calc(100% - 24px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg);
+  box-shadow:
+    0 24px 48px -12px rgba(16, 24, 40, 0.28),
+    0 4px 12px rgba(16, 24, 40, 0.08);
+  outline: none;
+  animation: board-drawer-in 0.2s ease-out;
+}
+@keyframes board-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes board-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .board-scrim,
+  .board-drawer {
+    animation: none;
+  }
+}
+/* The head: a stepper through the view's cards and the card's column, then expand and close. The title is in the body. */
+.board-drawer-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 60px;
+  box-sizing: border-box;
+  padding: 9px 12px 9px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.board-drawer-head > .grow {
+  flex: 1;
+}
+.board-drawer-missing {
+  margin: 0 0 0 6px;
+  font-size: 15px;
+  font-weight: 650;
+}
+.board-drawer-col {
+  color: var(--fg-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.board-drawer-col strong {
+  color: var(--fg);
+  font-weight: 500;
+}
+.board-drawer-close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  color: var(--fg-muted);
+}
+.board-drawer-close:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.board-drawer-close svg {
+  width: 14px;
+  height: 14px;
+}
+.board-drawer-nav {
+  flex: none;
+  display: inline-flex;
+  align-items: stretch;
+  height: 34px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.board-drawer-step {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.board-drawer-step svg {
+  width: 14px;
+  height: 14px;
+}
+.board-drawer-step:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.board-drawer-step:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.board-drawer-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.board-drawer-pos {
+  display: grid;
+  place-items: center;
+  min-width: 4.5em;
+  padding: 0 10px;
+  border-inline: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+@media (max-width: 599px) {
+  .board-drawer-pos {
+    display: none;
+  }
+  .board-drawer-step + .board-drawer-step {
+    border-left: 1px solid var(--border);
+  }
+}
+/* The foot: Remove on the left, the keys on the right. */
+.board-drawer-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  box-sizing: border-box;
+  padding: 6px 16px 6px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-raised);
+}
+.board-drawer-foot > .grow {
+  flex: 1;
+}
+.board-drawer-remove {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.board-drawer-remove svg {
+  width: 14px;
+  height: 14px;
+}
+.board-drawer-remove:hover {
+  background: var(--error-bg);
+  color: var(--error);
+}
+.board-drawer-remove:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.board-drawer-keys {
+  color: var(--fg-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.board-drawer-keys kbd {
+  font: inherit;
+}
+.board-drawer-keys kbd:last-of-type {
+  color: var(--fg);
+  font-weight: 650;
+}
+@media (hover: none) {
+  .board-drawer-keys {
+    display: none;
+  }
+}
+.board-drawer > .todo-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: none;
+  border-radius: 0;
+  background: var(--bg);
+}
+.board-drawer > .file-note {
+  padding: 20px;
+}
+.todo-card-main,
+.todo-card-side {
+  display: contents;
+}
+.board-drawer {
+  transition: width 0.18s ease-out;
+}
+/* Expanded: wide, the card on the left and its comments on the right, each scrolling on its own. */
+.board-drawer.expanded {
+  width: min(1180px, calc(100% - 24px));
+}
+@media (min-width: 900px) {
+  /* Expanded it is a dialog in the middle of the board, not a side drawer: both edges set, width capped, margins auto. */
+  .board-drawer.expanded {
+    left: 12px;
+    right: 12px;
+    margin-inline: auto;
+    animation-name: board-dialog-in;
+  }
+}
+@keyframes board-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+}
+@media (min-width: 900px) {
+  .board-drawer.expanded .todo-card-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr);
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  .board-drawer.expanded .todo-card-main,
+  .board-drawer.expanded .todo-card-side {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    min-height: 0;
+    padding: 18px 20px 20px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .board-drawer.expanded .todo-card-side {
+    border-left: 1px solid var(--border);
+    background: var(--bg-raised);
+  }
+  /* The comments column is all comments: no box around them, and the box to write stays at its foot. */
+  .board-drawer.expanded .todo-card-side > .todo-card-comments {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    border: none;
+    background: none;
+  }
+  /* The box to write sits at the column's foot, and stays there while the comments scroll under it. */
+  .board-drawer.expanded .todo-card-side {
+    padding-bottom: 0;
+  }
+  .board-drawer.expanded .todo-card-comments > .todo-comment-form {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    margin: auto -20px 0;
+    padding: 12px 20px 16px;
+    border: none;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+    background: var(--bg-raised);
+  }
+  .board-drawer.expanded .todo-card-comments > .todo-comment-form .todo-comment-field {
+    border: 1px solid var(--border);
+    border-radius: 12px 12px 0 0;
+    background: var(--bg);
+  }
+  .board-drawer.expanded .todo-card-comments > .todo-comment-form .todo-comment-bar {
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 12px 12px;
+    background: var(--bg);
+  }
+  .board-drawer.expanded .todo-card-comments > .todo-comments {
+    margin-bottom: 14px;
+  }
+  .board-drawer.expanded .todo-card-main {
+    padding-top: 0;
+  }
+  .board-drawer.expanded .todo-card-hero {
+    margin-inline: -20px;
+    padding-inline: 20px;
+  }
+}
+@media (max-width: 899px) {
+  .board-drawer-expand {
+    display: none;
+  }
+}
+/* The body scrolls between the head and the comment box: the hero, the agent's work, then notes, images, comments. */
+.board-drawer .todo-card-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 0 18px 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.board-drawer .todo-card-section,
+.board-drawer .todo-card-section + .todo-card-section {
+  padding: 0;
+  border: none;
+  background: none;
+}
+.board-drawer .todo-card-head {
+  min-height: 24px;
+  margin-bottom: 10px;
+  gap: 8px;
+}
+.board-drawer .todo-card-head h4 {
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+}
+.board-drawer .todo-card-head .btn.small {
+  padding: 4px 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.board-drawer .todo-card-work {
+  padding: 14px 16px 16px;
+  border: 1px solid color-mix(in srgb, var(--sel-border) 60%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--sel-bg) 55%, var(--bg));
+}
+.board-drawer .todo-card-work .todo-answer-input,
+.board-drawer .todo-card-work textarea {
+  background: var(--bg);
+}
+.board-drawer .todo-card-starts {
+  margin: 0;
+}
+.board-drawer .todo-card-error {
+  margin: 0;
+}
+.board-drawer .todo-card-reply {
+  align-items: stretch;
+  gap: 10px;
+  margin: 12px 0 0;
+}
+.board-drawer .todo-card-reply .field {
+  min-height: 40px;
+  box-sizing: border-box;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--bg);
+  font-size: 13px;
+  resize: none;
+}
+.board-drawer .todo-card-reply-send {
+  padding: 0 18px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+/* The hero: who made it and where, the title, then status and assignee; a rule under it, edge to edge. */
+.board-drawer .todo-card-hero {
+  margin: 0 -18px;
+  padding: 16px 18px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.board-drawer .todo-card-meta {
+  margin-bottom: 8px;
+}
+/* The attempts box: a blue tint with the button and what it does side by side. */
+.board-drawer .todo-card-attempts-start {
+  flex-wrap: nowrap;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--sel-bg) 70%, var(--bg));
+}
+.board-drawer .todo-card-attempts-start .todo-card-hint {
+  color: color-mix(in srgb, var(--sel-fg) 80%, var(--fg-muted));
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.board-drawer .todo-attempts {
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--sel-bg) 70%, var(--bg));
+}
+.board-drawer .todo-attempts .todo-card-head h4 {
+  color: var(--fg);
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.board-drawer .todo-attempts .attempt-row {
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+}
+.todo-run-attempts {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px 8px 14px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.todo-run-attempts svg {
+  width: 11px;
+  height: 11px;
+}
+/* The comment box at the drawer's foot, over the body: one box, the field above its bar. */
+.todo-card-foot-box {
+  flex: none;
+  padding: 12px 18px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+.todo-card-foot-box .todo-comment-form {
+  margin: 0;
+}
+.todo-card-chat-btn {
+  border-color: var(--sel-border);
+  background: var(--bg);
+  color: var(--sel-fg);
+}
+.todo-card-chat-btn:hover:not(:disabled) {
+  background: var(--sel-bg);
+}
+/* Send reads as the accent once there is something to send; a tint of it before. */
+.todo-card-reply-send {
+  border-color: var(--sel-border);
+  background: var(--sel-bg);
+  color: var(--sel-fg);
+  font-weight: 600;
+}
+.todo-card-reply-send:disabled {
+  opacity: 0.75;
+}
+.todo-card-reply-send:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.todo-card-reply-send:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+/* The card's head: a line naming who made it, the title (in the drawer), then status, assignee and the agent's state as
+   pills on one row; the assignee picker opens under them. */
+.todo-card-hero {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 8px 0 4px;
+}
+.todo-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+}
+.todo-card-meta > .todo-face,
+.todo-card-meta > .avatar {
+  flex: none;
+}
+.todo-card-title {
+  margin: 0 0 10px;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.32;
+  letter-spacing: -0.005em;
+  overflow-wrap: anywhere;
+}
+.todo-card-title .markdown {
+  display: inline;
+}
+.todo-card-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+.todo-card-fields .todo-status {
+  margin-top: 0;
+}
+.todo-card-hero > .todo-give-form {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-raised);
+}
+.todo-card-hero > .todo-card-hint {
+  margin: 8px 0 0;
+}
+.todo-card-head .btn {
+  flex: none;
+  white-space: nowrap;
+}
+/* isolate: the dot's z-index stays inside the wrap, so in the grid it slides under the sticky pick column. */
+.todo-card-status-wrap {
+  position: relative;
+  display: inline-flex;
+  isolation: isolate;
+}
+.todo-card-status-wrap::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--col-dot);
+  pointer-events: none;
+  z-index: 1;
+}
+/* .field.: studio.css loads last and its .field padding would drop the room left for the dot. */
+.field.todo-card-status-select {
+  width: auto;
+  appearance: none;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 32px 0 28px;
+  border-radius: 10px;
+  background: var(--bg)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4' fill='none' stroke='%238a8a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    no-repeat right 10px center / 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.todo-card-fields .assignee-menu-button.big {
+  height: 34px;
+  box-sizing: border-box;
+  gap: 8px;
+  padding: 0 11px 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  transition:
+    border-color 0.12s,
+    background 0.12s;
+}
+.todo-card-fields .assignee-menu-button.big:hover:not(:disabled) {
+  border-color: var(--sel-border);
+  background: var(--bg-hover);
+}
+.todo-card-fields .assignee-menu-button.big .todo-person,
+.todo-card-fields .assignee-menu-button.big:hover .todo-person {
+  padding: 0;
+  border: none;
+  background: none;
+}
+.todo-card-fields .assignee-menu-caret {
+  width: 12px;
+  height: 12px;
+}
+.todo-person {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  padding: 3px 12px 3px 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  font-weight: 500;
+}
+.todo-person > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.todo-face {
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+.todo-face-you {
+  flex: none;
+}
+.todo-face-nobody {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  border: 1px dashed color-mix(in srgb, var(--fg-muted) 60%, transparent);
+  border-radius: 50%;
+  color: var(--fg-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+.todo-card-nobody {
+  color: var(--fg);
+  font-weight: 500;
+}
+.todo-card-creator {
+  min-width: 0;
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+.todo-card-creator strong {
+  color: var(--fg);
+  font-weight: 500;
+}
+.todo-card-creator .inbox-link {
+  padding: 0;
+  font-size: inherit;
+}
+/* Sections: an uppercase label with its count or action on the right, then the content or a dashed empty box. */
+.todo-card-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.todo-card-head-link {
+  padding: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+.todo-card-head-note {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.todo-card-empty {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px dashed color-mix(in srgb, var(--fg-muted) 40%, var(--border));
+  border-radius: 12px;
+  background: none;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 13px;
+}
+button.todo-card-empty {
+  cursor: pointer;
+  transition:
+    border-color 0.12s,
+    background 0.12s,
+    color 0.12s;
+}
+button.todo-card-empty:hover:not(:disabled),
+.todo-card-empty.over {
+  border-color: var(--sel-border);
+  background: var(--sel-bg);
+  color: var(--fg);
+}
+button.todo-card-empty:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.todo-card-empty svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+.todo-card-add-notes {
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  text-align: start;
+  color: var(--fg);
+}
+.todo-card-add-notes svg {
+  width: 15px;
+  height: 15px;
+  color: var(--fg-muted);
+}
+.todo-card-drop,
+.todo-comments-empty {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 18px 16px 16px;
+  text-align: center;
+}
+.todo-card-drop strong,
+.todo-comments-empty strong {
+  color: var(--fg);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.todo-card-drop span,
+.todo-comments-empty span {
+  font-size: 12px;
+}
+.todo-card-drop svg,
+.todo-comments-empty svg {
+  margin-bottom: 6px;
+}
+.todo-comments-empty {
+  min-height: 140px;
+  border-style: solid;
+  border-color: var(--border);
+}
+.todo-comments-empty b {
+  color: var(--fg);
+}
+.board-drawer .todo-card-notes {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.todo-card-file-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 96px;
+  height: 80px;
+  box-sizing: border-box;
+  border: 1px dashed color-mix(in srgb, var(--fg-muted) 40%, var(--border));
+  border-radius: 10px;
+  background: none;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.todo-card-file-add svg {
+  width: 16px;
+  height: 16px;
+}
+.todo-card-file-add:hover:not(:disabled) {
+  border-color: var(--sel-border);
+  background: var(--sel-bg);
+  color: var(--fg);
+}
+/* Paste box under the images: a text field only so the clipboard (keyboard or long-press menu) can reach it. */
+.todo-card-paste {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 1px dashed color-mix(in srgb, var(--fg-muted) 40%, var(--border));
+  border-radius: 10px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12.5px;
+  caret-color: transparent;
+}
+.todo-card-paste::placeholder {
+  color: var(--fg-muted);
+}
+.todo-card-paste:focus {
+  outline: none;
+  border-style: solid;
+  border-color: var(--sel-border);
+  background: var(--sel-bg);
+}
+.todo-card-files.over {
+  border-radius: 12px;
+  outline: 2px dashed var(--sel-border);
+  outline-offset: 4px;
+}
+/* In the drawer each image is a tile the size of the Add tile beside it. */
+.board-drawer .todo-card-files .attach-thumb {
+  width: 96px;
+  height: 80px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+/* Comments in the drawer read as a thread, not bubbles: name and time, the text under them. */
+.board-drawer .todo-comment-bubble,
+.board-drawer .todo-comment.mine .todo-comment-bubble {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.board-drawer .todo-comment-head {
+  font-size: 13px;
+}
+.board-drawer .todo-comment-text {
+  margin-top: 2px;
+}
+/* The comment box: the field and a bar under it, one bordered box. */
+.todo-comment-form {
+  gap: 0;
+}
+.todo-comment-form .todo-comment-field .todo-comment-input {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.todo-comment-bar {
+  margin: 0;
+  padding: 7px 7px 7px 12px;
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  background: var(--bg-raised);
+}
+.board-drawer .todo-comment-field .todo-comment-input {
+  min-height: 64px;
+  padding: 10px 12px;
+}
+.board-drawer .todo-comment-bar .btn.primary {
+  padding: 6px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.board-drawer .todo-comment-bar .btn.primary:disabled {
+  border-color: var(--border);
+  background: var(--bg-hover);
+  color: var(--fg-muted);
+  opacity: 1;
+}

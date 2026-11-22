@@ -1,0 +1,72 @@
+/* The main area: empty state, error strip, connection bar, the claude-missing banner. */
+
+/* ---- main area ---- */
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.empty {
+  margin: auto;
+  color: var(--fg-muted);
+}
+
+.error-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--error-bg);
+  color: var(--error);
+  border-bottom: 1px solid var(--error);
+}
+
+.connection-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  border-bottom: 1px solid var(--border);
+}
+.connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warning);
+  animation: connection-pulse 1.2s ease-in-out infinite;
+}
+@keyframes connection-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .connection-dot {
+    animation: none;
+  }
+}
+
+.claude-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--error-bg);
+  border-bottom: 1px solid var(--error);
+}
+.claude-banner .field {
+  flex: 1;
+  min-width: 180px;
+  max-width: 420px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+.banner-note {
+  color: var(--error);
+}

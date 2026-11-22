@@ -1,0 +1,40 @@
+MEASURE {"state":"local: zero browsers","processes":0,"rssMiB":0,"sampleMs":1544,"cpuPercentOneCore":0}
+MEASURE {"state":"local: active unviewed","processes":10,"rssMiB":976.6953125,"sampleMs":1545,"cpuPercentOneCore":5.825242718446602}
+MEASURE {"state":"local: active viewed","processes":10,"rssMiB":1006.28125,"sampleMs":1545,"cpuPercentOneCore":20.711974110032365}
+MEASURE {"state":"local: post idle zero","processes":0,"rssMiB":0,"sampleMs":1540,"cpuPercentOneCore":0}
+PASS local: unseen work / same live tab / one producer / takeover / fresh refs / manual input / idle zero
+PASS local: single handoff done
+PASS local: single handoff cancel
+PASS local: single handoff timeout
+PASS local: group handoff done
+PASS local: group handoff cancel
+PASS local: group handoff timeout
+PASS local: routine handoff done
+PASS local: routine handoff cancel
+PASS local: routine handoff timeout
+PASS local: same-agent single/group sequence serialization
+PASS local: two-browser cap queues third profile and releases capacity
+PASS local: server restart interrupts old card / persists cookies / isolates second agent
+PASS local: hidden panel releases capture and control; resumed viewer is read-only
+PASS local: forced parent exit frees owned Chromium
+MEASURE {"state":"vps: zero browsers","processes":0,"rssMiB":0,"sampleMs":1541,"cpuPercentOneCore":0}
+MEASURE {"state":"vps: active unviewed","processes":10,"rssMiB":973.546875,"sampleMs":1546,"cpuPercentOneCore":4.527813712807245}
+MEASURE {"state":"vps: active viewed","processes":10,"rssMiB":999.71875,"sampleMs":1550,"cpuPercentOneCore":19.35483870967742}
+MEASURE {"state":"vps: post idle zero","processes":0,"rssMiB":0,"sampleMs":1541,"cpuPercentOneCore":0}
+PASS vps: unseen work / same live tab / one producer / takeover / fresh refs / manual input / idle zero
+PASS vps: single handoff done
+PASS vps: single handoff cancel
+PASS vps: single handoff timeout
+PASS vps: group handoff done
+PASS vps: group handoff cancel
+PASS vps: group handoff timeout
+PASS vps: routine handoff done
+PASS vps: routine handoff cancel
+PASS vps: routine handoff timeout
+PASS vps: same-agent single/group sequence serialization
+PASS vps: two-browser cap queues third profile and releases capacity
+PASS vps: server restart interrupts old card / persists cookies / isolates second agent
+PASS vps: hidden panel releases capture and control; resumed viewer is read-only
+PASS vps: signout revokes control/capture; unattended handoff expires and Chromium returns to zero
+PASS vps: forced parent exit frees owned Chromium
+{"result":"PASS","checks":31,"evidence":"/home/mhdaljuboori/Developments/AI/ZumiBot/.superpowers/sdd/2026-10-27-agent-browser/task-10-evidence/evidence.json"}

@@ -1,0 +1,31 @@
+/* Routine extras: a suggested picker, run conditions and the skipped, limited and paused run dots. */
+
+.picker.suggest {
+  outline: 1px dashed var(--border);
+  outline-offset: -1px;
+}
+.rt-condition {
+  margin-top: 12px;
+}
+.rt-condition .rt-input {
+  resize: vertical;
+}
+.rt-run-condition {
+  margin-top: 4px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.routine-dot.skipped {
+  background: var(--fg-muted);
+}
+.routine-dot.limited {
+  background: var(--warning);
+  opacity: 0.6;
+}
+.routine-dot.paused {
+  background: var(--fg-muted);
+}
+.rt-fieldset .rt-hint {
+  display: block;
+}

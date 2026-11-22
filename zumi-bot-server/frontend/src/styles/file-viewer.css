@@ -1,0 +1,258 @@
+/* The file viewer, always dark. */
+
+/* ---- file viewer: an attachment or a reply's image, over the page, always on dark ---- */
+/* The theme tokens are resolved once at :root (the build turns light-dark() into variables there), so a dark
+   color-scheme here would not flip them: the dark values are set again for everything inside. */
+.modal-backdrop.viewer-backdrop {
+  --bg: #13161c;
+  --bg-raised: #191d25;
+  --bg-hover: #21262f;
+  --fg: #eef2f8;
+  --fg-muted: #a3abbc;
+  --border: #2e3540;
+  --error: #f07171;
+  --ring: #4a86ff;
+  --accent: #2f6bf0;
+  --accent-fg: #ffffff;
+  z-index: 70;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  color-scheme: dark;
+  background: rgba(8, 9, 12, 0.94);
+  color: var(--fg);
+}
+/* The other color themes' dark values (tokens.css), set again here for the same reason. */
+:root[data-accent='teal'] .modal-backdrop.viewer-backdrop {
+  --bg: #141819;
+  --bg-raised: #1a1f20;
+  --bg-hover: #222829;
+  --fg: #eef3f3;
+  --fg-muted: #a3aeb0;
+  --border: #2f3839;
+  --ring: #2bb3a3;
+  --accent: #0f7a70;
+}
+:root[data-accent='coral'] .modal-backdrop.viewer-backdrop {
+  --bg: #1a1615;
+  --bg-raised: #211c1b;
+  --bg-hover: #2a2422;
+  --fg: #f6f1ef;
+  --fg-muted: #b4a9a5;
+  --border: #3a3230;
+  --ring: #f0743f;
+  --accent: #c2410c;
+}
+:root[data-accent='graphite'] .modal-backdrop.viewer-backdrop {
+  --bg: #161618;
+  --bg-raised: #1c1c1f;
+  --bg-hover: #242428;
+  --fg: #f4f4f5;
+  --fg-muted: #a8a8b0;
+  --border: #33333a;
+  --ring: #d4d4d8;
+  --accent: #f4f4f5;
+  --accent-fg: #18181b;
+}
+.modal-backdrop.viewer-backdrop.contained {
+  position: absolute;
+  border-radius: inherit;
+}
+.viewer-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 12px 8px 18px;
+}
+.viewer-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.viewer-name {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.viewer-meta {
+  display: flex;
+  gap: 10px;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.viewer-gone {
+  color: var(--error);
+}
+.viewer-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.viewer-actions a.btn {
+  text-decoration: none;
+  color: var(--fg);
+}
+.viewer-close {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--fg);
+  font-size: 15px;
+}
+.viewer-close:hover {
+  background: var(--bg-hover);
+}
+.viewer-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: auto;
+  padding: 8px 64px 24px;
+}
+.viewer-img {
+  display: block;
+  margin: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  user-select: none;
+}
+.viewer-img[data-state='loading'] {
+  visibility: hidden;
+}
+.viewer-img.big {
+  cursor: zoom-in;
+}
+.viewer-img.zoomed {
+  max-width: none;
+  max-height: none;
+  cursor: zoom-out;
+}
+.viewer-note {
+  margin: auto;
+  color: var(--fg-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.viewer-loading {
+  position: absolute;
+  inset: 0;
+  justify-content: center;
+}
+.viewer-text {
+  margin: 0 auto;
+  width: min(900px, 100%);
+  align-self: flex-start;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-raised);
+  font: 12.5px/1.5 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.viewer-card {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: min(360px, 100%);
+  padding: 28px 24px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg-raised);
+  text-align: center;
+}
+.viewer-file-icon {
+  width: 44px;
+  height: 44px;
+  color: var(--fg-muted);
+}
+.viewer-card-name {
+  max-width: 100%;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.viewer-card-size {
+  color: var(--fg-muted);
+  font-size: 12.5px;
+}
+.viewer-card-note {
+  margin: 6px 0 10px;
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+.viewer-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.viewer-card-actions a.btn {
+  text-decoration: none;
+  color: var(--fg);
+}
+.viewer-step {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-top: -20px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-raised);
+  color: var(--fg);
+  cursor: pointer;
+}
+.viewer-step:hover {
+  background: var(--bg-hover);
+}
+.viewer-step:focus-visible,
+.viewer-close:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.viewer-step svg {
+  width: 16px;
+  height: 16px;
+}
+.viewer-step.prev {
+  left: 12px;
+}
+.viewer-step.next {
+  right: 12px;
+}
+.markdown img.markdown-img {
+  max-width: 100%;
+  height: auto;
+}
+.markdown img.markdown-img[data-ready] {
+  cursor: zoom-in;
+}
+@media (max-width: 640px) {
+  .viewer-stage {
+    padding: 4px 8px 16px;
+  }
+  .viewer-step {
+    top: auto;
+    bottom: 16px;
+    margin-top: 0;
+  }
+}

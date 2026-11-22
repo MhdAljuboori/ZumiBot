@@ -1,0 +1,305 @@
+/* A workflow run's audit log. */
+
+/* ---- workflows: a run's audit log ---- */
+.wf-run-tabs {
+  flex: none;
+}
+.wf-audit-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+/* A container, so Input and Output go side by side from the log's own width, not the window's. */
+.wf-audit {
+  container: wf-audit / inline-size;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 22px 24px 40px;
+}
+.wf-phone-body .wf-audit {
+  padding: 0;
+}
+.wf-audit-pending {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  color: var(--fg-muted);
+  font-size: 14px;
+}
+.wf-audit-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wf-audit-ev {
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  column-gap: 12px;
+  padding-bottom: 22px;
+}
+/* The line the dots hang off, from under this dot down to the next one. */
+.wf-audit-ev::before {
+  content: '';
+  position: absolute;
+  top: 30px;
+  bottom: 6px;
+  left: 11px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--border);
+}
+.wf-audit-ev:last-child {
+  padding-bottom: 0;
+}
+.wf-audit-ev:last-child::before {
+  display: none;
+}
+.wf-audit-dot {
+  --c: var(--fg-muted);
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--c) 16%, var(--bg));
+  color: var(--c);
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.wf-audit-dot.done {
+  --c: var(--success);
+}
+.wf-audit-dot.failed {
+  --c: var(--error);
+}
+.wf-audit-dot.running {
+  --c: var(--accent);
+}
+.wf-audit-dot.waiting {
+  --c: var(--warning);
+}
+.wf-audit-dot.end {
+  width: 12px;
+  height: 12px;
+  margin: 6px;
+  background: var(--c);
+}
+.wf-audit-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.wf-audit-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-height: 24px;
+  font-size: 12px;
+}
+.wf-audit-name {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.wf-audit-kind {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.wf-audit-meta {
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+.wf-audit-answer {
+  color: var(--fg-muted);
+  font-weight: 600;
+}
+.wf-audit-answer.yes,
+.wf-audit-answer.approved {
+  color: var(--success);
+}
+.wf-audit-answer.rejected {
+  color: var(--error);
+}
+.wf-audit-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+.wf-audit-link {
+  flex: none;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.wf-audit-link:hover {
+  text-decoration: underline;
+}
+.wf-audit-link:focus-visible,
+.wf-audit-more:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.wf-audit-retry {
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 7px;
+  background: var(--bg-selected);
+  font-size: 12px;
+  font-weight: 500;
+}
+.wf-audit-call {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.wf-audit-none {
+  margin: 0;
+}
+.wf-audit-io {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+@container wf-audit (min-width: 720px) {
+  .wf-audit-io:not(.one) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.wf-audit-box {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-raised);
+  font-size: 13px;
+}
+.wf-audit-box.note {
+  border-width: 0 0 0 3px;
+  border-color: var(--sel-border);
+  border-radius: 0 8px 8px 0;
+}
+.wf-audit-box > .wf-field-head {
+  margin-bottom: 4px;
+}
+.wf-audit-box .wf-expand {
+  margin-block: -5px;
+}
+.wf-audit-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.wf-audit-label .rt-label {
+  margin: 0;
+}
+.wf-audit-text {
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.wf-audit-text .markdown > :first-child {
+  margin-top: 0;
+}
+.wf-audit-text .markdown > :last-child {
+  margin-bottom: 0;
+}
+/* Only the preview is drawn while folded, and the fade says it goes on. A mask, so it suits any background. */
+.wf-audit-text.folded {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2.5em), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 2.5em), transparent);
+}
+.wf-audit-more {
+  margin-top: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.wf-audit-more:hover {
+  text-decoration: underline;
+}
+.wf-audit-sent-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.wf-audit-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wf-audit-items > .wf-audit-label .rt-hint {
+  margin: 0;
+}
+.wf-audit-item-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.wf-audit-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px 10px;
+}
+.wf-audit-item + .wf-audit-item {
+  border-top: 1px solid var(--border);
+}
+.wf-audit-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+  font-size: 12px;
+}
+.wf-audit-item-text {
+  flex: 1 1 200px;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.wf-audit-item-status {
+  color: var(--fg-muted);
+  font-weight: 600;
+}
+.wf-audit-item-status.done {
+  color: var(--success);
+}
+.wf-audit-item-status.failed {
+  color: var(--error);
+}
+.wf-audit-item .wf-audit-box {
+  background: var(--bg);
+}

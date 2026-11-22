@@ -1,0 +1,73 @@
+---
+title: Slash commands
+description: Type / in the message box to run a saved prompt from your agent, ask a side question, or start a workflow.
+sidebar:
+  order: 5
+---
+
+import Shot from '../../../components/Shot.astro'
+import { Steps } from '@astrojs/starlight/components'
+
+A slash command is a shortcut you type at the start of a message. Some are built into ZumiBot. Others are saved prompts that belong to the agent you are talking to, so you do not have to type the same long request again.
+
+<Shot name="chatting-slash-menu" alt="A '/' typed in the message box, with a menu above it. It lists /btw, /todo and /run-workflow, then the Code Reviewer agent's own commands /review, /explain and /test-gaps, each with a one-line description." />
+
+## Use a command
+
+<Steps>
+
+1. **Type `/` at the very start of the box.** The menu only opens at the start of your message, so a path like `/home/me` further in never triggers it.
+
+2. **Narrow the list.** Keep typing. The list shows commands whose name starts with what you typed, then commands with a word in their description that does.
+
+3. **Pick one.** Click it, or use the arrow keys and press Enter or Tab. Esc closes the menu.
+
+4. **Add your text and send.** The command is now at the start of your message. Type what comes after it, if anything, and press Enter.
+
+</Steps>
+
+After you send, your message shows the command as a colored chip. Choose the chip, or **Full prompt** under the message, to see exactly what the agent received.
+
+## The built-in commands
+
+| Command | What it does |
+| --- | --- |
+| `/btw` | Ask on the side; the run keeps going. See [/btw side questions](/chatting/side-questions/). |
+| `/todo` | Put this reply's action items on the chat's to-do list. Type it, a space, and `/` again, and the menu reopens so you can add an agent command after it. |
+| `/run-workflow` | Start a workflow. After the command and a space, a **Workflows** list shows your workflows by name. Pick one, and the text after its name becomes its input. |
+
+`/run-workflow` needs an open chat, so it is not offered on the new-chat screen. When the workflow starts, a "Started" notice appears with an **Open run** button.
+
+## Your agent's commands
+
+Each command in the menu under the built-in ones belongs to an agent. In a single chat, they are the chat's agent's commands. In a group room, the menu is grouped under each member's name, and a command goes to its own agent.
+
+A command with a ☑ mark makes to-dos: using it also asks the agent to put its action items on the chat's to-do list.
+
+If you type a `/name` that no command has, it is sent as typed.
+
+## Make your own command
+
+You add commands to an agent. Open it with **Edit agent** in its sidebar menu, then find the **Commands** card.
+
+1. Choose **+ Add command**.
+2. Type a name in lowercase letters, digits and single hyphens, such as `review`. This is what you type after the slash.
+3. Write a description. It shows in the menu, so keep it to one line.
+4. Write the prompt, which is what the agent receives. Put `$ARGUMENTS` where your own text should go. Without it, your text goes at the end.
+5. Optional: tick **Makes to-dos**, or choose a **Model** (Opus, Sonnet or Haiku) for chats that command starts.
+
+Then save the agent. For example, a command named `explain` with the prompt "Explain this in plain words, for someone new to the project: $ARGUMENTS" turns `/explain the checkout form` into a full request.
+
+## Tips and limits
+
+- A command that names a model sets it only when it starts a chat, or when it asks for a stronger one than the chat has. A model you picked by hand always wins. See [Mode, effort and model](/chatting/mode-effort-model/).
+- The saved prompt is the one the agent had when you sent the message. Editing the command later does not change old messages.
+- Only the command's own agent reads its full prompt. Other agents in a room see the short form you typed.
+- If the menu does not show your new command, check the Commands card for a message under the command, such as a name that is already used.
+
+## Related
+
+- [Chats and the message box](/chatting/chats-and-composer/)
+- [/btw side questions](/chatting/side-questions/)
+- [Mode, effort and model](/chatting/mode-effort-model/)
+- [Workflows](/automation/workflows/)

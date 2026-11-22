@@ -1,0 +1,180 @@
+---
+title: Update your server
+description: Update a ZumiBot server from the app, from a terminal or with the Docker installer, see what an update keeps, and go back to the earlier version if the new one misbehaves.
+sidebar:
+  order: 1
+---
+
+import { Steps } from '@astrojs/starlight/components'
+
+A server installed with the native installer updates itself. ZumiBot tells you when a new version is out, and you update with one click. If the new version misbehaves, you can go back to the one before it.
+
+If you installed with Docker, the app does not update ZumiBot. You run the Docker installer again instead: see [Update a Docker install](#update-a-docker-install).
+
+## Update from the app
+
+ZumiBot looks for a new version by itself. It checks a short time after it starts, then about every hour, and again when you come back to the page after more than 15 minutes. Nothing installs until you choose it.
+
+<Steps>
+
+1. **See the notice.** When a newer version is out, a notice appears at the bottom right. It reads, for example, "ZumiBot v0.1.2 is available", and has **Update**, **What's new** and a **✕** button.
+
+2. **Read what changed.** **What's new** opens **Settings**, **About**, where the release notes are.
+
+3. **Choose Update.** If agents are working, a window titled "Update ZumiBot" asks first, for example "2 replies are running. Updating stops them. Update anyway?" Choose **Update anyway**, or **Cancel** to wait for the replies to finish.
+
+4. **Wait a moment.** A screen reads "Updating ZumiBot…" and "It will be back in a moment." The server downloads the new version, keeps a copy of your data folder, swaps the app and restarts. The page reloads by itself when the server answers on the new version.
+
+5. **Check the result.** **Settings**, **About** reads, for example, "Updated from 0.1.1 to 0.1.2" followed by the date and time.
+
+</Steps>
+
+The **✕** button hides the notice for that version. A newer version shows it again.
+
+To check right away, open **Settings**, **About** and choose **Check for updates**. The status line there reads "Not checked yet", "Checking…", "Up to date", or "Version X is available". When there is a newer version, **Install update** appears beside the button. The **Latest** and **Last checked** rows show what ZumiBot found and when.
+
+Another tab or phone that you left open may say "ZumiBot was updated. Reload to use v0.1.2." Choose **Reload**. It never reloads by itself.
+
+Before it uses a new version, ZumiBot checks that it came from the ZumiBot publisher and that the download is intact. A release that fails the check is never offered. About then says "The release is not signed by the ZumiBot publisher."
+
+## Update from a terminal
+
+Use this when you prefer a terminal, or when you cannot open the app. Run it on the server as the user that runs ZumiBot:
+
+```bash
+~/zumibot/bin/zumibot-update
+```
+
+It does not update while a reply is running. It stops and says to wait for the replies, or to run it again with `--force`. With `--force` it interrupts them:
+
+```bash
+~/zumibot/bin/zumibot-update --force
+```
+
+This command does not keep a copy of your data, so you cannot roll back afterward. To keep one, as the app does, add `--snapshot-data`:
+
+```bash
+~/zumibot/bin/zumibot-update --snapshot-data
+```
+
+It needs room for a second copy of your data folder. If the copy fails, for example because the disk is full, nothing is updated and the running server is untouched. See [Data folder and backups](/server/data-and-backups/) for what the folder holds.
+
+## Go back to the earlier version
+
+Roll back is for an update that went wrong. It puts back the earlier app and the copy of your data that the update made.
+
+### From the app
+
+<Steps>
+
+1. **Open Settings, then About.** Right after an update, the last result shows with a **Roll back** button under it.
+
+2. **Choose Roll back.** A window titled "Roll back ZumiBot" asks, for example, "Go back to v0.1.1? Chats and settings changed since Nov 20, 2026 are set aside (kept in a .failed folder on the server)." Choose **Roll back**, or **Cancel**.
+
+3. **Confirm if replies are running.** The window then says, for example, "2 replies are running. Rolling back stops them. Roll back anyway?" Choose **Roll back anyway**, or **Cancel**.
+
+4. **Wait.** The same "Updating ZumiBot…" screen shows while the server restarts. **Settings**, **About** then reads, for example, "Rolled back from 0.1.2 to 0.1.1" followed by the date and time.
+
+</Steps>
+
+### From a terminal
+
+If the app does not come back after an update, run this on the server, as the user that runs ZumiBot and not as root:
+
+```bash
+~/zumibot/bin/zumibot-rollback
+```
+
+It stops the service, puts back the earlier app and the data copy, and starts the service again. It refuses, and changes nothing, unless both the earlier app and the data copy exist. If a step fails, the server stays stopped and the command prints the steps still left to run, in order.
+
+### What a rollback keeps and sets aside
+
+- **Set aside, not deleted.** The new app is kept as `~/zumibot/app.failed`. The data folder it used is kept next to the data folder, with `.failed` added to its name. ZumiBot never shows these. Delete them when you no longer need them. A later rollback replaces the ones from an earlier rollback.
+- **Chats and settings from after the update are not in the restored version.** The data comes back as it was when the update started. Anything you did since then stays in the `.failed` folder.
+- **Roll back is offered once.** It appears only right after an update that worked, and the data copy is used up when you roll back.
+
+## If an update does not come back
+
+Most updates take a moment. A big data folder takes longer, because it is copied first. After about 90 seconds, the updating screen adds "This is taking longer than expected." and a **Reload** button. It also says "If the server does not come back, run ~/zumibot/bin/zumibot-rollback on the server."
+
+1. Choose **Reload**.
+2. If the page still does not load, read the log on the server:
+
+   ```bash
+   journalctl --user -u zumibot -n 50 --no-pager
+   ```
+
+3. If the server is not running on the new version, run the rollback command above. It works only if the update kept a data copy, as an update from the app does. After a plain `zumibot-update` there is nothing to roll back to.
+
+When an update fails, **Settings**, **About** reads, for example, "Update to 0.1.2 failed" with the date and the last lines of the update's log. See [Troubleshooting](/server/troubleshooting/) for the common causes.
+
+## Update a Docker install
+
+The app does not update a Docker install, and does not look for new versions there. **Settings**, **About** reads "Updates are not available in a container install: run the Docker installer again". To see what a new version brings, read the [Changelog](/server/changelog/).
+
+<Steps>
+
+1. **Run the installer again.** Run it on the server, as the user that installed ZumiBot:
+
+   ```bash
+   sh ~/zumibot-docker/docker/install.sh
+   ```
+
+   It downloads the latest release and checks it against the publisher's signature, as the first install did. It never installs a release older than the one you have.
+
+2. **Wait for replies, or interrupt them.** It does not update while a reply is running. It stops and says how many are running. Wait for them to finish and run it again, or add `--force` to interrupt them:
+
+   ```bash
+   sh ~/zumibot-docker/docker/install.sh --force
+   ```
+
+3. **Let it finish.** It downloads the new image before it stops anything, so a slow or failed download leaves ZumiBot running as it was. Then it starts the new version and waits up to a minute for it to answer. Your address, your chats and your sign-in stay as they are.
+
+4. **Check the result.** **Settings**, **About** shows the new version.
+
+</Steps>
+
+### Go back in Docker
+
+Each update keeps the version before it in `~/zumibot-docker.prev`. To go back to it, run the line the installer printed at the end of the update:
+
+```bash
+mv ~/zumibot-docker ~/zumibot-docker.failed && mv ~/zumibot-docker.prev ~/zumibot-docker && cd ~/zumibot-docker && docker compose up -d
+```
+
+- **Your chats are not set aside.** They live in Docker volumes, which neither an update nor going back touches. Unlike the native roll back, chats and settings from after the update stay.
+- **There is one earlier version.** A first install has none. Running the installer again on the version you already have replaces it with that same version.
+- **The next run updates you again.** Running the installer after going back installs the latest release.
+
+If the installer says the server did not answer within 60 seconds, read the server's log:
+
+```bash
+cd ~/zumibot-docker && docker compose logs zumibot-local
+```
+
+If you installed with `--domain`, the service is called `zumibot` instead:
+
+```bash
+cd ~/zumibot-docker && docker compose logs zumibot
+```
+
+If the new version does not start, go back as shown above.
+
+## Tips and limits
+
+- **Only an installer server updates itself.** If **About** says "Updates need the installer install", this server was not set up with the installer, and the app cannot update it.
+- **Checking is automatic, installing never is.** Every update is a click, or a command you run.
+- **An update restarts the server.** Replies stop if you choose **Update anyway**. [Background processes](/projects/background-processes/) stop too, but a running process does not block an update.
+- **Your proxy, sign-in and data stay as they are.** An update changes the app, not your HTTPS proxy or your password.
+- **Keep your own files out of `~/zumibot-docker`.** A Docker update replaces that folder and keeps only its `.env`.
+- **Your own service settings.** On a native install, an update can rewrite the service file, so a setting you added there can be lost. Put your own `Environment=` lines in a drop-in instead. Run `systemctl --user edit zumibot`, add them under `[Service]`, save, then run `systemctl --user restart zumibot`. Updates leave a drop-in alone.
+- **Where it looks.** The server checks the ZumiBot website and nothing else.
+- **The desktop app is separate.** A server update changes what you see in the desktop app when it connects to your server, but not the app window itself. See [Desktop app updates](/desktop/updates/).
+
+## Related
+
+- [Install on a server](/get-started/install-server/)
+- [Data folder and backups](/server/data-and-backups/)
+- [Admin commands](/server/admin-commands/)
+- [Troubleshooting](/server/troubleshooting/)
+- [Changelog](/server/changelog/)

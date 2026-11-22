@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#13161c" />
+    <title>Set up ZumiBot</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <!-- login.css holds the shared tokens and form styles; setup.css only adds what the wizard needs. -->
+    <link rel="stylesheet" href="/login.css" />
+    <link rel="stylesheet" href="/setup.css" />
+    <script src="/setup.js" defer></script>
+  </head>
+  <body>
+    <main class="card wide">
+      <h1>Set up ZumiBot</h1>
+      <p id="progress" class="muted">Step 1 of 4</p>
+
+      <form id="panel-code" class="panel">
+        <h2>Setup code</h2>
+        <p class="muted">The server printed a one-time setup code when it started. It is in the server's own log:</p>
+        <ul class="muted tight">
+          <li>systemd: <code>journalctl -u zumibot -n 20</code></li>
+          <li>Docker: <code>docker compose logs zumibot</code></li>
+        </ul>
+        <label for="code">Setup code</label>
+        <input
+          id="code"
+          name="code"
+          type="text"
+          autocomplete="off"
+          autocapitalize="characters"
+          spellcheck="false"
+          maxlength="32"
+          placeholder="XXXX-XXXX-XXXX-XXXX"
+          required
+          autofocus
+        />
+        <button id="submit-code" type="submit">Continue</button>
+      </form>
+
+      <form id="panel-password" class="panel" hidden>
+        <h2>Password</h2>
+        <p class="muted">At least 16 characters. This is the password you will sign in with.</p>
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="new-password" maxlength="1024" required />
+        <label for="password2">Repeat password</label>
+        <input id="password2" name="password2" type="password" autocomplete="new-password" maxlength="1024" required />
+        <button id="submit-password" type="submit">Continue</button>
+      </form>
+
+      <form id="panel-totp" class="panel" hidden>
+        <h2>Authenticator</h2>
+        <p class="muted">Scan this with your authenticator app, then type the code it shows.</p>
+        <img id="qr" class="qr" alt="QR code for the authenticator secret" width="240" height="240" />
+        <details>
+          <summary>Or add it by hand</summary>
+          <code id="secret" class="secret"></code>
+        </details>
+        <label for="totp">6-digit code</label>
+        <input
+          id="totp"
+          name="totp"
+          type="text"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          pattern="[0-9 ]*"
+          maxlength="12"
+          required
+        />
+        <button id="submit-totp" type="submit">Confirm</button>
+      </form>
+
+      <section id="panel-recovery" class="panel" hidden>
+        <h2>Recovery codes</h2>
+        <p class="warn">Save these now. Each works once, and they are shown only this once.</p>
+        <ul id="recovery-codes" class="codes"></ul>
+        <button id="copy-codes" class="link" type="button">Copy to clipboard</button>
+        <label class="check"><input id="saved-codes" type="checkbox" /> I have saved these codes</label>
+        <button id="submit-recovery" type="button" disabled>Continue</button>
+      </section>
+
+      <section id="panel-check" class="panel" hidden>
+        <h2>The claude CLI</h2>
+        <p class="muted">ZumiBot runs the <code>claude</code> CLI for every reply, as its own user.</p>
+        <p id="claude-message" class="status"></p>
+        <div id="claude-fix" hidden>
+          <p class="muted">Run this as <code id="claude-user"></code>, then check again:</p>
+          <pre id="claude-commands"></pre>
+        </div>
+        <button id="recheck" class="link" type="button">Check again</button>
+        <p id="codes-note" class="muted" hidden>
+          Recovery codes are shown only once. If you did not save them, run <code>zumibot-server setup-2fa</code> to make a new set.
+        </p>
+        <button id="submit-finish" type="button">Finish</button>
+      </section>
+
+      <section id="panel-done" class="panel" hidden>
+        <h2>Done</h2>
+        <p id="done-message">Setup is done. Starting ZumiBot&hellip;</p>
+        <a id="sign-in" href="/login" hidden>Sign in</a>
+      </section>
+
+      <p id="error" class="error" role="alert" hidden></p>
+    </main>
+  </body>
+</html>

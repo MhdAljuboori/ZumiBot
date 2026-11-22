@@ -1,0 +1,402 @@
+/* The Usage page, spend caps and the cost chip. */
+
+/* ---- usage page and cost chip ---- */
+
+.usg {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 24px 32px;
+}
+.usg-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.usg-top h1 {
+  margin: 0;
+  font-size: 16px;
+}
+.usg-ctl {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.usg-ctl .field {
+  padding: 4px 8px;
+  font-size: 12.5px;
+}
+.usg-chat-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--sel-border);
+  border-radius: 7px;
+  background: var(--sel-bg);
+  color: var(--sel-fg);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.usg-chat-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.usg-error {
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--error-bg);
+  color: var(--error);
+}
+.usg-note {
+  color: var(--fg-muted);
+}
+.usg-hero {
+  display: flex;
+  gap: 28px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.usg-hero-left {
+  flex: 0 1 270px;
+  min-width: 220px;
+}
+.usg-hero-right {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.usg-big {
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  line-height: 1.1;
+}
+.usg-sub {
+  color: var(--fg-muted);
+  font-size: 11.5px;
+}
+.usg-leg {
+  margin-top: 12px;
+}
+.usg-leg-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.usg-leg .usg-sub {
+  margin-left: 14px;
+}
+.usg-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+}
+.usg-dot.exact {
+  background: var(--accent);
+}
+.usg-dot.est {
+  background: var(--sel-border);
+}
+.usg-estimating {
+  margin: 10px 0 0;
+}
+.usg-chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.usg-link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--link);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.usg-link:hover {
+  text-decoration: underline;
+}
+.usg-chart svg {
+  display: block;
+  width: 100%;
+  height: 130px;
+  margin-top: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.usg-chart-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  color: var(--fg-muted);
+  font-size: 10.5px;
+}
+.usg-chart-empty {
+  margin-top: 8px;
+  padding: 40px 0;
+  text-align: center;
+  color: var(--fg-muted);
+  border-bottom: 1px solid var(--border);
+}
+.usg-bar-exact {
+  fill: var(--accent);
+}
+.usg-hatch-bg {
+  fill: var(--sel-bg);
+}
+.usg-hatch-line {
+  fill: var(--sel-border);
+}
+.usg-bar-est {
+  stroke: var(--sel-border);
+  stroke-width: 0.6;
+  vector-effect: non-scaling-stroke;
+}
+.usg-chart g:hover .usg-bar-exact {
+  opacity: 0.8;
+}
+.usg-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 12px;
+  margin: 22px 0;
+}
+.usg-totals span {
+  display: block;
+  color: var(--fg-muted);
+  font-size: 11px;
+}
+.usg-totals strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 14px;
+}
+.usg-bd-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.usg-table-wrap {
+  margin-top: 8px;
+  overflow-x: auto;
+}
+.usg-table {
+  width: 100%;
+  min-width: 420px;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.usg-table th {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 500;
+  text-align: right;
+}
+.usg-table td {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.usg-table :is(th, td):first-child {
+  padding-left: 0;
+  text-align: left;
+}
+.usg-table :is(th, td):last-child {
+  padding-right: 0;
+}
+.usg-row-link {
+  cursor: pointer;
+}
+.usg-row-link:hover,
+.usg-row-link:focus-visible {
+  background: var(--bg-hover);
+  outline: none;
+}
+.usg-empty {
+  padding: 24px 0 !important;
+  text-align: center !important;
+  color: var(--fg-muted);
+}
+.usg-tag {
+  margin-left: 6px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg-muted);
+  font-size: 10px;
+}
+
+/* Settings › Usage › Spend caps: each capped agent's day, its bar amber once past its limit. */
+.usg-caps {
+  margin-top: 26px;
+}
+.usg-caps .usg-note {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+}
+.usg-cap-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.usg-cap {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.usg-cap-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 12.5px;
+}
+.usg-cap-line {
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.usg-cap-bar {
+  height: 6px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--bg-selected);
+}
+.usg-cap-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+}
+.usg-cap.over .usg-cap-bar i {
+  background: var(--warning);
+}
+.usg-cap-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.usg-cap-foot .btn {
+  margin-left: auto;
+}
+
+/* A spend cap's dollar field: the $ inside the field's left edge, the error under it. */
+.spend-cap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.spend-cap-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  max-width: 180px;
+}
+.spend-cap-prefix {
+  position: absolute;
+  left: 10px;
+  color: var(--fg-muted);
+  font-size: 13px;
+  pointer-events: none;
+}
+.spend-cap .spend-cap-field {
+  width: 100%;
+  padding-left: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.spend-cap-error {
+  color: var(--error);
+  font-size: 11.5px;
+}
+.wf-cap-hold {
+  flex-wrap: wrap;
+}
+.wf-cap-hold .btn {
+  flex: none;
+}
+
+.cost-pop {
+  width: 300px;
+  max-width: calc(100vw - 24px);
+  padding: 12px;
+  font-size: 12px;
+}
+.cost-pop-label,
+.cost-pop-sub,
+.cost-pop-grid span,
+.cost-pop-head td {
+  color: var(--fg-muted);
+  font-size: 11px;
+}
+.cost-pop-total {
+  font-size: 24px;
+  font-weight: 800;
+}
+.cost-pop-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+  margin: 10px 0;
+}
+.cost-pop-grid span {
+  display: block;
+}
+.cost-pop-grid strong {
+  font-size: 13px;
+}
+.cost-pop-rows {
+  width: 100%;
+  border-collapse: collapse;
+}
+.cost-pop-rows td {
+  padding: 4px 0;
+  border-top: 1px solid var(--border);
+}
+.cost-pop-rows td:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.menu .cost-pop-link {
+  margin-top: 8px;
+  padding: 4px 0;
+  color: var(--link);
+  font-size: 12px;
+}
+.menu .cost-pop-link:hover,
+.menu .cost-pop-link:focus-visible {
+  background: none;
+  text-decoration: underline;
+}
+
+@media (max-width: 799px) {
+  .usg {
+    padding: 14px 14px 28px;
+  }
+  .usg-big {
+    font-size: 32px;
+  }
+  .usg-hero {
+    gap: 18px;
+  }
+}

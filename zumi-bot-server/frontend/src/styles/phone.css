@@ -1,0 +1,545 @@
+/* Small screens and touch: the drawer, the tab bar, and phone-sized overrides for the views above. */
+
+/* ---- small screens and touch ---- */
+
+/* The bar over the main area, the drawer's close button and its backdrop exist only on a small screen. */
+.mobile-bar,
+.head-btn.nav-close,
+.nav-backdrop {
+  display: none;
+}
+/* The phone's tab bar (TabBar.tsx, rendered below NARROW_QUERY only): the last row of the main area, so the message box
+   sits above it, never under it. Labels always show; the open tab takes the accent's text color. */
+.tab-bar {
+  flex: none;
+  display: flex;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+.tab {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 54px;
+  padding: 0 2px;
+  border: none;
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.tab[aria-current='page'] {
+  color: var(--accent-text);
+}
+.tab:active {
+  background: var(--bg-hover);
+}
+.tab:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -4px;
+  border-radius: 10px;
+}
+.tab-icon {
+  position: relative;
+  display: inline-flex;
+}
+.tab-glyph {
+  width: 24px;
+  height: 24px;
+}
+.tab-label {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 13px;
+}
+.tab[aria-current='page'] .tab-label {
+  font-weight: 600;
+}
+.tab-dot {
+  position: absolute;
+  top: -1px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.tab-count {
+  position: absolute;
+  top: -5px;
+  left: 14px;
+  min-width: 17px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  box-sizing: border-box;
+  box-shadow: 0 0 0 2px var(--bg);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* Typing takes the bottom of the screen: the keyboard covers it, or the page shrinks over it, so the bar steps aside.
+   The field list is TYPING_FIELD in typingHold.ts. `typing-hold` keeps the bar away until the tap that ended the typing
+   is over: back at once, it would push Send up from under the finger, and the tap would miss it. */
+html.kb-cover .tab-bar,
+html.typing-hold .tab-bar,
+.main:has(:is(textarea, [contenteditable='true'], input:not([type='checkbox'], [type='radio'], [type='range'], [type='button'], [type='submit'], [type='reset'], [type='file'], [type='color'], [type='image'])):focus) .tab-bar {
+  display: none;
+}
+.send-failed-reason {
+  display: none;
+}
+/* A scroll that hits the end of a list stops there: no pull-to-refresh, no page bounce. */
+.messages,
+.agent-list,
+.editor-scroll,
+.composer-scroll,
+.menu,
+.rt-flow,
+.rt-runs-list {
+  overscroll-behavior: contain;
+}
+
+/* Same width as NARROW_QUERY in media.ts: below it the sidebar is a drawer that slides over the main area. */
+@media (max-width: 799px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    z-index: 40;
+    left: var(--rail-w);
+    width: min(320px, calc(100vw - 48px - var(--rail-w)));
+    /* Full height under the system bars, as the page is (body's padding), with its rows inside them. */
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+    transform: translateX(calc(-100% - var(--rail-w)));
+    visibility: hidden;
+    transition:
+      transform 0.22s ease,
+      visibility 0s linear 0.22s;
+  }
+  /* The rail is part of the drawer: it slides in at the left edge, with the column beside it. */
+  .rail {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 41;
+    padding: calc(10px + env(safe-area-inset-top)) 0 calc(10px + env(safe-area-inset-bottom));
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition:
+      transform 0.22s ease,
+      visibility 0s linear 0.22s;
+  }
+  .rail.open {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.22s ease;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.3);
+  }
+  /* transform: none, not a zero translate, so the menus inside stay fixed to the window. */
+  .sidebar.open {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.22s ease;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.3);
+  }
+  /* A dialog the drawer opens (Delete chat) covers the window but stacks inside the drawer's layer, which is under
+     the rail's: the drawer goes above the rail while it holds one, or the rail hides the dialog's left side. */
+  .sidebar:has(.modal-backdrop) {
+    z-index: 42;
+  }
+  .nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    background: var(--backdrop);
+    animation: nav-fade 0.22s ease;
+  }
+  .head-btn.nav-close {
+    display: inline-flex;
+  }
+  .sidebar-head {
+    padding: 0 10px 0 16px;
+  }
+
+  .mobile-bar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 52px;
+    padding: 0 12px 0 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .mobile-bar .member-stack {
+    --stack-ring: var(--bg);
+  }
+  .mobile-bar-title {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .nav-toggle {
+    position: relative;
+    border-color: transparent;
+    background: none;
+  }
+  .nav-badge {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    box-shadow: 0 0 0 2px var(--bg);
+  }
+  /* The open chat's side panel toggle, at the bar's end: the same tap size as the drawer toggle. */
+  .mobile-bar .side-toggle {
+    width: 30px;
+    height: 30px;
+  }
+
+  .messages {
+    padding: 14px 14px;
+  }
+  .messages-inner {
+    gap: 14px;
+  }
+  .handoff-slot {
+    margin-bottom: 14px;
+  }
+  .bubble.user,
+  .reply-quote,
+  .sent-attachments {
+    max-width: 88%;
+  }
+  /* A user message sizes to its content, so the 88% cap is on the message, not on its parts. */
+  .user-msg {
+    max-width: 88%;
+  }
+  .user-msg .bubble.user,
+  .user-msg .reply-quote,
+  .user-msg .sent-attachments {
+    max-width: 100%;
+  }
+  .user-msg-body {
+    gap: 14px;
+  }
+  .user-msg:has(.msg-edit) {
+    max-width: 100%;
+  }
+  .composer {
+    padding: 4px 10px 10px;
+  }
+  .composer-box {
+    padding: 6px 6px 6px 14px;
+  }
+  /* The new-chat row wraps rather than cutting its agent and folder to a few letters; a name too long for a whole line
+     still ends in an ellipsis, and the members and Role chips keep their size. */
+  .pickers {
+    padding-left: 2px;
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+  .picker {
+    max-width: 100%;
+  }
+  .members-picker,
+  .role-chip {
+    flex: none;
+  }
+  /* Under an open chat the row keeps to one line: its agent and folder are in the side panel and the model, mode and
+     effort share one chip. That chip and the branch shrink to an ellipsis; the meter, cost and the rest keep their size,
+     and a room's row too full for the screen scrolls sideways rather than running off it. */
+  .pickers.one-line {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .pickers.one-line > .picker {
+    flex: none;
+  }
+  .pickers.one-line > :is(.run-picker, .git-chip) {
+    flex: 0 1 auto;
+  }
+  /* The bar above already shows an open group's members. */
+  .members-picker .member-stack {
+    display: none;
+  }
+  .new-chat {
+    padding-bottom: 6vh;
+  }
+  .tasks-tray {
+    padding: 6px 14px;
+  }
+  .pausing-line {
+    padding: 4px 14px;
+    min-height: 36px;
+  }
+  /* A phone's chat is short, more so with the keyboard up: the tray takes less of it. */
+  .tasks-tray {
+    max-height: 25%;
+  }
+  .chat-intro {
+    padding: 0 12px;
+  }
+  .chat-intro-name {
+    font-size: 20px;
+  }
+  .claude-banner .field {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  .editor-bar {
+    padding: 10px 14px;
+  }
+  .editor-body {
+    padding: 14px;
+  }
+  .editor-grid,
+  .editor-col {
+    gap: 14px;
+  }
+  .card {
+    padding: 14px 14px 16px;
+  }
+  .raw-editor {
+    flex-basis: calc(100% - 28px);
+    margin: 14px;
+  }
+  .acp-compare.raw-compare {
+    margin: 14px 14px 0;
+  }
+  .code-scroll {
+    min-height: 280px;
+  }
+}
+
+@media (max-width: 420px) {
+  .choices.models {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .choices.compact-sizes {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .editor-actions {
+    flex: 1 1 100%;
+  }
+  .editor-actions .seg {
+    margin-right: auto;
+  }
+}
+
+@keyframes nav-fade {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebar.open,
+  .rail,
+  .rail.open {
+    transition: none;
+  }
+  .nav-backdrop {
+    animation: none;
+  }
+}
+
+/* Nothing hovers on a touch screen, so what shows on hover shows always. */
+@media (hover: none) {
+  .row-action.more {
+    visibility: visible;
+  }
+  .row.agent {
+    padding-right: 40px;
+  }
+  .row.agent.has-toggle {
+    padding-right: 70px;
+  }
+  /* An agent message's react, reply and copy buttons sit under its bubble; the agent's icon stays beside the bubble. */
+  .msg-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+  .msg-actions {
+    opacity: 1;
+    margin-left: 2px;
+  }
+  /* A user message's buttons sit under its bubble, to the right. */
+  .user-msg-row {
+    flex-direction: column-reverse;
+    align-items: flex-end;
+    gap: 0;
+  }
+  /* In a column the body takes its content's width, and the edit box's fixed 560px would run off a phone's left edge. */
+  .user-msg-body {
+    max-width: 100%;
+  }
+  .user-msg .msg-actions {
+    margin: 0 -2px 0 0;
+  }
+  .task-actions {
+    opacity: 1;
+  }
+  .code-copy {
+    opacity: 1;
+  }
+  .agent-turn:has(> .agent-turn-body > .msg:last-child) .agent-turn-avatar {
+    margin-bottom: var(--msg-action, 28px);
+  }
+  .agent-turn:has(> .agent-turn-body > .msg:last-child .reactions) .agent-turn-avatar {
+    margin-bottom: calc(var(--msg-action, 28px) + 28px);
+  }
+  .send-failed-reason {
+    display: block;
+    align-self: flex-end;
+    max-width: 88%;
+    margin-top: -10px;
+    color: var(--error);
+    font-size: 12px;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* A finger is wider than a mouse pointer: bigger tap targets. Fields get 16px text so iOS does not zoom in on focus. */
+@media (pointer: coarse) {
+  :root {
+    --msg-action: 34px;
+  }
+  .head-btn {
+    width: 38px;
+    height: 38px;
+  }
+  .mobile-bar .side-toggle {
+    width: 38px;
+    height: 38px;
+  }
+  .search {
+    height: 38px;
+  }
+  .search-close {
+    width: 30px;
+    height: 30px;
+  }
+  .row-action {
+    width: 34px;
+    height: 34px;
+  }
+  .folder-line .row-action.add {
+    width: 30px;
+    height: 30px;
+  }
+  .row {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  .row.chat-item,
+  .row.folder-more {
+    padding: 9px 8px;
+  }
+  .menu button {
+    padding: 10px 12px;
+  }
+  .reaction-menu button {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+  }
+  .theme-seg button {
+    height: 32px;
+  }
+  .msg-action {
+    width: var(--msg-action);
+    height: var(--msg-action);
+  }
+  .code-copy {
+    top: 2px;
+    right: 2px;
+    width: 32px;
+    height: 32px;
+  }
+  .code-tools {
+    top: 2px;
+    right: 2px;
+  }
+  .send-btn,
+  .attach-btn,
+  .dictation-btn {
+    width: 36px;
+    height: 36px;
+  }
+  .dictation-lang {
+    height: 28px;
+    padding: 0 12px;
+  }
+  .attach-btn {
+    margin-left: -8px;
+  }
+  .attach-remove {
+    width: 26px;
+    height: 26px;
+  }
+  .picker {
+    height: 34px;
+  }
+  .task-row {
+    min-height: 36px;
+  }
+  .tray-head {
+    min-height: 32px;
+  }
+  .tasks-tray {
+    min-height: 44px;
+  }
+  .task-action {
+    width: 32px;
+    height: 32px;
+  }
+  .modal-buttons .btn {
+    padding: 8px 14px;
+  }
+  .field,
+  .search-input,
+  .composer-input,
+  .raw-editor,
+  .claude-banner .field,
+  .editor-body .field.mono,
+  .command-prompt,
+  .tools-add .field,
+  .field.role-input,
+  .field.context-note {
+    font-size: 16px;
+  }
+  .composer-input {
+    line-height: 24px;
+  }
+  /* The prompt editor's numbered copy of the text must wrap exactly like the textarea over it. */
+  .code-text,
+  .code-input {
+    font-size: 16px;
+    line-height: 24px;
+  }
+  .code-no {
+    line-height: 24px;
+  }
+}

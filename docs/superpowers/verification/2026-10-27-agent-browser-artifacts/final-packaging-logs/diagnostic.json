@@ -1,0 +1,82 @@
+{
+  "root": "/tmp/cb-check-diagnostic-nPNDRV",
+  "code": 0,
+  "output": "Browser check passed: runtime assets, executable, sandboxed ephemeral launch and cleanup.\n",
+  "errors": "",
+  "profile": "/tmp/cb-check-diagnostic-nPNDRV/scratch/zumibot-browser-check-i2SK54/profile",
+  "ownerState": "stopped",
+  "ownerProcessCount": 10,
+  "profileExists": false,
+  "remaining": [
+    "unrelated-temp-owner"
+  ],
+  "sentinel": "preserve",
+  "processes": [
+    {
+      "pid": 814741,
+      "start": "10726043",
+      "current": null,
+      "gone": true
+    },
+    {
+      "pid": 814729,
+      "start": "10726004",
+      "current": null,
+      "gone": true
+    },
+    {
+      "pid": 814848,
+      "start": "10726088",
+      "current": null,
+      "gone": true
+    },
+    {
+      "pid": 814849,
+      "start": "10726088",
+      "current": null,
+      "gone": true
+    },
+    {
+      "pid": 814837,
+      "start": "10726086",
+      "current": null,
+      "gone": true
+    },
+    {
+      "pid": 814778,
+      "start": "10726079",
+      "current": null,
+      "gone": true
+    },
+    {
+      "pid": 814780,
+      "start": "10726079",
+      "current": null,
+      "gone": true
+    },
+    {
+      "pid": 814818,
+      "start": "10726083",
+      "current": null,
+      "gone": true
+    },
+    {
+      "pid": 814751,
+      "start": "10726046",
+      "current": null,
+      "gone": true
+    },
+    {
+      "pid": 814752,
+      "start": "10726046",
+      "current": null,
+      "gone": true
+    },
+    {
+      "pid": 814754,
+      "start": "10726049",
+      "current": null,
+      "gone": true
+    }
+  ]
+}

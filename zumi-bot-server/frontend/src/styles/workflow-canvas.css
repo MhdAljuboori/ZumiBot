@@ -1,0 +1,360 @@
+/* Workflow canvas: React Flow themed, edges, nodes, ports, the toolbar. */
+
+/* ---- workflows: canvas ----
+   React Flow reads its colours from --xy-* properties with -default fallbacks; setting them here from the app's
+   light-dark() tokens themes the canvas in both modes, whatever React Flow's own colour mode is. */
+.wf-canvas .react-flow {
+  --xy-background-color: var(--bg-raised);
+  --xy-background-pattern-dots-color: color-mix(in srgb, var(--fg-muted) 40%, transparent);
+  --xy-edge-stroke: color-mix(in srgb, var(--fg-muted) 75%, transparent);
+  --xy-edge-stroke-width: 2;
+  --xy-edge-stroke-selected: var(--accent);
+  --xy-connectionline-stroke: var(--accent);
+  --xy-connectionline-stroke-width: 2;
+  --xy-edge-label-background-color: var(--bg);
+  --xy-edge-label-color: var(--fg-muted);
+  --xy-handle-background-color: var(--bg);
+  --xy-handle-border-color: var(--fg-muted);
+  --xy-selection-background-color: color-mix(in srgb, var(--accent) 8%, transparent);
+  --xy-selection-border: 1px dotted var(--accent);
+  --xy-controls-button-background-color: var(--bg);
+  --xy-controls-button-background-color-hover: var(--bg-hover);
+  --xy-controls-button-color: var(--fg);
+  --xy-controls-button-color-hover: var(--fg);
+  --xy-controls-button-border-color: var(--border);
+  --xy-controls-box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  --xy-attribution-background-color: transparent;
+  color: var(--fg);
+}
+.wf-canvas .react-flow__attribution a {
+  color: var(--fg-muted);
+}
+/* Connectors as n8n draws them (StepEdge in WorkflowCanvas.tsx): grey 2px curves, green once a run sent something
+   along them, the accent on hover or when selected. The arrowhead's colour is set per edge by the canvas. React Flow's
+   stylesheet loads after this one in the canvas chunk, so each rule carries .wf-canvas to win the ties. */
+.wf-canvas .wf-edge-line {
+  stroke: var(--xy-edge-stroke);
+  stroke-width: 2;
+  transition: stroke 0.12s;
+}
+.wf-canvas .wf-edge.carried .wf-edge-line {
+  stroke: var(--success);
+}
+/* The failure path: red and dashed until a run carries a failure along it, then green like any connection that ran. */
+.wf-canvas .wf-edge-error .wf-edge-line {
+  stroke: var(--error);
+  stroke-dasharray: 6 4;
+}
+.wf-canvas .wf-edge-error.carried .wf-edge-line {
+  stroke: var(--success);
+}
+.wf-canvas .wf-edge.hover .wf-edge-line,
+.wf-canvas .react-flow__edge.selected .wf-edge-line {
+  stroke: var(--accent);
+}
+.wf-canvas .wf-edge-mid {
+  fill: var(--xy-edge-stroke);
+  transition: fill 0.12s;
+}
+.wf-canvas .wf-edge.carried .wf-edge-mid {
+  fill: var(--success);
+}
+.wf-canvas .wf-edge.hover .wf-edge-mid,
+.wf-canvas .react-flow__edge.selected .wf-edge-mid {
+  fill: var(--accent);
+}
+.wf-edge-label {
+  position: absolute;
+  display: flex;
+  gap: 4px;
+  pointer-events: all;
+}
+.wf-edge-btn {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--fg-muted);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
+  cursor: pointer;
+}
+.wf-edge-btn:hover,
+.wf-edge-btn:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.wf-edge-btn[data-testid='wf-edge-delete']:hover,
+.wf-edge-btn[data-testid='wf-edge-delete']:focus-visible {
+  border-color: var(--error);
+  color: var(--error);
+}
+.wf-edge-btn .glyph {
+  width: 14px;
+  height: 14px;
+}
+.wf-edge-label.count {
+  pointer-events: none;
+}
+.wf-edge-count {
+  color: var(--fg-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.wf-canvas .react-flow__controls {
+  border-radius: 8px;
+  overflow: hidden;
+}
+.wf-canvas .react-flow__controls-button {
+  border-bottom-color: var(--border);
+}
+.wf-node {
+  width: 220px;
+  box-sizing: border-box;
+  padding: 10px 12px 11px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  font-size: 12px;
+}
+.wf-node[data-kind='trigger'] {
+  border-color: var(--sel-border);
+  background: color-mix(in srgb, var(--tile-bg) 50%, var(--bg));
+}
+.wf-node[data-problems='true'] {
+  border-color: var(--error);
+  box-shadow: 0 0 0 1px var(--error);
+}
+.wf-canvas .react-flow__node.selected .wf-node {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+/* After a Shift box React Flow draws a frame over the picked steps that takes every click inside it, so no step in the
+   group could be clicked or Ctrl-clicked out of it; each picked step's ring already shows the group, and dragging any
+   of them still moves them all. */
+.wf-canvas .react-flow__nodesselection {
+  display: none;
+}
+.wf-canvas .react-flow__node:focus-visible {
+  outline: none;
+}
+.wf-canvas .react-flow__node:focus-visible .wf-node {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.wf-node-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.wf-node-ic {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--tile-bg);
+  color: var(--sel-fg);
+}
+.wf-node-ic .glyph {
+  width: 14px;
+  height: 14px;
+}
+.wf-node-kind {
+  flex: 1;
+  min-width: 0;
+}
+.wf-node-visits {
+  color: var(--fg-muted);
+  font-size: 11px;
+  letter-spacing: 0;
+}
+.wf-node-bad {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--error);
+  color: var(--bg);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.wf-node-name {
+  margin-top: 7px;
+  overflow: hidden;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  unicode-bidi: plaintext;
+}
+.wf-node-progress {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--accent-text);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  unicode-bidi: plaintext;
+}
+.wf-node-sum {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  unicode-bidi: plaintext;
+}
+.wf-canvas .wf-handle {
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--fg-muted);
+  background: var(--bg);
+}
+.wf-canvas .wf-handle.connectionindicator:hover,
+.wf-canvas .wf-handle.connectingfrom,
+.wf-canvas .wf-handle.valid {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+/* Right of each out port: its name over the start of the connector (the canvas colour behind it hides the line), then
+   for a port with nothing connected a short line and a + that adds the next step there. */
+.wf-port-tail {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 2px);
+  display: flex;
+  align-items: center;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.wf-port-label {
+  padding: 0 3px 0 1px;
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 14px;
+  white-space: nowrap;
+}
+.wf-port-stub {
+  width: 30px;
+  height: 2px;
+  background: var(--xy-edge-stroke);
+}
+.wf-port-add {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--fg-muted);
+  cursor: pointer;
+  pointer-events: all;
+}
+.wf-port-add:hover,
+.wf-port-add:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.wf-port-add .glyph {
+  width: 12px;
+  height: 12px;
+}
+.wf-canvas .wf-handle-error {
+  border-color: var(--error);
+}
+.wf-handle-error .wf-port-label {
+  color: var(--error);
+}
+.wf-handle-error .wf-port-stub {
+  background: var(--error);
+}
+/* The bottom toolbar: Select and Pan (aria-pressed marks the mode), the note, then Add step. */
+.wf-canvas .wf-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+}
+.wf-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--fg-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.wf-tool:hover:not(:disabled),
+.wf-tool:focus-visible {
+  background: var(--bg-hover);
+  color: var(--fg);
+  outline: none;
+}
+.wf-tool[aria-pressed='true'] {
+  background: var(--bg-selected);
+  color: var(--fg);
+}
+.wf-tool:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.wf-tool .glyph {
+  width: 16px;
+  height: 16px;
+}
+.wf-add {
+  color: var(--fg);
+  padding: 0 12px;
+}
+.wf-add .glyph {
+  width: 14px;
+  height: 14px;
+}
+.wf-tool-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--border);
+}
+.wf-canvas .react-flow__pane.draggable {
+  cursor: grab;
+}
+.wf-canvas .react-flow__pane.dragging {
+  cursor: grabbing;
+}
+.wf-zoom-one {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}

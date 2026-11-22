@@ -1,0 +1,154 @@
+/* Thread dividers (the New line), a cloned room's handoff note and a room's running turns. */
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  margin: 6px 0;
+}
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.divider span {
+  max-width: 70%;
+  text-align: center;
+}
+/* The New line reads stronger than a notice; its rule keeps the --border colour. */
+.divider.new-line {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* A cloned room's handoff note, above its first message. Not a message, so no bubble and no actions. Its slot lines up
+   with .messages-inner and keeps the same gap to the first message. */
+.handoff-slot {
+  max-width: 960px;
+  margin: 0 auto 16px;
+}
+.handoff-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-raised);
+  font-size: 13px;
+}
+.handoff-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+.handoff-icon {
+  color: var(--fg-muted);
+}
+.handoff-title {
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.handoff-source,
+.handoff-toggle {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.handoff-source:hover,
+.handoff-toggle:hover {
+  text-decoration: underline;
+}
+.handoff-source:focus-visible,
+.handoff-toggle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.handoff-toggle {
+  font-size: 12.5px;
+}
+/* Each line takes its direction from its first strong letter, like the Markdown blocks once expanded. */
+.handoff-preview {
+  align-self: stretch;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  color: var(--fg-muted);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+.handoff-body {
+  align-self: stretch;
+  min-width: 0;
+}
+.handoff-body .markdown > :first-child {
+  margin-top: 0;
+}
+/* An empty cloned room: the card on top, the members' intro centred in what is left. */
+.messages.has-handoff {
+  display: flex;
+  flex-direction: column;
+}
+.messages.has-handoff > .handoff-slot {
+  width: 100%;
+}
+.messages.has-handoff > .chat-intro {
+  flex: 1 0 auto;
+  min-height: 0;
+}
+
+.working {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fg-muted);
+  font-size: 12.5px;
+}
+/* A room's running turns, under its finished thread and spaced as its rows are. */
+.room-live {
+  display: flex;
+  flex-direction: column;
+  gap: inherit;
+}
+/* A reply ends in its hover buttons' empty row; with the list gap the placeholder looked cut off from the thread.
+   Take back most of the gap but stay below the buttons, which show on hover. */
+.agent-turn:has(> .agent-turn-body > .msg:last-child) + .room-live {
+  margin-top: -12px;
+}
+/* The moderator's placeholder and the queued members: the spinner sits where a turn's icon goes. */
+.room-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  color: var(--fg-muted);
+  font-size: 12.5px;
+}
+.room-status .spinner {
+  margin: 0 2.5px;
+}
+.room-queue {
+  display: block;
+  padding-left: 29px;
+}
+.room-queue-name {
+  font-weight: 600;
+}

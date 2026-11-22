@@ -1,0 +1,185 @@
+/* Tool rows and runs, the live thought, notices and the Continue pill. */
+
+.tool {
+  align-self: stretch;
+  border-left: 3px solid var(--success);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.tool.blocked {
+  border-left-color: var(--error);
+  color: var(--error);
+}
+.tool.failed {
+  border-left-color: var(--error);
+}
+.tool-head {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  padding: 3px 8px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  overflow-wrap: anywhere;
+}
+/* A row reads as what the call did (often the agent's own words), with the exact command or path dimmed under it. */
+.tool-head-title {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, 'Noto Sans', Helvetica, Arial, sans-serif;
+  font-size: 12.5px;
+  unicode-bidi: plaintext;
+}
+.tool-head-detail {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+.tool-head:hover {
+  background: var(--bg-hover);
+}
+.tool-panel {
+  padding: 2px 8px 6px;
+}
+.tool-label {
+  margin-top: 4px;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.tool-run {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tool-run-head {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 12px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--fg-muted);
+}
+.tool-run-head:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.tool-run-caret {
+  font-size: 10px;
+  transition: transform 0.15s ease;
+}
+.tool-run-head[aria-expanded='true'] .tool-run-caret {
+  transform: rotate(90deg);
+}
+.tool-run-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tool-run-head,
+.working {
+  max-width: 100%;
+  min-width: 0;
+}
+/* The line the agent is thinking now: one line, cut, so the row never jumps as the summary streams. */
+.live-thought {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 64ch;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: var(--fg-muted);
+  opacity: 0.85;
+}
+.tool.thought {
+  border-left-color: var(--border);
+}
+.thought-text {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, 'Noto Sans', Helvetica, Arial, sans-serif;
+  font-size: 12.5px;
+  color: var(--fg-muted);
+  unicode-bidi: plaintext;
+}
+.thought-text p {
+  margin: 4px 0;
+}
+.tool-panel pre {
+  margin: 2px 0 0;
+  max-height: 300px;
+  overflow: auto;
+  padding: 6px 8px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.notice {
+  align-self: center;
+  color: var(--fg-muted);
+  font-size: 12.5px;
+  text-align: center;
+}
+.notice.paused {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.notice.limit-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.limit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.notice.unguarded {
+  max-width: 560px;
+  padding: 6px 12px;
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+  border-radius: 8px;
+  color: var(--warning);
+}
+.continue-pill {
+  height: 28px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: var(--fg);
+  font-weight: 500;
+  cursor: pointer;
+}
+.continue-pill:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.continue-pill:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.continue-pill:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}

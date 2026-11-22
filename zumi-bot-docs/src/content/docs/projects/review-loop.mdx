@@ -1,0 +1,130 @@
+---
+title: The review loop
+description: Comment on an agent's code line by line, let several agents try one task, open a pull request and send a failing check back.
+sidebar:
+  order: 4
+---
+
+import Shot from '../../../components/Shot.astro'
+import { Steps } from '@astrojs/starlight/components'
+
+This page is about the loop after an agent writes code: you read what it did, tell it what to change, and when it is right, you open a pull request. Three tools help, and you can use each on its own:
+
+- **Review comments** let you pin a note to the exact lines you mean and send them all at once.
+- **Attempts** let you give one task to two to five agents at the same time and keep the best result.
+- **Pull requests** open on GitHub from the chat, and show whether its checks pass.
+
+All three build on [worktrees](/projects/git-and-worktrees/), so the chat or card has to run in a git repository.
+
+## Comment on lines of code
+
+This works in any chat that runs in a git repository. On a chat with its own branch, choose **Since start** in the Changes panel first. It shows everything the agent has done on its branch, committed or not, which is the view you want when the agent commits as it goes.
+
+<Steps>
+
+1. **Open the Changes panel** with the branch chip, and pick a file.
+
+2. **Select the lines you mean** in the diff. A small menu appears with **Quote**, **Explain** and **Comment**.
+
+3. **Choose Comment.** A box opens at the foot of the panel that shows the lines and asks "What should change here?". Write your note and press Enter, or choose **Add comment**. Shift+Enter starts a new line, and Esc drops the note.
+
+4. **Add as many as you need**, in any file. A number beside a file's name counts the comments in it. At the foot of the panel a bar reads "2 comments", and its arrow opens the list. Each row shows the file and lines, the start of your note, **Edit** and **Delete**.
+
+5. **Choose Send review.** All your comments go to the agent in one message, as if you had typed it. For each place it has the file and lines, the lines as you saw them, and your note, so the agent can find the spot even if the file has moved on.
+
+</Steps>
+
+<Shot name="projects-review-draft" alt="A chat on its own branch with the Changes panel open on 'Since start'. discount.js, marked A, is picked and shows its four added lines. The file's row has a small blue '1'. At the foot of the panel a bar reads '1 comment' with a blue 'Send review' button, and below it the comment's place, 'discount.js:2-3', and the start of its note, with Edit and Delete." />
+
+Your comments wait on this device until you send them. A reload keeps them, but a draft started on your phone is not on your computer. Sending clears them. A review can hold up to 50 comments of 4,000 characters each.
+
+Because the review goes in as an ordinary message, you can **Edit**, **Resend** or **Fork** it like any other. See [Edit, Resend and Fork](/chatting/edit-resend-fork/).
+
+## Try a task on several agents
+
+An attempt set gives one card to two to five agents at once. Each gets its own chat and its own worktree, all starting from the same commit, so their results are easy to compare. The same agent can be picked twice, which gives you two tries at one job.
+
+<Steps>
+
+1. **Make a card** for the task, in a chat's To-dos panel or on the [task board](/projects/todos-and-board/), and put everything the agents need in its title and notes.
+
+2. **Open the card** and choose **Run attempts…**. It shows while nobody is working on the card.
+
+3. **Pick the agents.** The box titled "Run attempts" has a row for each attempt. Change an agent in its row, remove one with the cross, and choose **Add an attempt** for more. A line says what it costs, such as "3 attempts run the same work 3 times, so expect about 3× the cost of one."
+
+4. **Check the folder line.** The attempts run in the card's folder: the folder of the chat that made the card, or the one you chose when you assigned it to an agent. Attempts need a repository with "Isolate in worktree" turned on, because each one needs a worktree. If it is not on, the box says so and **Run** stays grayed out. Turn it on from a new chat in that folder first. See [Git and worktrees](/projects/git-and-worktrees/).
+
+5. **Choose Run 3 attempts**, or however many you picked. The card moves to In progress and an **Attempts** section shows a row for each one.
+
+</Steps>
+
+Each row shows the agent and its number, such as "Code Reviewer #2", its state, how many files and lines it changed since the start, its cost, and how long it has run. The state is one of "Starting…", "Working…", "Needs approval", "Paused", "Paused at a spend cap", "Waiting for the usage limit", "Done", "Stopped", "Failed" or "Chat deleted". The heading counts how many are done, such as "Attempts — 2 of 3 done". **Open →** takes you to that attempt's chat.
+
+To pick a winner:
+
+- **Compare.** Tick two attempts and choose **Compare**. The two diffs open side by side with the same file picked in both, each headed by its agent, state and counts, and **Open chat →**.
+- **Keep this one.** Choose it on the attempt you like. The card goes to that agent, moves to In review, and the other attempts' chats are archived. An archived attempt with uncommitted work keeps its folder, and nothing is deleted or forced.
+- **Cancel set.** Drops the set, stops what is running and leaves the chats and their branches for you to archive.
+
+Attempts are not shared between agents, so they cannot get in each other's way. Pausing or a usage limit shows on the row in the usual words, and nothing carries on by itself. Going on is up to you.
+
+## Open a pull request
+
+A pull request asks the repository's owners to take your branch. ZumiBot opens it on GitHub, through the GitHub command line tool, called `gh`. ZumiBot does not ask for a GitHub password or token and never stores one: `gh` keeps its own sign-in.
+
+First set up `gh`, once, on the same computer where ZumiBot runs:
+
+<Steps>
+
+1. **Install the GitHub CLI.** GitHub's own instructions for each system are at cli.github.com.
+
+2. **Sign in.** In a terminal, run this and follow the prompts:
+
+   ```
+   gh auth login
+   ```
+
+3. **Check the repository.** It needs a remote called `origin` that points at GitHub and that you may push to.
+
+</Steps>
+
+Until that is done, the panel says "gh is not installed. Install the GitHub CLI to open pull requests from here." or "gh is installed but not signed in. Run `gh auth login` in a terminal, then try again." and offers nothing else.
+
+Then, in a chat that runs on its own branch:
+
+<Steps>
+
+1. **Commit the work.** Ask the agent to commit, or do it yourself. A pull request is refused while changes are not committed, with a line such as "Commit or stash the 3 uncommitted changes first."
+
+2. **Choose Open PR…** at the foot of the Changes panel. For a card an agent worked on, the same button is in the agent's section of the card.
+
+3. **Read the box.** "Open a pull request" shows the branch, the commits on it since the work began, and a title and body drafted for you. The title comes from the card, or from the single commit, or from the branch name. Edit both. Tick **Open it as a draft** if it is not ready for review.
+
+4. **Choose Push and open the pull request.** ZumiBot pushes the branch to `origin` and opens the request.
+
+</Steps>
+
+<Shot name="projects-pr-dialog" alt="The 'Open a pull request' box over a chat. It shows the branch zumibot/code-reviewer followed by a few characters, an arrow and the words 'the repository's default branch', and two commits. Below are a Title field, a Body field with a list of the commits, a box 'Open it as a draft', and two buttons, 'Push and open the pull request' and Cancel. A note says the branch is pushed to origin as it is, nothing is forced, and the default branch is never pushed to." />
+
+It only ever pushes on your click, never with force, and never to the repository's default branch. If the branch is the default branch the box says "This chat is on the repository's default branch. ZumiBot never pushes there." If git refuses the push, you see git's own message.
+
+Once the request is open, a small chip beside the branch chip shows its number, its state (open, draft, merged or closed) and a dot for its checks. Choosing the chip opens the request on GitHub. The Changes panel shows a box with the number, the state and a line such as "1 of 2 checks failing", "2 checks running" or "3 checks passing".
+
+<Shot name="projects-pr-box" alt="A chat on its own branch. In the row under the message box a chip reads '#7 open' with a red dot. In the Changes panel, a box shows '#7', 'Open', '1 of 2 checks failing' and a Refresh button, and under it a failing check named 'unit-tests' with a 'Send to agent' button." />
+
+While checks run, ZumiBot reads them now and then and stops when they finish or after about two hours. Choose **Refresh** to read them yourself. For a failing check, choose **Send to agent**. It posts the check's name, its link and the end of its log into the chat as your message, and asks the agent to work out why it fails and fix it. A check that is not a GitHub Actions job has no log to send, so the message carries the link only.
+
+## Tips and limits
+
+- **Since start is for branches.** A chat in a plain repository without a worktree has Uncommitted only, and has no pull request button.
+- **Attempts are single agents.** A group room is never an attempt, and an agent that cannot take cards, such as Zumi Bot, is not in the list.
+- **Attempts cost more.** Each attempt is a full run by its agent, and an agent's daily spend cap applies to it. The box lists the agents that have one.
+- **GitHub only.** Pull requests work with GitHub. Other hosts are not supported.
+
+## Related
+
+- [Git and worktrees](/projects/git-and-worktrees/)
+- [To-dos and the task board](/projects/todos-and-board/)
+- [Files panel and Restore](/projects/files-and-restore/)
+- [Edit, Resend and Fork](/chatting/edit-resend-fork/)
+- [Approvals, questions and plans](/chatting/approvals-questions-plans/)

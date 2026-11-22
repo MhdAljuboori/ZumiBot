@@ -1,0 +1,10 @@
+ok a manual routine is saved  [0.9s]
+ok Run now makes a done run whose new chat holds the prompt and the dated title  [1.2s]
+ok a test call shows the field body.topic  [1.5s]
+ok the {{ menu, Insert and chip deletion save the prompt with one {{body.topic}}  [1.8s]
+ok a webhook call runs the routine with the posted value in the prompt  [2.0s]
+ok a wrong or missing secret gives 401, not a login redirect  [2.0s]
+ok a tool request makes the run wait (Routines tab dot), and Allow always answers it  [2.5s]
+ok the next Run completes with an auto-allowed card  [2.8s]
+ok no console or server errors  [2.8s]
+e2e:routines passed

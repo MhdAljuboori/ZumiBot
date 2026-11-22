@@ -1,0 +1,298 @@
+/* The Inbox. */
+
+/* ---- inbox ---- */
+.inbox-page {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.inbox-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  min-height: 60px;
+  box-sizing: border-box;
+  padding: 10px 22px;
+  border-bottom: 1px solid var(--border);
+}
+.inbox-head h2 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 20px;
+}
+.inbox-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.inbox-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 10px;
+  background: var(--bg);
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.inbox-chip:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.inbox-chip.on {
+  background: var(--sel-bg);
+  border-color: var(--sel-border);
+  color: var(--sel-fg);
+}
+.inbox-chip:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.inbox-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.inbox-inner {
+  width: 100%;
+  max-width: 760px;
+  box-sizing: border-box;
+  margin-inline: auto;
+  padding: 8px 22px 72px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.inbox-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.inbox-section[hidden] {
+  display: none;
+}
+.inbox-group {
+  margin-top: 8px;
+  color: var(--fg-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.inbox-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.inbox-msg {
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  overflow-wrap: anywhere;
+}
+.inbox-msg[data-new='true'] {
+  padding-left: 10px;
+  border-left: 3px solid var(--accent);
+}
+.inbox-msg.lit {
+  animation: inbox-lit 2.5s ease-out;
+}
+@keyframes inbox-lit {
+  from {
+    background: var(--sel-bg);
+    box-shadow: 0 0 0 2px var(--sel-border);
+  }
+  to {
+    background: var(--bg);
+    box-shadow: 0 0 0 2px transparent;
+  }
+}
+.inbox-msg-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 7px;
+  margin-bottom: 2px;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.inbox-av {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  background: var(--fg-muted);
+  color: var(--bg);
+  font-size: 10px;
+}
+.inbox-msg-where {
+  min-width: 0;
+}
+.inbox-msg-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.inbox-link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--link);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.inbox-link:hover {
+  text-decoration: underline;
+}
+.inbox-archived-toggle {
+  align-self: flex-start;
+  padding: 2px 0;
+}
+.inbox-msg-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+.inbox-msg-body {
+  margin-top: 2px;
+  color: var(--fg);
+  font-size: 13.5px;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.inbox-msg-body .markdown > :first-child {
+  margin-top: 0;
+}
+.inbox-msg-body .markdown > :last-child {
+  margin-bottom: 0;
+}
+.inbox-msg-more {
+  margin-top: 4px;
+}
+.inbox-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--sel-border);
+  border-radius: 10px;
+  background: var(--bg-raised);
+  overflow-wrap: anywhere;
+}
+.inbox-card[hidden] {
+  display: none;
+} /* held under its answered line; the class's display would show it */
+.inbox-card-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 7px;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.inbox-card-head b {
+  color: var(--fg);
+  font-weight: 600;
+}
+.inbox-card-head .bot {
+  flex: none;
+}
+.inbox-card-where {
+  min-width: 0;
+}
+.inbox-card-open {
+  margin-left: auto;
+}
+/* The cards keep their own look inside the Inbox's frame, without a second frame of their own. */
+.inbox-card .approval,
+.inbox-card .wf-approval {
+  padding: 0;
+  border: none;
+  background: none;
+}
+.inbox-handoff-reason {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.inbox-plan {
+  display: flex;
+  flex-direction: column;
+}
+.inbox-plan.folded .plan-body {
+  max-height: 7.5em;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  mask-image: linear-gradient(to bottom, #000 55%, transparent);
+}
+.inbox-plan-more {
+  align-self: flex-start;
+}
+.inbox-error {
+  margin: 0;
+  color: var(--error);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.inbox-done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--success);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.inbox-done.no {
+  color: var(--fg-muted);
+}
+.inbox-toast {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 728px;
+  margin-inline: auto;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+}
+@media (max-width: 799px) {
+  .inbox-head {
+    padding: 10px 14px;
+  }
+  .inbox-head h2 {
+    display: none;
+  } /* the mobile bar says Inbox */
+  .inbox-inner {
+    padding: 8px 14px 72px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .inbox-msg.lit {
+    animation: none;
+    background: var(--sel-bg);
+  }
+}

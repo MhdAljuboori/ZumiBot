@@ -1,0 +1,105 @@
+---
+title: Voice requests
+description: Say a request out loud and ZumiBot sends it to an agent in a new chat, from your phone or with a shortcut on your computer.
+sidebar:
+  order: 2
+---
+
+import Shot from '../../../components/Shot.astro'
+import { Steps } from '@astrojs/starlight/components'
+
+A voice request is a spoken message to an agent. You say "Ask Code Reviewer to look at today's changes", ZumiBot works out which agent you meant, starts a new chat with it, sends the request, and opens the chat. It is made for moments when your hands are busy or typing is slow, such as walking with your phone. English and Arabic both work.
+
+<Shot name="voice-request-phone" alt="The voice request screen on a phone. A small back arrow is at the top left. In the middle is the face of the Code Reviewer agent, a blue magnifier with two eyes, with a line of small dots under it and the words 'Tap to talk'." />
+
+## What you need
+
+Voice requests build on [Dictation](/voice/dictation/), so set that up first: the same OpenRouter key and the same "Use voice input" switch. Then check that **Talk to your agents** is on, under "Voice requests" in **Settings**, **Voice input**. That group shows up only once voice input is on and a key is saved. **Talk to your agents** is on by default. While it is off, the talk button is hidden.
+
+Choose a **Default agent** there too, before you rely on requests that name no agent. The default that comes with ZumiBot is Work Assistant, an agent most people do not have, so until you choose one, an unnamed request ends with "Who should I ask? Say: ask, then an agent's name."
+
+Your browser also needs the microphone. It asks the first time.
+
+## Talk on your phone
+
+<Steps>
+
+1. **Open your server on the phone** and choose the mic button in the top bar. Its label reads "Talk to an agent". The talk screen opens and starts listening.
+
+2. **Speak.** The status line reads "Speak now". Start with who you want, then the request: "Ask Docs Writer to draft a release note".
+
+3. **Stop talking.** About a second of quiet after you finish ends the recording. The line reads "Thinking…" while ZumiBot turns it into text and finds the agent.
+
+4. **Read the chat.** The talk screen closes and the new chat opens with your request already sent. The agent answers there, like in any chat.
+
+</Steps>
+
+If the screen reads "Tap to talk" and nothing is happening, a phone sometimes wants a tap before it lets a page listen. Tap the agent's face once and it starts. The **Stop** button ends a talk early. On the installed home-screen app, you can also press and hold the app's icon and choose **Talk**, which starts listening at once.
+
+If you have not set up the phone yet, see [Use ZumiBot on your phone](/get-started/phone/).
+
+## Talk with a shortcut on your computer
+
+In the desktop app, a keyboard shortcut starts a voice request from anywhere on your computer, even when ZumiBot is in the background. The default is Ctrl+Alt+Space.
+
+1. Press the shortcut. A small popup opens and starts listening.
+2. Speak your request. Press the shortcut again to stop early.
+3. When the request is sent, the popup shows the new chat, and the agent's reply appears there. If the island cannot show that chat, the ZumiBot window opens on it instead.
+
+You change or turn off the shortcut under **Settings**, **Island & startup**, in the row **Voice shortcut**: choose the button, then press the keys you want. If another app already uses those keys, it says "That shortcut is taken by another app." Use **Turn off** to remove the shortcut.
+
+If the request could not be sent, the popup stays open for a few seconds with a note. The note has **Open chat** when a chat was made.
+
+## How it picks the agent
+
+Name the agent at the start of what you say.
+
+- **"Ask Code Reviewer to ..."** or **"Tell Docs Writer ..."**. The words ask, tell, and in Arabic اسأل, قل ل, قول ل and خلي, tell ZumiBot that a name follows. Whatever comes after the name, after a "to", is the request.
+- **"Code Reviewer, what changed today?"** also works: a known name followed by a pause.
+- **No name at all** sends the request to your **Default agent**. If that agent does not exist, or you choose "Ask me which", ZumiBot says "Who should I ask? Say: ask, then an agent's name." and ends the talk.
+
+ZumiBot matches whole words against the agent's name as shown in the sidebar and against its file name. A name that sounds close still works when it is five letters or longer: "workium master" finds "Workiom Master". If you name an agent that ZumiBot does not know, it says "I don't know an agent called X." It never guesses and falls back to the default.
+
+If you say only the agent, such as "Ask Code Reviewer", the screen reads "What should I ask Code Reviewer?" and listens once more. What you say next is the request.
+
+"Tell me ..." is not an address. It is an ordinary request to your default agent.
+
+### Spoken names
+
+The speech service sometimes writes an English name in another way, most often when you speak Arabic. Under **Settings**, **Voice input**, **Spoken names**, choose **Add a spoken name** under an agent and type another way to say it, such as its name in Arabic letters. Changes are saved when you leave the box. Choose **Remove** to take one out.
+
+## What you get
+
+- **A normal chat.** It is named "Voice", a dot and the date, such as "Voice · Nov 20", and a small mic mark in the sidebar shows it began by voice. Apart from that it is like any chat. Approval cards, remembered approvals and side questions all work.
+- **The folder.** The chat uses the folder you last used with that agent, or your home folder.
+- **No spoken answer.** ZumiBot does not read the reply to you. Approval cards and questions wait in the chat on screen. To follow up, use the mic in the message box ([Dictation](/voice/dictation/)) or start another voice request.
+
+## When it ends without a chat
+
+A talk ends with a short note when it cannot go on:
+
+- "Didn't hear anything." Nothing was said, or the recording had no words. A talk also ends after about 8 seconds with no speech at all.
+- "Couldn't understand that." Two recordings in a row could not be turned into text.
+- "I don't know an agent called X.", "I don't know that agent.", or "Who should I ask? Say: ask, then an agent's name."
+- "Couldn't send that:" followed by what you said, so your words are not lost.
+- The microphone is blocked, or the connection dropped. The note says which.
+
+After any of these, tap again, or press the shortcut, to start over.
+
+## Tips and limits
+
+- **Keep the screen on.** The page cannot listen with the screen locked or the page in the background. It keeps the screen awake while it listens, and ends the talk if you leave the page. There is no wake word.
+- **One request, one agent.** You cannot switch agents partway through a talk.
+- **Not for these agents.** Zumi Bot, agents with a problem in their file, and group rooms never get a voice chat. An agent that runs on a remote service is not picked, and it is not listed under Spoken names. An agent set up to run on [a different tool](/engines/codex/), such as Codex, works like any other.
+- **It uses the same key and rules as dictation:** speech goes through OpenRouter with zero data retention, ZumiBot does not keep the audio, and the cleanup switches apply to what you say.
+- **A long clip is cut at one minute.** Say the request in one go.
+- **Short noises are ignored.** A cough or a door is forgotten if it is followed by a second of quiet.
+
+## Related
+
+- [Dictation](/voice/dictation/)
+- [The island and the tray](/desktop/island-and-tray/)
+- [Use ZumiBot on your phone](/get-started/phone/)
+- [Chats and the message box](/chatting/chats-and-composer/)
+- [Approvals, questions and plans](/chatting/approvals-questions-plans/)
+- [Agent Studio](/agents/agent-studio/)

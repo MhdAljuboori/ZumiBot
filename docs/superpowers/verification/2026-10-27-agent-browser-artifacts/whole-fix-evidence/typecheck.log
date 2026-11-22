@@ -1,0 +1,20 @@
+
+> typecheck
+> npm run typecheck --workspaces --if-present
+
+
+> @zumibot/shared@1.17.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+> @zumibot/frontend@1.17.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+> @zumibot/backend@1.17.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+> zumibot@1.17.0 typecheck
+> tsc --noEmit -p tsconfig.json
+

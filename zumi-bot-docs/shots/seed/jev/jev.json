@@ -1,0 +1,7 @@
+{
+  "apiKey": "sk-or-v1-demo-key-not-real",
+  "enabled": true,
+  "moderator": true,
+  "approvalRisk": true,
+  "agentSuggest": true
+}

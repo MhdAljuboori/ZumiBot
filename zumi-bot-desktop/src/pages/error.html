@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ZumiBot</title>
+    <link rel="stylesheet" href="./picker.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Can't reach the server</h1>
+      <pre id="message"></pre>
+      <div class="row">
+        <button id="retry" type="button">Retry</button>
+        <button id="switch" type="button" class="secondary">Switch server</button>
+      </div>
+      <p class="hint">Press <kbd class="switch-key">Ctrl+Shift+S</kbd> at any time to switch server, or start ZumiBot with --switch-server.</p>
+    </main>
+    <script src="./error.js" defer></script>
+  </body>
+</html>

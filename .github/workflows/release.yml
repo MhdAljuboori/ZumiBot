@@ -1,0 +1,232 @@
+# Builds the release artifacts install.sh downloads, signs them, and publishes them, on a tag.
+#
+# To release: npm run bump:patch, fill in the new CHANGELOG.md section, commit, then tag and push the tag, e.g.
+#   git tag v10.2.5 && git push origin v10.2.5
+# The tag must match the version in the workspaces, or the job stops before it publishes anything.
+#
+# Three jobs, so no npm runs on the runner of a job that holds a secret (the image build itself runs `npm i -g` for the
+# claude CLI, inside the build container): `build` installs dependencies and builds with a read-only token and holds
+# no secret; `image` runs no npm on its runner, builds the multi-arch Docker image from the built tarball and pushes
+# it by digest only (no tag yet) with the Docker Hub token; `publish` runs no npm, packs the Docker bundle, signs both
+# artifacts with RELEASE_SIGNING_KEY (an ed25519 PKCS8 PEM, made by zumi-bot-server/deploy/release-key.mjs), adds the
+# version and `latest` tags to the pushed digest, and creates the release. Tags only after signing, so a tag never
+# names an image no signed bundle points at.
+#
+# One-time Docker Hub setup: create the public repository mhdaljuboori/zumibot, an access token that can push to it, and
+# save the account name and the token as the repository secrets DOCKERHUB_USERNAME and DOCKERHUB_TOKEN. A release
+# without them stops at the sign-in step, before anything is published.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+# Nothing by default; each job asks for its own.
+permissions: {}
+
+env:
+  IMAGE: docker.io/mhdaljuboori/zumibot
+
+jobs:
+  build:
+    name: Build the server tarball
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      # Pinned by commit, like every dependency in this repo (actions/checkout v5.1.0). No token is left in .git for
+      # the npm code below to read.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+
+      # actions/setup-node v5.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: '22'
+          cache: npm
+
+      # --ignore-scripts, as the container image does: nothing here needs an install script, and it keeps
+      # Electron's postinstall from downloading a binary no server artifact contains.
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Check the tag matches the package version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(node -p "require('./zumi-bot-server/backend/package.json').version")"
+          if [ "$tag" != "$version" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match version $version. Use npm run bump:* and commit before tagging." >&2
+            exit 1
+          fi
+
+      # Fast and deterministic, so a tag cannot publish a build that does not compile. The unit suite is not a
+      # gate here: parts of it need tools (rsync, ssh) and a non-root user, so it runs on a developer machine.
+      - run: npm run typecheck
+
+      - run: npm run build:server
+
+      - run: sh zumi-bot-server/deploy/package.sh release
+
+      # The notes are the tag's CHANGELOG.md section; a tag without one stops here, before anything is published.
+      - run: node zumi-bot-server/deploy/changelog.mjs notes "${GITHUB_REF_NAME#v}" release/NOTES.md
+
+      # actions/upload-artifact v7.0.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: release
+          path: |
+            release/zumibot-server.tar.gz
+            release/SHA256SUMS
+            release/NOTES.md
+          if-no-files-found: error
+          retention-days: 1
+
+  # Pushes the image by digest, with no tag: the digest is all the signed bundle and the tags need, and a tag set
+  # here could point at an image whose bundle is never signed.
+  image:
+    name: Build and push the image
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      # Only for the Dockerfile; no token is left in .git.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+
+      # actions/download-artifact v8.0.2, the same pin as the publish job.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: release
+          path: release
+
+      # The image ships the very tarball that gets signed, not a second build of the source.
+      - name: Unpack the server tarball
+        run: |
+          mkdir -p release/unpacked
+          tar -xzf release/zumibot-server.tar.gz -C release/unpacked
+
+      # docker/setup-qemu-action v4.4.0 (runs the arm64 half of the build)
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1
+
+      # docker/setup-buildx-action v4.4.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
+
+      # The token is only in this step's env and goes in through stdin, never on a command line.
+      - name: Sign in to Docker Hub
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -z "$DOCKERHUB_USERNAME" ] || [ -z "$DOCKERHUB_TOKEN" ]; then
+            echo "The DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets must both be set to publish the image." >&2
+            exit 1
+          fi
+          printf '%s' "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+
+      # push-by-digest with no tag; the index digest comes back in the metadata file.
+      - name: Build and push by digest
+        id: push
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --build-context dist=release/unpacked/zumibot-server/app \
+            --output "type=image,name=$IMAGE,push-by-digest=true,name-canonical=true,push=true" \
+            --metadata-file release/image.json \
+            .
+          digest="$(jq -r '."containerimage.digest"' release/image.json)"
+          if ! printf '%s' "$digest" | grep -Eq '^sha256:[0-9a-f]{64}$'; then
+            echo "The build did not report an image digest." >&2
+            exit 1
+          fi
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Sign out of Docker Hub
+        if: always()
+        run: docker logout
+
+  publish:
+    name: Sign and publish
+    needs: [build, image]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # the release; this run's own artifact needs no extra permission
+    steps:
+      # Only for release-sign.mjs and the shared module it reads the pinned key from; nothing is installed.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+
+      # actions/setup-node v5.0.0, with no npm cache: this job runs no npm code.
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: '22'
+
+      # actions/download-artifact v8.0.2 (the v7 upload above writes the same artifact format). The upload's common root
+      # is release/, so the files land back in release/.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: release
+          path: release
+
+      # The compose file in the bundle names the image by this digest, so it is packed before signing; the signing step
+      # then covers it too. A tag is not used: it can move.
+      - name: Pack the Docker bundle
+        env:
+          DIGEST: ${{ needs.image.outputs.digest }}
+        run: node --experimental-strip-types zumi-bot-server/deploy/docker-bundle.mjs "${GITHUB_REF_NAME#v}" "$IMAGE:${GITHUB_REF_NAME#v}@$DIGEST" release
+
+      # A missing or wrong key stops the job here: an unsigned release would be refused by every server anyway.
+      - name: Sign the tarball
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+        run: |
+          if [ -z "$RELEASE_SIGNING_KEY" ]; then
+            echo "The RELEASE_SIGNING_KEY secret is not set; a release cannot be published unsigned." >&2
+            exit 1
+          fi
+          node --experimental-strip-types zumi-bot-server/deploy/release-sign.mjs "${GITHUB_REF_NAME#v}" release
+
+      # Only now, with both artifacts signed, does the version (and `latest`) tag go on the pushed digest.
+      - name: Tag the image
+        env:
+          DIGEST: ${{ needs.image.outputs.digest }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -z "$DOCKERHUB_USERNAME" ] || [ -z "$DOCKERHUB_TOKEN" ]; then
+            echo "The DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets must both be set to tag the image." >&2
+            exit 1
+          fi
+          trap 'docker logout' EXIT
+          printf '%s' "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+          docker buildx imagetools create --tag "$IMAGE:${GITHUB_REF_NAME#v}" --tag "$IMAGE:latest" "$IMAGE@$DIGEST"
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file release/NOTES.md \
+            release/zumibot-server.tar.gz \
+            release/zumibot-server.tar.gz.sig \
+            release/zumibot-docker.tar.gz \
+            release/zumibot-docker.tar.gz.sig \
+            release/SHA256SUMS
+
+      # Optional: tells Vercel to rebuild the showcase site. Skipped when the secret is not set. The hook is only in
+      # this step's env, so the steps above never see it (and a step's own env is not visible to its `if`).
+      - name: Rebuild the showcase site
+        env:
+          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$VERCEL_DEPLOY_HOOK" ]; then
+            echo "VERCEL_DEPLOY_HOOK is not set; skipping the site rebuild."
+            exit 0
+          fi
+          curl -fsS -X POST "$VERCEL_DEPLOY_HOOK"

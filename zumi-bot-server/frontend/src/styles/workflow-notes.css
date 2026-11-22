@@ -1,0 +1,289 @@
+/* Workflow sticky notes (WorkflowNotes.tsx). */
+
+/* Sticky notes (WorkflowNotes.tsx): under every step and edge, Markdown that scrolls when it is longer than the box, a
+   hover bar over the top-right corner, and React Flow's resizer while picked. A custom color sets its fill and
+   --note-border inline, and its ink by contrast. */
+.wf-note {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--note-border);
+  border-radius: 8px;
+  background: var(--note-fill);
+  color: var(--fg);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.wf-note[data-color='1'] {
+  --note-fill: var(--note-1);
+  --note-border: var(--note-1-border);
+}
+.wf-note[data-color='2'] {
+  --note-fill: var(--note-2);
+  --note-border: var(--note-2-border);
+}
+.wf-note[data-color='3'] {
+  --note-fill: var(--note-3);
+  --note-border: var(--note-3-border);
+}
+.wf-note[data-color='4'] {
+  --note-fill: var(--note-4);
+  --note-border: var(--note-4-border);
+}
+.wf-note[data-color='5'] {
+  --note-fill: var(--note-5);
+  --note-border: var(--note-5-border);
+}
+.wf-note[data-color='6'] {
+  --note-fill: var(--note-6);
+  --note-border: var(--note-6-border);
+}
+.wf-note[data-color='7'] {
+  --note-fill: var(--note-7);
+  --note-border: var(--note-7-border);
+}
+.wf-note.ink-dark {
+  color: #1a1d24;
+}
+.wf-note.ink-light {
+  color: #ffffff;
+}
+/* On a custom fill the theme's link and muted colors may not read: links take the ink, underlined. */
+.wf-note.custom .markdown a {
+  color: inherit;
+  text-decoration: underline;
+}
+.wf-note.custom .markdown blockquote {
+  color: inherit;
+  opacity: 0.8;
+}
+.wf-note-body {
+  height: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.wf-note-body .markdown h1,
+.wf-note-body .markdown h2,
+.wf-note-body .markdown h3,
+.wf-note-body .markdown h4,
+.wf-note-body .markdown h5,
+.wf-note-body .markdown h6 {
+  margin: 10px 0 2px;
+}
+.wf-note-body .markdown h1 {
+  font-size: 18px;
+  line-height: 24px;
+}
+.wf-note-body .markdown h2 {
+  font-size: 15px;
+  line-height: 21px;
+}
+.wf-note-body .markdown h3,
+.wf-note-body .markdown h4,
+.wf-note-body .markdown h5,
+.wf-note-body .markdown h6 {
+  font-size: 13.5px;
+  line-height: 19px;
+}
+.wf-note-body .markdown p,
+.wf-note-body .markdown ul,
+.wf-note-body .markdown ol,
+.wf-note-body .markdown .code-block,
+.wf-note-body .markdown table,
+.wf-note-body .markdown blockquote {
+  margin: 6px 0;
+}
+.wf-note-body .markdown pre code {
+  font-size: 12px;
+}
+.wf-note-text {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 8px;
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  background: transparent;
+  color: inherit;
+  font: 12.5px/1.45 var(--font-mono);
+  resize: none;
+  unicode-bidi: plaintext;
+  cursor: text;
+}
+.wf-canvas .react-flow__node-note.selected .wf-note {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.wf-canvas .react-flow__node-note:focus-visible .wf-note {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.wf-note-bar {
+  position: absolute;
+  z-index: 1;
+  top: -15px;
+  right: 8px;
+  display: none;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.16);
+  cursor: default;
+}
+/* On hover, and on the note clicked last (it keeps focus), not on every note Ctrl+A picked. */
+.wf-canvas .react-flow__node-note:hover .wf-note-bar,
+.wf-canvas .react-flow__node-note:focus-within .wf-note-bar {
+  display: flex;
+}
+.wf-note-btn {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.wf-note-btn:hover,
+.wf-note-btn:focus-visible {
+  background: var(--bg-hover);
+  color: var(--fg);
+  outline: none;
+}
+.wf-note-btn.danger:hover,
+.wf-note-btn.danger:focus-visible {
+  color: var(--error);
+}
+.wf-note-btn .glyph {
+  width: 14px;
+  height: 14px;
+}
+.wf-note-dot {
+  width: 13px;
+  height: 13px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+}
+/* React Flow's own `.react-flow__resize-control.handle` loads later (the canvas's lazy chunk), so this outranks it. */
+.wf-canvas .react-flow__resize-control.handle.wf-note-grip {
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--bg);
+  border-radius: 2px;
+  background: var(--ring);
+}
+/* The edges between the grips: invisible (the ring shows the pick) but wide enough to grab. The hover bar (z-index 1)
+   stays above the top one, so its buttons keep their clicks while the note is picked. */
+.wf-canvas .react-flow__resize-control.line.wf-note-line {
+  border-color: transparent;
+}
+.wf-canvas .react-flow__resize-control.line.wf-note-line.left,
+.wf-canvas .react-flow__resize-control.line.wf-note-line.right {
+  width: 8px;
+}
+.wf-canvas .react-flow__resize-control.line.wf-note-line.top,
+.wf-canvas .react-flow__resize-control.line.wf-note-line.bottom {
+  height: 8px;
+}
+.markdown-img-alt {
+  color: var(--fg-muted);
+  font-style: italic;
+}
+/* The color popover: presets, recent custom colors, then Custom… with the browser's picker and a hex field. */
+.wf-note-pop {
+  position: absolute;
+  z-index: 10;
+}
+.wf-note-colors {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 214px;
+  box-sizing: border-box;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+.wf-note-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.wf-note-swatches + .wf-note-swatches {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.wf-note-swatch {
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.wf-note-swatch:hover,
+.wf-note-swatch:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.wf-note-swatch[aria-pressed='true'] {
+  outline: 2px solid var(--fg);
+  outline-offset: 1px;
+}
+.wf-note-custom-toggle {
+  align-self: flex-start;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.wf-note-custom-toggle:hover,
+.wf-note-custom-toggle[aria-expanded='true'] {
+  background: var(--bg-hover);
+}
+.wf-note-custom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.wf-note-picker {
+  flex: none;
+  width: 34px;
+  height: 30px;
+  padding: 0 2px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  cursor: pointer;
+}
+.wf-note-hex {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+}
+.wf-note-hex[aria-invalid='true'] {
+  border-color: var(--error);
+}

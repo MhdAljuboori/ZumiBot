@@ -1,0 +1,1100 @@
+/* Zumi Studio: the design layer over the area files. Imported last, so its rules win ties; colors come from tokens.css.
+   The nav (rail + sidebar) sits on a canvas, the main pane floats over it as a card, replies read as open documents and
+   the message box is one card with its pickers inside. Wide screens only where the layout differs: a phone keeps its
+   drawer and full-bleed pane (phone.css). */
+
+/* ---- type ---- */
+
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: 'cv11', 'ss03';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.tool-head-title,
+.thought-text {
+  font-family: var(--font-sans);
+}
+/* Quiet scrollbars: a thin thumb in the text's own color, no track. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--fg) 16%, transparent) transparent;
+}
+
+/* ---- shell: canvas + floating pane ---- */
+
+@media (min-width: 800px) {
+  body,
+  .shell {
+    background: var(--bg-sidebar);
+  }
+  .rail {
+    background: transparent;
+    border-right: none;
+    padding: 14px 0 12px;
+    gap: 6px;
+  }
+  .sidebar {
+    background: transparent;
+    border-right: none;
+  }
+  /* clip, not hidden: the pane's rounded corners cut its side panels, and nothing inside becomes a scroll container. */
+  .main {
+    margin: 8px 8px 8px 0;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pane);
+    box-shadow: var(--shadow-pane);
+    overflow: clip;
+  }
+}
+
+/* ---- rail ---- */
+
+.rail-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.rail-btn:hover:not([aria-pressed='true']):not([aria-current='page']) {
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+}
+/* The page you are on is a raised tile, the same lift as the pane it opens. */
+.rail-btn[aria-current='page'] {
+  background: light-dark(var(--bg), var(--bg-hover));
+  color: var(--accent-text);
+  box-shadow: var(--shadow-pane);
+}
+.rail-count {
+  box-shadow: 0 0 0 2px var(--bg-sidebar);
+}
+
+/* ---- sidebar ---- */
+
+.sidebar-head {
+  height: 64px;
+  padding: 0 10px 0 18px;
+  border-bottom: none;
+}
+/* A title, not a label: the section reads like a page heading. */
+.sidebar-title {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-transform: none;
+}
+.count-badge {
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+.head-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--fg-muted);
+}
+.head-btn:hover {
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+  color: var(--fg);
+}
+.search {
+  height: 34px;
+  border-color: transparent;
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: var(--shadow-pane);
+}
+.search:focus-within {
+  border-color: var(--ring);
+}
+.agent-list {
+  padding: 2px 0 16px;
+}
+.agent-line {
+  margin: 1px 8px;
+}
+.row.agent {
+  gap: 12px;
+  padding: 7px 12px 7px 7px;
+  border-radius: 14px;
+}
+.row:hover,
+.agent-line:hover > .row {
+  background: color-mix(in srgb, var(--fg) 5%, transparent);
+}
+/* Selected rows lift off the canvas like the rail's page tile, instead of a tinted box with an outline. */
+.row.on,
+.agent-line.on > .row,
+.row.chat-item.on {
+  background: light-dark(var(--bg), var(--bg-raised));
+  box-shadow: var(--shadow-pane);
+}
+.agent-name {
+  font-size: 14.5px;
+  letter-spacing: -0.01em;
+}
+.agent-desc {
+  font-size: 12.5px;
+}
+/* The row's left padding is 7px here, so the dot moves with the icon. Its ring is the row's own background, worked out
+   for each state (the hover wash is see-through, so it is mixed onto the canvas), or it shows as a halo. */
+.row.agent > .unread-dot {
+  left: 30px;
+  box-shadow: 0 0 0 2px var(--bg-sidebar);
+}
+.agent-line:hover .row.agent > .unread-dot {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--fg) 5%, var(--bg-sidebar));
+}
+.agent-line.on .row.agent > .unread-dot {
+  box-shadow: 0 0 0 2px light-dark(var(--bg), var(--bg-raised));
+}
+/* An open agent's chats hang off a thin tree line under its icon. */
+.agent-children {
+  margin: 2px 8px 10px 29px;
+  padding: 0 0 0 10px;
+  border-bottom: none;
+  border-left: 1px solid var(--border);
+}
+.row.chat-item {
+  padding: 7px 10px;
+  border-radius: 10px;
+}
+.row.chat-item.on {
+  font-weight: 500;
+}
+.folder-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Settings nav: the same canvas rows, its page lifted like a chat's. */
+.settings-title {
+  margin: 14px 18px 12px;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.settings-item {
+  padding: 9px 12px;
+  border-radius: 10px;
+}
+.settings-item:hover {
+  background: color-mix(in srgb, var(--fg) 5%, transparent);
+}
+.settings-item[aria-current='page'] {
+  background: light-dark(var(--bg), var(--bg-raised));
+  box-shadow: var(--shadow-pane);
+}
+.settings-item[aria-current='page'] .menu-icon {
+  color: var(--accent-text);
+}
+
+/* Settings › General › Color: each option's own accent as a swatch, in the light or dark value showing now. */
+.accent-seg {
+  flex-wrap: wrap;
+}
+/* Four labelled options are wider than a phone's row leaves beside the label: the label keeps 240px and the picker
+   wraps under it instead of squeezing it to a word a line. */
+.set-row:has(> .accent-seg) {
+  flex-wrap: wrap;
+}
+.set-row:has(> .accent-seg) > .set-text {
+  flex: 1 1 240px;
+}
+.accent-seg button {
+  gap: 8px;
+  padding: 0 10px 0 8px;
+}
+.accent-swatch {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12);
+}
+.accent-swatch[data-swatch='blue'] {
+  background: light-dark(#2563eb, #2f6bf0);
+}
+.accent-swatch[data-swatch='teal'] {
+  background: light-dark(#0f766e, #0f7a70);
+}
+.accent-swatch[data-swatch='coral'] {
+  background: light-dark(#c2410c, #c2410c);
+}
+.accent-swatch[data-swatch='graphite'] {
+  background: light-dark(#18181b, #f4f4f5);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.accent-seg button[aria-pressed='true'] .accent-swatch {
+  box-shadow:
+    0 0 0 2px var(--bg-selected),
+    0 0 0 3.5px var(--ring);
+}
+
+/* A settings section's page title, the same size as the To-dos page's. */
+.settings-h1 {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+/* Rows ease into their hover and picked looks instead of snapping. */
+.row,
+.settings-item,
+.palette-option,
+.side-menu-item {
+  transition:
+    background 0.12s ease,
+    box-shadow 0.12s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .row,
+  .settings-item,
+  .palette-option,
+  .side-menu-item {
+    transition: none;
+  }
+}
+
+/* ---- chat head ---- */
+
+.chat-top {
+  min-height: 56px;
+  padding: 10px 16px 10px 24px;
+  border-bottom-color: color-mix(in srgb, var(--border) 70%, transparent);
+}
+.chat-title {
+  gap: 10px;
+}
+/* A one-agent chat's icon on a small tile, like its replies' avatars (a room's member stack stays as it is). */
+.chat-title > svg:first-child {
+  box-sizing: content-box;
+  padding: 5px;
+  border-radius: 10px;
+  background: var(--bg-raised);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.chat-title-text {
+  font-size: 15.5px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+.side-toggle {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+}
+.side-toggle:hover,
+.side-toggle.open {
+  background: var(--bg-hover);
+}
+
+/* The side panel's launcher: its views as raised tiles, the same lift as a picked row. */
+.side-menu {
+  background: var(--bg-sidebar);
+}
+.side-menu-list {
+  gap: 8px;
+}
+.side-menu-row {
+  border-color: transparent;
+  border-radius: var(--radius-card);
+  background: light-dark(var(--bg), var(--bg-raised));
+  box-shadow: var(--shadow-pane);
+  transition: transform 0.12s ease;
+}
+.side-menu-row:hover {
+  transform: translateY(-1px);
+}
+.side-menu-item {
+  padding-block: 12px;
+  font-weight: 500;
+}
+.side-menu-item .glyph {
+  color: var(--accent-text);
+}
+@media (prefers-reduced-motion: reduce) {
+  .side-menu-row {
+    transition: none;
+  }
+}
+
+/* ---- thread ---- */
+
+/* The thread fades out under the head and into the message box instead of being cut by a hard edge. The paddings are
+   at least as tall as the fades, so the first and last lines read in full once scrolled to the end. */
+.messages {
+  padding: 32px 32px 24px;
+  mask-image: linear-gradient(to bottom, transparent, #000 18px, #000 calc(100% - 22px), transparent);
+}
+/* The column fits a 720px reply bubble beside its avatar tile, with the user's bubbles across from it. */
+.messages-inner {
+  max-width: 820px;
+  gap: 24px;
+}
+.bubble {
+  line-height: 24px;
+}
+/* Both sides talk in bubbles, each with one tucked corner pointing at its speaker: the user's top right, an agent's
+   top left, beside its avatar tile. */
+.bubble.user {
+  max-width: 580px;
+  padding: 10px 16px;
+  border: 1px solid color-mix(in srgb, var(--fg) 6%, transparent);
+  border-radius: 20px 6px 20px 20px;
+}
+.bubble.assistant {
+  max-width: min(720px, 100%);
+  padding: 12px 16px;
+  background: var(--reply-bubble);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 6px 20px 20px 20px;
+  font-size: 15px;
+  line-height: 25px;
+}
+.bubble.assistant:has(table, .mermaid-diagram) {
+  max-width: 100%;
+}
+.bubble.assistant .markdown th {
+  background: color-mix(in srgb, var(--fg) 4%, transparent);
+}
+.agent-turn {
+  align-items: flex-start;
+  gap: 12px;
+}
+/* A long reply scrolls its name out of view, so the avatar tile sticks near the thread's top (its offset counts from
+   inside the padding, past the fade) while any of the turn shows: who wrote it still reads beside the last lines. */
+.agent-turn-avatar {
+  position: sticky;
+  top: 8px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--agent-tint, var(--fg-muted)) 14%, var(--bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--agent-tint, var(--fg-muted)) 22%, transparent);
+}
+.agent-turn-avatar > svg {
+  width: 22px;
+  height: 22px;
+}
+.agent-turn:has(> .agent-turn-body > .msg:last-child .reactions) .agent-turn-avatar {
+  margin-bottom: 0;
+}
+.agent-turn-body {
+  gap: 10px;
+  padding-top: 5px;
+}
+.agent-turn-name {
+  padding-left: 0;
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 22px;
+  letter-spacing: -0.005em;
+}
+.memory-line,
+.todo-line {
+  padding-left: 0;
+}
+/* The reply's buttons sit under it, not beside a column-wide block. */
+.msg {
+  gap: 2px;
+}
+.msg-row {
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+/* The first icon lines up with the reply's text: the bubble's 16px padding and 1px border, less the space between a
+   button's edge and its 16px icon (buttons grow on touch screens). */
+.msg-actions {
+  margin-left: calc(17px - (var(--msg-action, 28px) - 16px) / 2);
+}
+.msg-action {
+  border-radius: 8px;
+}
+/* With a mouse the buttons float over the reply's bottom right edge while it is hovered: a row of hidden buttons
+   under every reply left a 30px gap between each message and the next. Touch screens keep the row (phone.css). */
+@media (hover: hover) {
+  .msg > .msg-row {
+    position: relative;
+    width: auto;
+    /* Wide enough for all seven buttons, so under a one-word reply they don't run left over the avatar. */
+    min-width: 232px;
+    /* The bubble's own cap: its min() with a % is dropped when the row sizes itself, so a long reply's row took the
+       whole column and the card sat past the bubble's right edge. */
+    max-width: min(720px, 100%);
+  }
+  .msg > .msg-row:has(> .bubble.assistant :is(table, .mermaid-diagram)) {
+    max-width: 100%;
+  }
+  .msg-row > .msg-actions {
+    position: absolute;
+    z-index: 2;
+    top: calc(100% - 14px);
+    right: 12px;
+    margin: 0;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-raised);
+    box-shadow: var(--shadow-pop);
+    /* Hidden, it must not take clicks meant for what sits under it. */
+    pointer-events: none;
+  }
+  .msg:hover .msg-row > .msg-actions,
+  .msg-row > .msg-actions:focus-within,
+  .msg-row > .msg-actions.open {
+    pointer-events: auto;
+  }
+}
+.bubble.error {
+  border-radius: var(--radius-card);
+  padding: 10px 14px;
+}
+.divider.new-line {
+  color: var(--accent-text);
+}
+.divider.new-line::before,
+.divider.new-line::after {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* ---- tool calls ---- */
+
+/* A call is a quiet card with a thin status edge (green done, red failed or blocked), not a rule down the column's
+   edge; the title keeps its own ▸. A thought is a dashed card with no edge. */
+.tool {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--bg-raised);
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--success) 70%, transparent);
+  overflow: hidden;
+}
+.tool.blocked,
+.tool.failed {
+  border-color: color-mix(in srgb, var(--error) 45%, var(--border));
+  background: color-mix(in srgb, var(--error) 5%, var(--bg-raised));
+  box-shadow: inset 3px 0 0 var(--error);
+}
+.tool.thought {
+  border-color: var(--border);
+  background: transparent;
+  border-style: dashed;
+  box-shadow: none;
+}
+.tool-head {
+  gap: 2px;
+  padding: 8px 12px 8px 14px;
+}
+.tool-head-title {
+  font-size: 13px;
+  color: var(--fg);
+}
+.tool.thought .tool-head-title {
+  color: var(--fg-muted);
+}
+.tool-head-detail {
+  font-size: 11.5px;
+}
+.tool-head:hover {
+  background: color-mix(in srgb, var(--fg) 4%, transparent);
+}
+.tool-panel {
+  padding: 4px 12px 12px 14px;
+}
+/* A thought's one-line preview is prose, not a command: the reading face, not mono. */
+.tool.thought .tool-head-detail {
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+.tool-panel pre {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg);
+}
+.tool-run {
+  gap: 6px;
+}
+.tool-run-head {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--bg-raised);
+  box-shadow: inset 0 0 0 1px var(--border);
+  font-weight: 500;
+}
+.tool-run-body {
+  gap: 6px;
+}
+
+/* The workflow inspector's ready line answers its problem list: a green check instead of hint-grey text. */
+.wf-ready {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 8px 12px;
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  color: var(--success);
+  font-weight: 500;
+}
+.wf-ready::before {
+  content: '✓';
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--success);
+  color: var(--success-fg);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+/* ---- approval, question and plan cards ---- */
+
+/* Asking cards share the tool cards' shape; a waiting one glows teal instead of wearing a hard 2px frame. */
+.approval {
+  gap: 6px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--bg-raised);
+}
+.approval.pending {
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 4%, var(--bg));
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--accent) 11%, transparent),
+    var(--shadow-pane);
+}
+.approval-head {
+  font-size: 12.5px;
+}
+.approval-desc {
+  font-size: 14px;
+  font-weight: 500;
+}
+.approval-actions {
+  margin-top: 10px;
+}
+.approval-actions .btn {
+  padding: 8px 16px;
+  border-radius: var(--radius-control);
+}
+.approval.question {
+  padding: 16px 18px;
+  gap: 12px;
+}
+.question-icon {
+  border-radius: 10px;
+  border-color: transparent;
+}
+.question-chip {
+  padding: 2px 10px;
+  border: none;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  font-weight: 600;
+}
+.plan-head {
+  color: var(--accent-text);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.plan-body {
+  padding: 6px 18px;
+  border-radius: var(--radius-control);
+}
+
+/* The Inbox frames each waiting card itself (inbox.css), so the card inside drops its own frame and glow again. */
+.inbox-card {
+  gap: 10px;
+  padding: 14px 18px 16px;
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: var(--radius-card);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-pane);
+}
+.inbox-card .approval,
+.inbox-card .approval.pending,
+.inbox-card .wf-approval {
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+}
+.inbox-head {
+  min-height: 64px;
+  padding: 10px 24px;
+  border-bottom-color: color-mix(in srgb, var(--border) 70%, transparent);
+}
+.inbox-head h2 {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.inbox-chip {
+  padding: 3px 12px;
+}
+
+/* ---- markdown ---- */
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+.markdown h1 {
+  font-size: 22px;
+  line-height: 30px;
+}
+.markdown h2 {
+  font-size: 19px;
+  line-height: 28px;
+}
+.markdown h3 {
+  font-size: 16.5px;
+  line-height: 26px;
+}
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown .code-block,
+.markdown table,
+.markdown blockquote {
+  margin: 14px 0;
+}
+.markdown li + li {
+  margin-top: 6px;
+}
+.markdown li::marker {
+  color: var(--accent-text);
+}
+.markdown code {
+  padding: 2px 6px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--border);
+  font-size: 0.88em;
+}
+.markdown pre {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  line-height: 21px;
+}
+.markdown pre code {
+  box-shadow: none;
+}
+.code-copy {
+  top: 8px;
+  right: 8px;
+  border-radius: 8px;
+}
+.markdown blockquote {
+  padding: 2px 0 2px 14px;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
+}
+/* A GFM task list: the checkbox is the marker, so the bullet goes, and boxes take the accent. */
+.markdown .contains-task-list {
+  padding-left: 2px;
+  list-style: none;
+}
+.markdown .task-list-item input[type='checkbox'] {
+  margin: 0 8px 0 0;
+  vertical-align: -1px;
+  accent-color: var(--accent);
+}
+/* Tables: one rounded card with row rules, no cell grid. */
+.markdown table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: max-content;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+.markdown th,
+.markdown td {
+  padding: 9px 16px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+}
+.markdown tr:last-child > td {
+  border-bottom: none;
+}
+.markdown th {
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.markdown tbody tr:hover > td {
+  background: color-mix(in srgb, var(--fg) 3%, transparent);
+}
+
+/* ---- composer: one card, pickers inside ---- */
+
+.composer {
+  max-width: 884px;
+  padding: 4px 32px 20px;
+}
+/* What sits over the message box keeps to its 820px column too; trays.css sizes these for the older 960px one. The
+   trays' rows start where the box's text does (32px + its 20px padding). A phone keeps its own sizes (phone.css). */
+@media (min-width: 800px) {
+  .tasks-tray,
+  .pausing-line {
+    max-width: 884px;
+    padding-right: 32px;
+    padding-left: 52px;
+  }
+  .cold-notice {
+    width: calc(100% - 64px);
+    max-width: 820px;
+  }
+}
+/* A cloned room's handoff note lines up with the thread's column. */
+.handoff-slot {
+  max-width: 820px;
+}
+.composer-box {
+  min-height: 56px;
+  padding: 12px 10px 10px 20px;
+  border-radius: 22px;
+  background: var(--bg);
+  box-shadow: var(--shadow-pop);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+/* The pickers row joins the box as its bottom strip: one card, the run settings inside it. */
+.composer-box:has(+ .pickers) {
+  border-bottom: none;
+  border-radius: 22px 22px 0 0;
+  box-shadow: none;
+  padding-bottom: 4px;
+}
+.composer-box + .pickers {
+  padding: 4px 10px 10px;
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 22px 22px;
+  background: var(--bg);
+  box-shadow: var(--shadow-pop);
+  transition: border-color 0.15s ease;
+}
+.composer:focus-within .composer-box,
+.composer:focus-within .composer-box + .pickers {
+  border-color: color-mix(in srgb, var(--ring) 55%, var(--border));
+}
+.composer-input {
+  line-height: 24px;
+}
+.attach-btn {
+  width: 32px;
+  height: 32px;
+}
+.send-btn {
+  width: 34px;
+  height: 34px;
+  box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--accent) 70%, transparent);
+  transition:
+    background 0.15s ease,
+    transform 0.1s ease;
+}
+.send-btn:active:not(:disabled) {
+  transform: scale(0.94);
+}
+.send-btn svg {
+  width: 16px;
+  height: 16px;
+}
+.send-btn:disabled {
+  opacity: 0.35;
+  box-shadow: none;
+}
+.send-btn.stop,
+.send-btn.pause {
+  box-shadow: none;
+}
+.picker {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.pickers .picker.set:not(:disabled) {
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+/* A narrow pane (side panel open, small window): the chips drop their outline and padding before their labels cut. */
+.composer {
+  container-type: inline-size;
+}
+@container (max-width: 620px) {
+  .pickers .picker {
+    padding: 0 6px;
+  }
+  .pickers .picker.set:not(:disabled) {
+    box-shadow: none;
+  }
+}
+
+/* Files waiting to send: a row over the message box, lined up with the reply card, in the same rounded language. */
+.draft-attachments {
+  align-items: flex-end;
+  padding: 0 14px 10px;
+}
+.attach-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-pane);
+}
+.attach-chip {
+  height: 34px;
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-pane);
+}
+.attach-open {
+  padding: 0 12px;
+  border-radius: var(--radius-control);
+}
+
+/* Replying to an agent: a soft card in the agent's color sitting on the message box, its color edge drawn inside. */
+.reply-strip {
+  margin: 0 14px 8px;
+  padding: 8px 8px 8px 14px;
+  border: 1px solid color-mix(in srgb, var(--quote) 28%, var(--border));
+  border-left: none;
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--quote) 7%, var(--bg-raised));
+  box-shadow: inset 3px 0 0 var(--quote);
+}
+.reply-strip .attach-remove {
+  border-radius: 8px;
+}
+/* The agent message a sent message replied to, over that message: the same card, smaller. */
+.reply-quote {
+  border-left: none;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--quote) 7%, var(--bg-raised));
+  box-shadow: inset 3px 0 0 var(--quote);
+}
+
+/* The new-chat screen: Zumi and a question over the box, centered a little higher. The input starts at one line. */
+.new-chat-hello {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 22px;
+  text-align: center;
+}
+.new-chat-hello > svg {
+  padding: 10px;
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background: var(--bg-raised);
+  box-shadow:
+    inset 0 0 0 1px var(--border),
+    var(--shadow-pane);
+}
+.new-chat-hello-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 34px;
+  letter-spacing: -0.025em;
+}
+.new-chat .composer {
+  max-width: 720px;
+}
+
+/* An empty chat's intro: the agent on a raised tile, its name as a page title, the same as the new-chat greeting. */
+.chat-intro {
+  gap: 8px;
+}
+.chat-intro > svg:first-child {
+  width: 88px;
+  height: 88px;
+  margin-bottom: 10px;
+  padding: 14px;
+  border-radius: 26px;
+  background: var(--bg-raised);
+  box-shadow:
+    inset 0 0 0 1px var(--border),
+    var(--shadow-pane);
+}
+.chat-intro-name {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 34px;
+  letter-spacing: -0.025em;
+}
+.chat-intro-desc {
+  max-width: 520px;
+  font-size: 14.5px;
+}
+.chat-intro .btn {
+  margin-top: 10px;
+}
+
+/* ---- shared controls ---- */
+
+.btn {
+  padding: 6px 14px;
+  border-radius: var(--radius-control);
+  font-weight: 500;
+  transition: background 0.12s ease;
+}
+.btn.small {
+  padding: 3px 10px;
+  border-radius: 8px;
+}
+.btn.primary {
+  box-shadow: 0 4px 12px -6px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+/* A primary button that cannot act yet (Save with problems left) reads as a muted, solid button, not a faded accent
+   ghost that vanished on light and looked outlined on dark. */
+.btn.primary:disabled {
+  border-color: transparent;
+  background: var(--bg-selected);
+  color: var(--fg-muted);
+  box-shadow: none;
+  opacity: 1;
+}
+.field {
+  padding: 7px 10px;
+  border-radius: var(--radius-control);
+}
+.field:focus-visible {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 22%, transparent);
+}
+.menu {
+  padding: 6px;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-pop);
+}
+.menu button {
+  border-radius: 8px;
+}
+.modal {
+  padding: 22px 24px;
+  border-radius: var(--radius-pane);
+  box-shadow: var(--shadow-pop);
+}
+.spinner {
+  border-top-color: var(--accent);
+}
+
+/* The Ctrl+K palette: a floating sheet like the pane, a roomier search, the picked row lifted instead of outlined. */
+.palette {
+  border-radius: var(--radius-pane);
+  background: var(--bg);
+  box-shadow: var(--shadow-pop);
+}
+.palette-search {
+  gap: 12px;
+  padding: 16px 20px;
+}
+.palette-search-icon {
+  width: 18px;
+  height: 18px;
+}
+.palette-input {
+  font-size: 17px;
+}
+.palette-list {
+  padding: 6px 8px 10px;
+}
+.palette-option {
+  border-radius: 10px;
+}
+.palette-option.on {
+  background: var(--sel-bg);
+  box-shadow: none;
+}
+.palette-option.on .palette-glyph {
+  color: var(--sel-fg);
+}
+.palette-foot {
+  padding: 10px 20px;
+  background: var(--bg-raised);
+}
+.palette-foot kbd {
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+/* ---- phone ---- */
+
+/* A phone keeps the full-bleed pane and drawer (phone.css); only the thread's spacing and the avatar tile shrink. */
+@media (max-width: 799px) {
+  /* The tab bar: the open tab's icon sits in a pill of the accent's wash, the phone's version of the rail's raised tile. */
+  .tab-bar {
+    border-top-color: color-mix(in srgb, var(--border) 70%, transparent);
+  }
+  .tab {
+    height: 58px;
+    gap: 4px;
+  }
+  .tab-icon {
+    padding: 3px 16px;
+    border-radius: 999px;
+    transition: background 0.15s ease;
+  }
+  .tab[aria-current='page'] .tab-icon {
+    background: var(--sel-bg);
+    color: var(--sel-fg);
+  }
+  .tab:active {
+    background: none;
+  }
+  .tab:active .tab-icon {
+    background: var(--bg-hover);
+  }
+  /* The marks keep their place on the glyph inside the pill's padding. */
+  .tab-count {
+    top: -2px;
+    left: 30px;
+  }
+  .tab-dot {
+    top: 2px;
+    right: 13px;
+  }
+  .messages {
+    padding: 20px 16px 16px;
+  }
+  .composer {
+    padding: 4px 12px 12px;
+  }
+  .agent-turn {
+    gap: 10px;
+  }
+  .agent-turn-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+  }
+  .agent-turn-avatar > svg {
+    width: 20px;
+    height: 20px;
+  }
+}

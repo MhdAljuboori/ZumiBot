@@ -1,0 +1,183 @@
+/* Menus and submenus, the search box at the top of every dropdown, and SearchSelect. */
+
+.menu {
+  position: fixed;
+  z-index: 20;
+  /* Its own width, not the room left of where it is anchored (a menu pulled left of its button would wrap). */
+  width: max-content;
+  min-width: 130px;
+  max-width: calc(100vw - 16px);
+  padding: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+.menu button {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.menu button:hover,
+.menu button:focus-visible {
+  background: var(--bg-hover);
+  outline: none;
+}
+.menu button.danger {
+  color: var(--error);
+}
+.menu-label {
+  padding: 4px 10px 2px;
+  font-size: 11px;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.menu-sep {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border);
+}
+.menu button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.menu button:disabled:hover {
+  background: none;
+}
+/* Move to: a list that opens beside its item (Sidebar flips it left when the right has no room). */
+.menu .has-sub {
+  position: relative;
+}
+.menu .sub-toggle .glyph {
+  width: 12px;
+  height: 12px;
+  margin-left: auto;
+  padding-left: 12px;
+  box-sizing: content-box;
+  color: var(--fg-muted);
+}
+.menu .sub-toggle.open {
+  background: var(--bg-hover);
+}
+.menu.submenu {
+  position: absolute;
+  top: -5px;
+  left: calc(100% + 6px);
+}
+/* Every menu item leads with an icon in its own color (red on a delete); the Move to list marks the current spot at the end. */
+.menu-icon {
+  flex: none;
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+.menu button:has(> .menu-icon),
+.account-action:has(> .menu-icon) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.menu-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.menu-icon.menu-current {
+  margin-left: 8px;
+  color: var(--fg-muted);
+}
+
+/* The search box at the top of every dropdown (MenuSearch); it stays put while the list under it scrolls. */
+.menu-search {
+  position: sticky;
+  top: -4px;
+  z-index: 1;
+  margin: -4px -4px 4px;
+  padding: 4px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.todo-status-menu .menu-search,
+.board-menu .menu-search {
+  border-radius: 10px 10px 0 0;
+}
+.menu-search-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+}
+.menu-search-input:focus {
+  outline: none;
+  border-color: var(--ring);
+}
+.menu-search-input::-webkit-search-cancel-button {
+  cursor: pointer;
+}
+.menu-search-empty {
+  padding: 8px 6px 2px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+/* Rows the search hides: menus that lay rows out as flex would otherwise keep showing them. */
+:is([role='menu'], [role='listbox']) [hidden] {
+  display: none !important;
+}
+:is([role='menu'], [role='listbox']):has(> .menu-search) :is([role^='menuitem'], [role='option']) {
+  scroll-margin-top: 40px;
+}
+
+/* SearchSelect: a button in place of a native select, keeping the select's own class for its size and frame. */
+.search-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  text-align: start;
+  cursor: pointer;
+}
+.search-select:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.search-select-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.search-select .caret {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  opacity: 0.6;
+}
+/* These classes draw their own chevron as a background image. */
+.search-select:is(.rt-select, .todo-card-status-select, .board-filter) .caret,
+.side-menu-row .search-select .caret {
+  display: none;
+}
+.search-select-menu {
+  z-index: 1000;
+  overflow-y: auto;
+}
+.search-select-menu button[aria-selected='true'] {
+  font-weight: 600;
+}

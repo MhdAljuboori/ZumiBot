@@ -1,0 +1,166 @@
+/* Draft and sent attachments: thumbnails, chips, errors. */
+
+.draft-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 6px 8px;
+}
+.draft-attachment {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+}
+.draft-attachment[data-status='staging'] {
+  opacity: 0.6;
+}
+.attach-thumb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  font-size: 10.5px;
+  line-height: 1.2;
+  text-align: center;
+}
+button.attach-thumb {
+  cursor: pointer;
+}
+.attach-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.attach-thumb.missing {
+  padding: 4px;
+}
+.attach-chip {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 280px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-raised);
+  color: var(--fg);
+  font-size: 13px;
+}
+.attach-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  height: 100%;
+  padding: 0 9px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.attach-open.static {
+  cursor: default;
+}
+.attach-open:hover:not(.static) {
+  background: var(--bg-hover);
+}
+.attach-open:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.attach-file-icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--fg-muted);
+}
+.attach-size {
+  flex: none;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+}
+.attach-remove {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 5px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--fg-muted);
+  font-size: 10px;
+  cursor: pointer;
+}
+.attach-remove:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.attach-remove:focus-visible {
+  outline: 2px solid var(--ring);
+}
+/* On a thumbnail the remove button floats over its corner. */
+.draft-attachment > .attach-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  margin: 0;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+}
+.sent-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  align-self: flex-end;
+  max-width: 560px;
+}
+.sent-item {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+}
+.attach-thumb.sent {
+  width: auto;
+  height: auto;
+  max-width: 240px;
+  max-height: 180px;
+  border-radius: 14px;
+}
+.attach-thumb.sent img {
+  width: auto;
+  height: auto;
+  max-width: 240px;
+  max-height: 180px;
+  object-fit: contain;
+  display: block;
+}
+.attach-thumb.sent.missing {
+  width: 120px;
+  height: 56px;
+}
+.attach-chip.missing {
+  padding: 6px 10px;
+  color: var(--fg-muted);
+  font-size: 12.5px;
+}
+.attach-error {
+  padding: 0 8px 8px;
+  color: var(--error);
+  font-size: 12.5px;
+}

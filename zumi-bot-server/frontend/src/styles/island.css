@@ -1,0 +1,341 @@
+/* The desktop shell's dynamic island (/island). */
+
+/* ---- dynamic island (the desktop shell's island window loads /island) ---- */
+
+/* The window is transparent except what is drawn: the strip and the popup sit at the rects the shell sends. */
+html.island-page,
+html.island-page body,
+html.island-page #root {
+  background: transparent;
+}
+html.island-page body {
+  overflow: hidden;
+}
+html.island-page #root {
+  position: relative;
+}
+
+/* The approved pill (--bg is its dark one in the dark theme; the island follows the theme). Its background is the drag
+   handle; the two ::before/::after pieces are the concave corners where it meets the screen's edge. */
+.island-strip {
+  position: absolute;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.island-pill {
+  position: absolute;
+  inset: 22px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  background: var(--bg);
+  border-radius: 22px 0 0 22px;
+}
+.island-strip::before,
+.island-strip::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  width: 22px;
+  height: 22px;
+}
+.island-strip::before {
+  top: 0;
+  background: radial-gradient(circle at 0 0, transparent 21px, var(--bg) 22px);
+}
+.island-strip::after {
+  bottom: 0;
+  background: radial-gradient(circle at 0 100%, transparent 21px, var(--bg) 22px);
+}
+
+.island-agent {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: none;
+  border-radius: 11px;
+  background: var(--bg-hover);
+  cursor: pointer;
+}
+.island-agent:hover {
+  background: var(--bg-selected);
+}
+.island-agent:focus-visible,
+.island-agent[aria-pressed='true'] {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+/* While one of the agent's chats runs, a light runs round a faint outline of the tile. The outline stays put and only the
+   gradient's angle turns: a rotated box swung its corners out past the tile and read as a lopsided arc.
+   Not `.working`: that is a thread rule (a flex row aligned to the start) and would push the icon out of the strip's column. */
+@property --island-sweep {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes island-sweep {
+  to {
+    --island-sweep: 360deg;
+  }
+}
+.island-agent.island-working::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  padding: 2px;
+  border-radius: 15px;
+  pointer-events: none;
+  background: conic-gradient(from var(--island-sweep), transparent 30%, var(--accent)), color-mix(in srgb, var(--accent) 22%, transparent);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  animation: island-sweep 1.3s linear infinite;
+}
+/* Open or focused, the ring is the mark: the focus outline over it would hide the light. */
+.island-agent.island-working:is(:focus-visible, [aria-pressed='true']) {
+  outline-color: transparent;
+}
+.island-agent.island-working:is(:focus-visible, [aria-pressed='true'])::after {
+  background: conic-gradient(from var(--island-sweep), transparent 30%, var(--accent)), color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.island-badge,
+.island-dot {
+  z-index: 1;
+}
+.island-badge {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--agent-yellow);
+  color: #000;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+  pointer-events: none;
+}
+.island-dot {
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+/* clip, not hidden: a hidden box still scrolls by script, and the "/" list's scrollIntoView once shifted the whole chat
+   sideways under a list wider than the popup. */
+.island-popup {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  overflow: clip;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--bg-raised);
+  color: var(--fg);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.island-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 8px 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.island-head-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--bg-hover);
+}
+.island-head-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.island-head-text b,
+.island-head-text span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.island-head-text span {
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+.island-head-btn {
+  flex: none;
+  padding: 2px 8px;
+  font-size: 16px;
+  line-height: 1.2;
+  color: var(--fg-muted);
+}
+.island-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* The chat's column is built for a wide window; a 360 px popup keeps its text and its box close to the edges. */
+.island-popup .messages {
+  padding: 12px 14px;
+}
+.island-popup .composer {
+  padding: 4px 12px 12px;
+}
+/* vh is the island window's, the screen's full height: a 40vh box (about 420 px) outgrew the 520 px popup, and the
+   popup's clip cut off its bottom. Seven lines, then it scrolls. */
+.island-popup :is(.composer-scroll, .msg-edit-input) {
+  max-height: 160px;
+}
+/* The "/" and "@" lists span the composer box: their main window width comes from 100vw, the island window's, which is
+   wider than the popup, and they start right of the attach button. */
+.island-popup .composer .composer-box {
+  position: relative;
+}
+.island-popup .composer .composer-field {
+  position: static;
+}
+.island-popup .composer .mention-menu {
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  width: auto;
+  min-width: 0;
+  max-width: none;
+}
+/* A message's buttons sit under its bubble, as on a touch screen: beside it, in a 360 px popup, they left the bubble a
+   word wide. */
+.island-popup .msg-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+.island-popup .msg-row > .msg-actions {
+  position: static;
+  margin-left: 2px;
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+  pointer-events: auto;
+}
+.island-popup .user-msg-row {
+  flex-direction: column-reverse;
+  align-items: flex-end;
+  gap: 0;
+}
+.island-popup .user-msg-body {
+  max-width: 100%;
+}
+.island-popup .user-msg .msg-actions {
+  margin: 0 -2px 0 0;
+}
+.island-popup .agent-turn:has(> .agent-turn-body > .msg:last-child) .agent-turn-avatar {
+  margin-bottom: var(--msg-action, 28px);
+}
+.island-popup .agent-turn:has(> .agent-turn-body > .msg:last-child .reactions) .agent-turn-avatar {
+  margin-bottom: calc(var(--msg-action, 28px) + 28px);
+}
+.island-popup .chat-intro-name {
+  font-size: 18px;
+  line-height: 26px;
+}
+.island-popup .chat-intro-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 20px;
+}
+.island-folder {
+  padding: 4px 8px 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.menu.island-menu {
+  position: absolute;
+  top: 46px;
+  right: 10px;
+  width: 250px;
+}
+.menu.island-menu button.island-recent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.island-recent.current {
+  background: var(--bg-selected);
+}
+.island-recent-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.island-recent-marks {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.island-recent-ago {
+  flex: none;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+.island-row-badge {
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 8px;
+  background: var(--agent-yellow);
+  color: #000;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+}
+.island-row-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .island-agent.island-working::after,
+  .island-agent.island-working:is(:focus-visible, [aria-pressed='true'])::after {
+    animation: none;
+    background: var(--accent);
+  }
+}

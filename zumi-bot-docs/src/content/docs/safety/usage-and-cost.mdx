@@ -1,0 +1,83 @@
+---
+title: Usage and cost
+description: See what each chat, agent and model costs, with exact figures from now on and estimates for older chats.
+sidebar:
+  order: 3
+---
+
+import Shot from '../../../components/Shot.astro'
+import { Steps } from '@astrojs/starlight/components'
+
+ZumiBot adds up what your agents use. A small chip in each chat shows what that chat has cost so far, and **Settings**, **Usage** shows the same for every chat, agent and model over time. Use them to find the chats that cost the most, and to decide on a [spend cap](/safety/spend-caps/).
+
+Every dollar figure is an estimate at API list prices, marked "API estimate · USD". It is not an invoice. If you use a Claude subscription, it does not match what you pay.
+
+## See what one chat costs
+
+<Steps>
+
+1. **Look for the cost chip** in the row of pickers under the message box, next to the model and mode pickers. It shows the chat's total, such as "$0.02". It is hidden until the chat has recorded usage.
+
+2. **Choose it.** A small window opens, headed "This chat". It shows the total, the number of messages (and how much of the total is estimated, if any), the four token counts and a row per model.
+
+3. **Choose Open in Usage →** to open the Usage page showing only this chat.
+
+</Steps>
+
+<Shot name="safety-usage-cost-chip" alt="The window opened from the cost chip. 'This chat' is followed by the total, $0.02, and the line '1 message · API estimate · USD'. Four boxes show Input 2, Output 120, Cache read 14.00K and Cache write 3.00K. A row reads 'claude-haiku-5-5' with $0.02. At the bottom is a link, 'Open in Usage →'." />
+
+The four counts are **Input**, **Output**, **Cache read** and **Cache write**. Cached input is text the model has already read in this chat, which usually costs far less than new text. In a group room the window also has a **By agent** part, so you can see each member's share.
+
+## Open the Usage page
+
+Choose **Settings**, then **Usage**. At the top are the filters:
+
+- **All agents** is a list of your agents. It also has **Room moderator** and **Room handoff**, the two helper calls ZumiBot makes for group rooms.
+- **Cost** and **Tokens** switch the whole page between dollars and token counts.
+- **7 days**, **30 days**, **90 days** or **All time**. It starts on 30 days.
+- **⟳** reloads the page.
+
+If you came from a chat's cost window, a button with that chat's name and a cross shows too. Choose it to see every chat again.
+
+<Shot name="safety-usage-total" alt="The top left of the Usage page. A large '$0.06' is followed by '3 chats · API estimate · USD'. Two lines follow. 'Exact $0.06' with '100.0% · 9.37K tokens · since this release', and 'Estimated $0.00' with '0.0% · 0 tokens · old chats'." />
+
+The big number is the total for what the filters show. Under it:
+
+- **Exact** is the cost each reply reported when it finished. Its line ends "since this release", because exact figures are only recorded from the version that added them.
+- **Estimated** covers older chats, where ZumiBot worked the cost out afterwards from Claude Code's own record of each chat. Those rows are tagged "est.". While that is being worked out, the page says "Estimating old chats…".
+- A model ZumiBot has no price for is tagged "unpriced", shows a dash, and is left out of the dollar totals. The page says how many tokens that is.
+
+To the right, **Daily cost** (or **Daily tokens**) is a bar for each day. **View daily data** switches the breakdown below to its **Day** tab.
+
+## Read the breakdown
+
+Under the chart is a row of boxes with the token counts for the range, and then the **Breakdown**.
+
+<Shot name="safety-usage-breakdown" alt="Boxes of totals: Tokens without cache reads 9.37K, Processed with cache reads 51.37K, Cached input 42.00K, Uncached input 6, Cache creation 9.00K, Output 360, User messages 3 and Chats 3. Under them, Breakdown with four buttons, Model, Agent, Chat and Day. The Agent button is chosen. A table with Agent, Cost, Share and Tokens columns lists Code Reviewer, Docs Writer and Researcher, each $0.02, 33.3% and 3.12K." />
+
+Choose **Model**, **Agent**, **Chat** or **Day** to group the same figures another way. Each row shows its cost, its share of the total and its tokens. Rows are sorted by the choice you made at the top, and days stay newest first. A row on the **Chat** tab opens that chat. A chat you deleted reads "Deleted chat".
+
+"Tokens without cache reads" leaves out text read from the cache, so it shows how much new work was done. "Processed with cache reads" adds it back.
+
+## What is counted
+
+Replies in single chats and group rooms, side questions, the moderator and handoff calls of a room, and keep-warm checks, which show in the Agent table as "Keep warm". Figures are kept on the computer that runs your ZumiBot server.
+
+Not counted: dictation and voice requests, which are billed by OpenRouter, and [Jev](/engines/jev/)'s calls, which OpenRouter bills too. Check those in your OpenRouter account.
+
+## Tips and limits
+
+- **Use Agent, then Chat.** Find the agent that costs the most, then open its most expensive chats.
+- **Long chats cost more on every message.** The cost of a chat grows with its size. [Compact](/chatting/context-and-compact/) and starting a new chat both help.
+- **Old chats are estimates.** They are close, not exact. The tag "est." and the **Estimated** line always say so.
+- **A recent reply may take a moment** to appear. The page refreshes by itself when a reply is recorded.
+- **It does not stop anything.** To stop an agent from spending past a limit, use a [spend cap](/safety/spend-caps/).
+
+## Related
+
+- [Spend caps](/safety/spend-caps/): the **Spend caps** section sits at the bottom of this page.
+- [Context meter and Compact](/chatting/context-and-compact/)
+- [Mode, effort and model](/chatting/mode-effort-model/)
+- [Usage limit waits](/chatting/usage-limit-waits/)
+- [Jev](/engines/jev/): its calls are billed by OpenRouter and are not counted here.
+- [Codex agents](/engines/codex/): the Usage popover also shows Codex's own limits.

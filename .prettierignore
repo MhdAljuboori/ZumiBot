@@ -1,0 +1,19 @@
+# Generated, vendored or recorded: never reformatted.
+node_modules/
+dist/
+out/
+release/
+coverage/
+package-lock.json
+CHANGELOG.md
+docs/
+*.md
+.superpowers/
+.claude/
+zumi-bot-server/backend/tests/fixtures/
+zumi-bot-site/public/
+zumi-bot-site/src/release.json
+zumi-bot-server/e2e/screenshots/
+# YAML is read as text by tests (docker-compose.yml) and kept hand-laid.
+*.yml
+*.yaml

@@ -1,0 +1,286 @@
+---
+title: Data folder and backups
+description: Learn where your server keeps chats and settings, what to back up, what is safe to delete, and how to put a backup back.
+sidebar:
+  order: 2
+---
+
+import { Steps } from '@astrojs/starlight/components'
+
+Your chats and settings live in one folder on the server. This page shows what is in it, what to back up besides it, and what you can safely delete.
+
+ZumiBot has no backup button. You copy folders yourself, with the steps below. The sections up to [In Docker](#in-docker) apply to a server made by the native installer, and the paths are those of the user that runs ZumiBot. A Docker install keeps its data in Docker volumes instead, and has its own steps in that section.
+
+## What is where
+
+A server keeps its things in five places. Four of them are worth backing up.
+
+| Place | Holds | Back up |
+| --- | --- | --- |
+| The data folder, `~/.local/share/zumibot` | Chats and their attachments, settings, to-dos, routines and workflows with their runs and saved history, the encrypted Vault, usage and audit records, your sign-in, notification devices and the Telegram and Slack bot settings | Yes |
+| Claude Code's folder, `~/.claude` | Your agents, their memories, the logs Claude Code keeps of your sessions, and, on Linux, Claude Code's login | Yes |
+| Claude Code's settings file, `~/.claude.json` | Your account details, the servers you set up yourself in **Settings**, **Claude Code**, and which project folders you trusted. It is a single file next to the folder, not inside it | Yes |
+| The vault key, `~/.config/zumibot-vault/vault.key` | The one key that opens the Vault | Yes, on its own |
+| The app, `~/zumibot` | The program itself, and the copies an update keeps for a roll back | No |
+
+- **The data folder** is the default. Your sign-in is in it, so a copy of it carries your password and authenticator.
+- **`~/.claude.json` is easy to miss.** It sits outside `~/.claude`, so copying that folder alone does not take it. Without it, Claude Code asks you to set up again, and the servers you added yourself are gone.
+- **The vault key** is kept apart on purpose. A copy of your data folder never contains it. Without the key, the Vault cannot be opened, and the Telegram and Slack tokens cannot be read either. See [Vault](/safety/vault/), "Back up the vault key".
+- **If you moved the key file or the data folder,** copy them from where they really are, not from the paths above.
+- **Treat every backup as a secret.** The data folder holds your chats, the Claude files hold your Claude Code login and account details, and the key opens your Vault. Keep copies somewhere you trust, and not only on the server.
+- **If you added your own service settings,** as [Update your server](/server/updates/) describes, copy that file too: `~/.config/systemd/user/zumibot.service.d/override.conf`. On a new server, put it in the same place and run `systemctl --user daemon-reload` before you start the service.
+- **Your projects are not in any of these.** The folders your agents work in are yours to back up, for example with git.
+- **Your HTTPS proxy keeps its own certificates.** ZumiBot does not back them up. You can get new ones by running the proxy again.
+
+## Make a backup
+
+A copy of a folder that is changing can catch a file halfway. For a copy you can trust, stop the server first. Run these on the server, as the user that runs ZumiBot. Chats stop while the server is stopped, so check first that nothing is running. See [Admin commands](/server/admin-commands/).
+
+<Steps>
+
+1. **Stop the server.**
+
+   ```bash
+   systemctl --user stop zumibot
+   ```
+
+2. **Copy the data folder.** This makes one file in your home folder that only you can read:
+
+   ```bash
+   (umask 077 && tar -czf ~/zumibot-data.tar.gz --exclude=zumibot/browsers --exclude=zumibot/browser-runtime -C ~/.local/share zumibot)
+   ```
+
+   It leaves out the agent browser's downloaded Chromium, which is big and which the update copy leaves out too. If you installed the browser, run `browser-install` again after a restore. See [The agent's browser](/computer/browser/).
+
+3. **Copy the Claude folder and its settings file.** One archive holds both:
+
+   ```bash
+   (umask 077 && tar -czf ~/zumibot-claude.tar.gz -C ~ .claude .claude.json)
+   ```
+
+   If `tar` says it cannot find `.claude.json`, Claude Code has not made that file yet on this server. The folder is still copied.
+
+4. **Copy the vault key.** Skip this if you never saved a Vault item, because the key is made the first time you save one.
+
+   ```bash
+   cp -p ~/.config/zumibot-vault/vault.key ~/zumibot-vault.key
+   ```
+
+5. **Start the server.**
+
+   ```bash
+   systemctl --user start zumibot
+   ```
+
+6. **Move the three files off the server.** Keep the key apart from the other two, for example in a password manager. Then delete them from the server, since each one is a secret.
+
+</Steps>
+
+If you moved the data folder or the key file, copy them from where they really are.
+
+## Put a backup back
+
+A restore replaces what is on the server with what was in the backup. Anything made since the backup is lost. Run these on the server that should hold the data, as the user that runs ZumiBot. The server there needs to be installed already. See [Install on a server](/get-started/install-server/).
+
+<Steps>
+
+1. **Stop the server.**
+
+   ```bash
+   systemctl --user stop zumibot
+   ```
+
+2. **Set the current folder aside.** This keeps it, in case the backup is the wrong one:
+
+   ```bash
+   mv ~/.local/share/zumibot ~/.local/share/zumibot.old
+   ```
+
+   If the server is new, there is no folder yet and this command reports that. Skip it.
+
+3. **Put the data folder back.**
+
+   ```bash
+   tar -xzf ~/zumibot-data.tar.gz -C ~/.local/share
+   ```
+
+4. **Put the vault key back first,** at the same path, before ZumiBot starts. First set aside the key that is there, if any. The old Vault in the folder you set aside can be opened only with it. This command does nothing when there is no key:
+
+   ```bash
+   if [ -f ~/.config/zumibot-vault/vault.key ]; then mv ~/.config/zumibot-vault/vault.key ~/.config/zumibot-vault/vault.key.old; fi
+   ```
+
+   Then copy the backup in. The folder and the file are for you alone:
+
+   ```bash
+   mkdir -p -m 700 ~/.config/zumibot-vault && cp -p ~/zumibot-vault.key ~/.config/zumibot-vault/vault.key && chmod 600 ~/.config/zumibot-vault/vault.key
+   ```
+
+5. **Put the Claude folder and its settings file back.** On a new server, where `~/.claude` and `~/.claude.json` are missing, this is all you need. If they already hold your files, set them aside first. Each `mv` reports an error if its file is missing. Skip that one.
+
+   ```bash
+   mv ~/.claude ~/.claude.old
+   ```
+
+   ```bash
+   mv ~/.claude.json ~/.claude.json.old
+   ```
+
+   ```bash
+   tar -xzf ~/zumibot-claude.tar.gz -C ~
+   ```
+
+6. **Start the server.**
+
+   ```bash
+   systemctl --user start zumibot
+   ```
+
+</Steps>
+
+Then open your server and sign in with the password and authenticator from the backup. If you see the setup page instead, the data folder did not come back where ZumiBot looks for it.
+
+## What is safe to delete
+
+- **Update leftovers in `~/zumibot`.** The earlier app (`app.prev`), the data copy an update made (`data.prev`) and, after a rollback, `app.failed` and a folder beside your data folder that ends in `.failed`. They exist only so you can roll back. Deleting them frees disk space but removes that option. See [Update your server](/server/updates/).
+- **Sync backups.** The folders called `zumibot-sync-backup` with a time, in your home folder. Sync never removes them. See [Sync](/desktop/sync/).
+- **What a restore leaves behind.** The folders that your own steps set aside: `~/.local/share/zumibot.old`, `~/.claude.old` and `~/.claude.json.old` and `~/.config/zumibot-vault/vault.key.old`, plus the backup files `~/zumibot-data.tar.gz`, `~/zumibot-claude.tar.gz` and `~/zumibot-vault.key` once they are safely stored elsewhere. Keep the set-aside copies until you are sure the restore is right. They hold the same secrets as the originals.
+- **Chats, through the app.** Delete a chat in ZumiBot and it removes the chat's file copies with it. Do not remove single files inside the data folder by hand.
+
+Do not delete the vault key unless you mean to give up the Vault. If the key is gone for good, **Start a new vault** in **Settings**, **Vault** begins again with an empty one.
+
+## In Docker
+
+A Docker install keeps your data in Docker volumes, not in folders in your home. Run the commands here on the server, as the user that installed ZumiBot. They use the service `zumibot-local`. If you installed with `--domain`, write `zumibot` instead.
+
+### The volumes
+
+| Volume | Holds | Back up |
+| --- | --- | --- |
+| `zumibot_data` | What the data folder holds on a native install: chats and their attachments, settings, the encrypted Vault, your sign-in and the rest | Yes |
+| `zumibot_claude` | Claude Code's folder and its settings file: Claude Code's login, your agents, their memories and the logs of your sessions | Yes |
+| `zumibot_vault` | The one key that opens the Vault | Yes, on its own |
+| `zumibot_caddy-data`, `zumibot_caddy-config` | Certificates, and the certificate authority your devices trust when there is no domain | No |
+
+- **The folder `~/zumibot-docker` holds no data.** It has what the installer wrote, and `.env`, which remembers your address. Installing again with the same option writes the same `.env`.
+- **`docker compose down -v` deletes every volume,** your chats and the vault key included. Without `-v`, `docker compose down` keeps them.
+- **Files outside the volumes are lost.** A file an agent writes elsewhere in the container is gone after an update. Keep your projects in git, with a copy off the server.
+
+### Back up a Docker install
+
+Stop ZumiBot first, so nothing changes while you copy.
+
+<Steps>
+
+1. **Check that no reply is running.** This prints how many are:
+
+   ```bash
+   cd ~/zumibot-docker && docker compose exec zumibot-local zumibot-server busy
+   ```
+
+2. **Stop ZumiBot.** The volumes stay as they are:
+
+   ```bash
+   cd ~/zumibot-docker && docker compose stop
+   ```
+
+3. **Copy the data volume.** This makes one file in your home folder that only you can read:
+
+   ```bash
+   cd ~/zumibot-docker && (umask 077 && docker compose run --rm -T zumibot-local tar -czf - -C /data . > ~/zumibot-data.tar.gz)
+   ```
+
+4. **Copy the Claude volume.**
+
+   ```bash
+   cd ~/zumibot-docker && (umask 077 && docker compose run --rm -T zumibot-local tar -czf - -C /home/zumibot/.claude . > ~/zumibot-claude.tar.gz)
+   ```
+
+5. **Copy the vault key.** Skip this if you never saved a Vault item, because the key is made the first time you save one.
+
+   ```bash
+   cd ~/zumibot-docker && (umask 077 && docker compose run --rm -T zumibot-local cat /vault/vault.key > ~/zumibot-vault.key)
+   ```
+
+   If it says there is no such file, there is no key yet. Delete the empty `~/zumibot-vault.key`.
+
+6. **Start ZumiBot.**
+
+   ```bash
+   cd ~/zumibot-docker && docker compose up -d
+   ```
+
+7. **Move the three files off the server.** Keep the key apart from the other two, for example in a password manager. Then delete them from the server, since each one is a secret.
+
+</Steps>
+
+### Put a Docker backup back
+
+A restore replaces what is in the volumes with the backup. Anything made since the backup is lost. These steps restore a backup made with the Docker steps above. To restore on a new server, install ZumiBot there with the Docker installer first, with the same option as before, and leave its setup page alone.
+
+<Steps>
+
+1. **Keep what is there now, if you may want it.** Back it up first, as above, with other file names such as `~/zumibot-data.old.tar.gz`, so the backup you restore is not overwritten.
+
+2. **Stop ZumiBot and remove its containers.** The volumes stay:
+
+   ```bash
+   cd ~/zumibot-docker && docker compose down
+   ```
+
+3. **Delete the three volumes.** This cannot be undone:
+
+   ```bash
+   docker volume rm zumibot_data zumibot_claude zumibot_vault
+   ```
+
+4. **Put the data volume back.** Docker makes the volumes again, empty, and the backup goes in:
+
+   ```bash
+   cd ~/zumibot-docker && docker compose run --rm -T zumibot-local tar -xzf - -C /data < ~/zumibot-data.tar.gz
+   ```
+
+5. **Put the Claude volume back.**
+
+   ```bash
+   cd ~/zumibot-docker && docker compose run --rm -T zumibot-local tar -xzf - -C /home/zumibot/.claude < ~/zumibot-claude.tar.gz
+   ```
+
+6. **Put the vault key back,** if you have one:
+
+   ```bash
+   cd ~/zumibot-docker && docker compose run --rm -T zumibot-local sh -c 'umask 077 && cat > /vault/vault.key' < ~/zumibot-vault.key
+   ```
+
+7. **Start ZumiBot.**
+
+   ```bash
+   cd ~/zumibot-docker && docker compose up -d
+   ```
+
+</Steps>
+
+Then open your server and sign in with the password and authenticator from the backup. If you see the setup page instead, the data volume did not come back. On a new server without a domain, trust its certificate again, as [Install on a server](/get-started/install-server/) shows: the certificate authority is new.
+
+### Safe to delete in Docker
+
+- **`~/zumibot-docker.prev` and `~/zumibot-docker.failed`.** They exist only so you can go back to the earlier version. See [Update your server](/server/updates/#update-a-docker-install).
+- **Old ZumiBot images.** Each update downloads the new image and keeps the old one. `docker image ls` lists them, and `docker image rm` removes one. If you go back to a version whose image you removed, Docker downloads it again.
+- **The backup files,** once they are safely stored elsewhere.
+
+## Tips and limits
+
+- **An update needs room.** The app's update copies the data folder first, so keep free space about the size of the folder. If the copy fails, nothing is updated.
+- **Also back up your agents' projects.** The three files do not hold them, and nothing here replaces a copy of your own work.
+- **Back up before a big change,** such as a move to another server or a first update after a long time.
+- **Lost both your phone and your recovery codes?** A backup does not help. Run `setup-2fa` on the server. See [Admin commands](/server/admin-commands/).
+- **Local mode keeps its own data,** on your computer. To merge it with a server, see [Sync](/desktop/sync/).
+- **There is no built-in restore.** Try the steps on a spare server before you rely on them.
+
+## Related
+
+- [Update your server](/server/updates/)
+- [Admin commands](/server/admin-commands/)
+- [Vault](/safety/vault/)
+- [Sync](/desktop/sync/)
+- [Troubleshooting](/server/troubleshooting/)
