@@ -37,11 +37,12 @@ function truncated(el: Element): boolean {
 
 /**
  * A `title` someone else's markup still sets (React Flow's zoom buttons, a markdown link's title) becomes a `data-tip`
- * before the browser's own popup can show. A frame's title is its accessible name, not a tip.
+ * before the browser's own popup can show. A frame's title is its accessible name, not a tip. `data-native-title` keeps
+ * the browser's popup (the island's icons: the popup is drawn outside the window, where the app's tip cannot go).
  */
 function adoptTitle(el: Element): void {
   const t = el.getAttribute('title')
-  if (t === null || el instanceof HTMLIFrameElement) return
+  if (t === null || el instanceof HTMLIFrameElement || el.hasAttribute('data-native-title')) return
   if (!el.hasAttribute('data-tip')) el.setAttribute('data-tip', t)
   el.removeAttribute('title')
 }

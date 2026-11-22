@@ -37,21 +37,24 @@ export function domTitles(s: string): number[] {
   for (const m of s.matchAll(/<([A-Za-z][\w.]*)/g)) {
     if (!/^[a-z]/.test(m[1]) && !DOM_LIKE.has(m[1])) continue
     // Walk the attributes until the tag's own `>`, jumping over `{...}` expressions.
+    const hits: number[] = []
     let i = m.index + m[0].length
     while (i < s.length && s[i] !== '>' && s[i] !== '<') {
       if (s[i] === '{') {
         const end = closeBrace(s, i)
         const expr = s.slice(i, end)
-        if (expr.startsWith('{...') && /['"]?\btitle['"]?\s*:/.test(expr)) found.push(i)
+        if (expr.startsWith('{...') && /['"]?\btitle['"]?\s*:/.test(expr)) hits.push(i)
         i = end
       } else if (s[i] === '"' || s[i] === "'") {
         i = s.indexOf(s[i], i + 1) + 1
         if (i === 0) break
       } else {
-        if (/\stitle=/.test(s.slice(i - 1, i + 6))) found.push(i)
+        if (/\stitle=/.test(s.slice(i - 1, i + 6))) hits.push(i)
         i++
       }
     }
+    // `data-native-title` asks for the browser's popup on purpose (TooltipLayer leaves it alone).
+    if (!/\sdata-native-title(?=[\s=/>])/.test(s.slice(m.index, i + 1))) found.push(...hits)
   }
   // An SVG title element; a comment's "in <title>" placeholder has no closing tag.
   for (const m of s.matchAll(/<title>[^<]*<\/title>/g)) found.push(m.index)
@@ -77,6 +80,11 @@ describe('no native title', () => {
     expect(domTitles('<CardHead title={`a ${b}`} subtitle="s" />')).toEqual([])
     expect(domTitles('document.title = badgeTitle(BASE_TITLE, n)')).toEqual([])
     expect(domTitles('const t = { title: "x" }; <div className={t.title}>')).toEqual([])
+  })
+
+  it('allows a title the element marks as native on purpose', () => {
+    expect(domTitles('<button\n  title={name}\n  data-native-title\n  onClick={go}\n>')).toEqual([])
+    expect(domTitles('<button data-native-titles title={name}>')).toHaveLength(1)
   })
 
   it('is used nowhere in the app', () => {
