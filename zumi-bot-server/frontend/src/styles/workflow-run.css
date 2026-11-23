@@ -123,12 +123,23 @@
 .wf-visit[data-status='waiting'] {
   border-color: color-mix(in srgb, var(--warning) 60%, var(--border));
 }
+/* Wraps: when the step's name and the meta do not fit on one line (a phone),
+   the meta drops to a row of its own instead of squeezing the name to "Scan…". */
 .wf-visit-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px 8px;
   min-width: 0;
   font-size: 12px;
+}
+.wf-visit-meta {
+  display: flex;
+  flex: 1 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  max-width: 100%;
 }
 .wf-visit-ic {
   flex: none;
@@ -154,16 +165,22 @@
   unicode-bidi: plaintext;
 }
 .wf-visit-n {
+  flex: none;
   color: var(--fg-muted);
+  white-space: nowrap;
 }
 .wf-visit-time {
+  flex: none;
   margin-left: auto;
   color: var(--fg-muted);
+  white-space: nowrap;
 }
 .wf-visit-cost {
+  flex: none;
   margin-left: auto;
   color: var(--fg-muted);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .wf-visit-time + .wf-visit-cost {
   margin-left: 0;
