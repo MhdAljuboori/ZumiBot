@@ -2,6 +2,15 @@
 
 What changed in each ZumiBot release, newest first. The release notes on GitHub come from here.
 
+## v0.1.1 — 2026-11-23
+
+- When a card comment mentions an agent, the agent's chat now shows your comment with the card above it (its status, title and a link back to the card) instead of a long block of text. Full prompt still shows everything the agent read.
+- A card comment now asks only the agents it is addressed to: "thanks @a" asks nobody, and "ask @b to check" leaves @b alone. The comment posts at once while ZumiBot picks who to ask.
+- In group rooms, the Thinking line sits where the Working line does, so nothing jumps sideways between the two.
+- On a phone, a workflow run's step header wraps, so a long step name keeps its own row and the step number and time never split.
+- The routine editor's Save button, and Ctrl+S, stay off until you change something, as in the workflow editor.
+- In the desktop app's island, agent icon tooltips are no longer cut off at the window edge.
+
 ## v0.1.0 — 2026-11-22
 
 The first ZumiBot release.

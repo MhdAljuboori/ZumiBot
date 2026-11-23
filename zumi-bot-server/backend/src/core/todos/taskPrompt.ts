@@ -1,4 +1,12 @@
-import { liveComments, unanswered, type TodoComment, type TodoItem, type TodoQuestion } from '@zumibot/shared/todos'
+import {
+  liveComments,
+  quoteLines as quote,
+  unanswered,
+  type CardAsk,
+  type TodoComment,
+  type TodoItem,
+  type TodoQuestion
+} from '@zumibot/shared/todos'
 import type { CommentCommand } from '@zumibot/shared/commentCommands'
 
 // A task chat's agent is told what the card is through the message itself (the first message is the card, every turn
@@ -8,11 +16,6 @@ import type { CommentCommand } from '@zumibot/shared/commentCommands'
 export const TASK_QUESTIONS_DENIED =
   'This chat works on a task card: put your questions on it with mcp__zumibot_todos__ask_user, then end your turn.'
 
-const quote = (text: string): string =>
-  text
-    .split('\n')
-    .map((l) => `> ${l}`)
-    .join('\n')
 const author = (by: string): string => (by === 'user' ? 'The user' : by)
 
 // Comments go into the message whole (the board note cuts them to a line), up to this much; the oldest are left out first.
@@ -48,28 +51,32 @@ export function taskMessage(item: Pick<TodoItem, 'text' | 'description' | 'comme
 }
 
 /**
- * What an agent the user mentioned in a card's comment is sent: the card (id for the to-do tools, notes, earlier
- * comments) and the comment. Its reply is posted on the card under that comment, so it is told to end with the answer.
+ * What an agent the user mentioned in a card's comment is sent, in two parts around the comment: the card (id for the
+ * to-do tools, notes, earlier comments) and the instructions. Its reply is posted on the card under that comment, so it
+ * is told to end with the answer.
  */
-export function commentAskMessage(
+export function commentAsk(
   item: Pick<TodoItem, 'id' | 'text' | 'description' | 'comments'>,
-  comment: Pick<TodoComment, 'id' | 'text'>,
+  comment: Pick<TodoComment, 'id'>,
   commands: readonly CommentCommand[] = [],
   images = 0
-): string {
-  const parts = [`The user mentioned you in a comment on the task card "${item.text}" (id ${item.id}, for the zumibot_todos tools).`]
-  if (item.description) parts.push(`The card's notes:\n\n${item.description}`)
+): CardAsk {
+  const before = [`The user mentioned you in a comment on the task card "${item.text}" (id ${item.id}, for the zumibot_todos tools).`]
+  if (item.description) before.push(`The card's notes:\n\n${item.description}`)
   if (images > 0)
-    parts.push(images === 1 ? "The card's image is attached to this message." : `The card's ${images} images are attached to this message.`)
+    before.push(
+      images === 1 ? "The card's image is attached to this message." : `The card's ${images} images are attached to this message.`
+    )
   const earlier = liveComments(item).filter((c) => c.id !== comment.id)
-  if (earlier.length > 0) parts.push(commentsBlock(earlier, 'Earlier comments on the card:'))
-  parts.push(`The user's comment:\n\n${quote(comment.text)}`)
+  if (earlier.length > 0) before.push(commentsBlock(earlier, 'Earlier comments on the card:'))
+  before.push("The user's comment:")
+  const after: string[] = []
   // The comment shows only "/card"; the agent reads the saved prompt it stands for, as a chat's command does.
-  for (const c of commands) parts.push(`The comment runs your command /${c.name}. Its instructions:\n\n${c.prompt}`)
-  parts.push(
+  for (const c of commands) after.push(`The comment runs your command /${c.name}. Its instructions:\n\n${c.prompt}`)
+  after.push(
     `Do what the comment asks${commands.length > 0 ? ', following those instructions' : ''}. Your final message is posted on the card as your reply to this comment, so end with a short answer the user can read there.`
   )
-  return parts.join('\n\n')
+  return { todoId: item.id, title: item.text, before: `${before.join('\n\n')}\n\n`, after: `\n\n${after.join('\n\n')}` }
 }
 
 /** What a task chat is sent when its card goes back to To do: the agent picks up where it left off. */

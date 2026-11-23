@@ -50,6 +50,8 @@ import { buildBriefing } from './core/chat/groupPrompts'
 import { HOUSE_STYLE } from './core/chat/houseStyle'
 import { runJsonCall, runModerator } from './core/chat/moderator'
 import { ackMessage, runAck } from './core/chat/acknowledge'
+import { runRoute } from './core/todos/commentRouting'
+import type { RunCost } from './core/usage/runCost'
 import { createRunEnv } from './core/chat/shellEnv'
 import { GitChangesService } from './core/git/changes'
 import { makeGit, type Git } from './core/git/git'
@@ -735,6 +737,11 @@ export async function startServer(
       newId: () => randomUUID(),
       onChanged: (rev) => hub.broadcast({ event: 'todos:changed', payload: { rev } }),
       onAdded: (chatId, items, by) => fireChatEvent(chatId, (meta) => todoEvent(meta, items, by))
+    })
+    // A comment whose routing call a stop cut short would show it is picking for ever: it asks nobody.
+    await todos.clearRouting().catch((err) => {
+      const code = (err as { code?: unknown } | null)?.code
+      console.error('todo board: clearing routing comments failed', typeof code === 'string' ? code : 'error')
     })
     // A task chat's turn moves its card: In progress when it starts, then Blocked, In review or back to New as it ends.
     todoPush = (p) => todos.chatPush(p)
@@ -2005,6 +2012,32 @@ export async function startServer(
       claude: { status: claude.locate, setPath: claude.setPath },
       codexInfo,
       account: async () => withCodexUsage(await account.account(), codexUsage.latest()),
+      // A card comment's addressees and the line for each, from one Haiku call made before the comment is stored.
+      routeComment: async (input) => {
+        const bin = await claude.locate()
+        if (!bin) return null
+        await runEnv.ready()
+        let spent: { cost: RunCost; id: string | null; at: number } | null = null
+        // No tools and no session: the home folder is only where the call starts.
+        const asks = await runRoute({
+          bin,
+          cwd: homedir(),
+          env: runEnv.env(),
+          input,
+          signal: new AbortController().signal,
+          onCost: (cost, id) => {
+            spent = { cost, id, at: Date.now() }
+          }
+        })
+        if (asks === null) return null
+        return {
+          asks,
+          // Usage counts by chat; the call ran before there was one, so it is put on the first chat the comment asks.
+          record: (chatId) => {
+            if (spent) usage.recordModerator(chatId, spent.cost, spent.id, spent.at)
+          }
+        }
+      },
       usage,
       worktrees,
       gitChanges: new GitChangesService(git),

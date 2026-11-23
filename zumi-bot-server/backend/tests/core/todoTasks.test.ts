@@ -11,13 +11,23 @@ import {
   CONTINUE_MESSAGE,
   TASK_QUESTIONS_DENIED,
   answersMessage,
+  commentAsk,
   continueMessage,
   taskMessage,
   taskNote
 } from '../../src/core/todos/taskPrompt'
-import { TODO_COMMENT_MAX, commentThreads, statusOf, type TodoComment } from '@zumibot/shared/todos'
+import {
+  TODO_COMMENT_MAX,
+  cardAskComment,
+  cardAskPrompt,
+  commentThreads,
+  statusOf,
+  type CardAsk,
+  type TodoComment
+} from '@zumibot/shared/todos'
 import { bridgeRefusal, commentAskRefusal, engineCaps } from '@zumibot/shared/engine'
-import { CommentAsks, finalReply } from '../../src/core/todos/commentAsks'
+import { CommentAsks, finalReply, type CommentAsksDeps } from '../../src/core/todos/commentAsks'
+import type { RouteInput, RoutedAsk } from '../../src/core/todos/commentRouting'
 import { parseTodoCall } from '../../src/core/todos/todoTools'
 
 let dir: string
@@ -543,6 +553,46 @@ describe('task tools and texts', () => {
     expect(taskNote(null)).toContain('removed')
     expect(TASK_QUESTIONS_DENIED).toContain('mcp__zumibot_todos__ask_user')
   })
+
+  it('splits the mention message around the comment without changing it', () => {
+    const c = { id: 'c3', text: 'Fix\nthis @a /card', by: 'user', at: 30 }
+    const bare = { id: 't1', text: 'T', description: undefined, comments: [c] }
+    const full = {
+      id: 't2',
+      text: 'Card two',
+      description: 'The notes',
+      comments: [{ id: 'c1', text: 'first', by: 'user', at: 10 }, { id: 'c2', text: 'second', by: 'a', at: 20 }, c]
+    }
+    const cmds = [{ name: 'card', prompt: 'Do the card thing' }]
+    // The literal text the CLI got before the split (taken from the pre-feature commentAskMessage), so a drift here is caught.
+    const tail =
+      'Your final message is posted on the card as your reply to this comment, so end with a short answer the user can read there.'
+    expect(cardAskPrompt(commentAsk(bare, c, [], 0), c.text)).toBe(
+      [
+        'The user mentioned you in a comment on the task card "T" (id t1, for the zumibot_todos tools).',
+        "The user's comment:",
+        '> Fix\n> this @a /card',
+        `Do what the comment asks. ${tail}`
+      ].join('\n\n')
+    )
+    expect(cardAskPrompt(commentAsk(full, c, cmds, 2), c.text)).toBe(
+      [
+        'The user mentioned you in a comment on the task card "Card two" (id t2, for the zumibot_todos tools).',
+        "The card's notes:\n\nThe notes",
+        "The card's 2 images are attached to this message.",
+        'Earlier comments on the card:\n\nThe user:\n> first\n\na:\n> second',
+        "The user's comment:\n\n> Fix\n> this @a /card",
+        'The comment runs your command /card. Its instructions:\n\nDo the card thing',
+        `Do what the comment asks, following those instructions. ${tail}`
+      ].join('\n\n')
+    )
+    const ask = commentAsk(full, c, cmds, 2)
+    expect(ask.todoId).toBe('t2')
+    expect(ask.title).toBe('Card two')
+    expect(ask.before.endsWith("The user's comment:\n\n")).toBe(true)
+    expect(ask.after.startsWith('\n\n')).toBe(true)
+    expect(ask.after).toContain('Do what the comment asks')
+  })
 })
 
 describe('CommentAsks', () => {
@@ -553,45 +603,186 @@ describe('CommentAsks', () => {
     { filePath: '/a/gem.md', name: 'gem', description: '', color: null, icon: null, error: null, builtIn: false, provider: 'acp' },
     { filePath: '/a/rem.md', name: 'rem', description: '', color: null, icon: null, error: null, builtIn: false, provider: 'ag-ui' }
   ]
-  let sent: { chatId: string; text: string; messageId: string; files: string[] }[]
+  let sent: { chatId: string; text: string; prompt: string; cardAsk: CardAsk; messageId: string; files: string[] }[]
   let pushes: ChatPush[]
   let replyWith: string | null
   let asks: CommentAsks
+  let base: CommentAsksDeps
   beforeEach(() => {
     sent = []
     pushes = []
     replyWith = 'Made the card: Fix watchers.'
-    asks = new CommentAsks({
-      store,
-      todos: svc,
-      files,
-      // Plays the turn: the user's message under its id (with the staged files, as a send commits them), then the agent's messages.
-      submit: async (chatId, text, messageId, staged) => {
-        const attachments = await files.commit(chatId, staged)
-        sent.push({ chatId, text, messageId, files: attachments.map((a) => a.name) })
-        const items = await store.loadItems(chatId)
-        const turn = [
-          { type: 'user' as const, id: messageId, text, ts: 1, ...(attachments.length > 0 ? { attachments } : {}) },
-          { type: 'assistant' as const, id: `a${messageId}`, text: 'Looking…', ts: 2 }
-        ]
-        if (replyWith !== null) turn.push({ type: 'assistant' as const, id: `b${messageId}`, text: replyWith, ts: 3 })
-        await store.saveItems(chatId, [...items, ...turn])
-      },
-      agents: async () => agents,
-      commandsOf: async (a) =>
-        a === 'work-assistant' ? [{ name: 'card', description: 'Make a card', prompt: 'Create a card for: $ARGUMENTS' }] : [],
-      isFolder: async (p) => p === '/a',
-      place: async (_agent, cwd) => ({ cwd }),
-      lastFolder: async () => null,
-      home: '/home/me',
-      push: (p) => pushes.push(p),
-      newId: () => `m${++ids}`
-    })
+    asks = new CommentAsks(
+      (base = {
+        store,
+        todos: svc,
+        files,
+        // Plays the turn: the user's message under its id (with the staged files, as a send commits them), then the agent's messages.
+        submit: async (chatId, text, messageId, staged, cardAsk) => {
+          const attachments = await files.commit(chatId, staged)
+          const prompt = cardAskPrompt(cardAsk, cardAskComment(cardAsk, text))
+          sent.push({ chatId, text, prompt, cardAsk, messageId, files: attachments.map((a) => a.name) })
+          const items = await store.loadItems(chatId)
+          const turn = [
+            { type: 'user' as const, id: messageId, text, cardAsk, ts: 1, ...(attachments.length > 0 ? { attachments } : {}) },
+            { type: 'assistant' as const, id: `a${messageId}`, text: 'Looking…', ts: 2 }
+          ]
+          if (replyWith !== null) turn.push({ type: 'assistant' as const, id: `b${messageId}`, text: replyWith, ts: 3 })
+          await store.saveItems(chatId, [...items, ...turn])
+        },
+        agents: async () => agents,
+        commandsOf: async (a) =>
+          a === 'work-assistant' ? [{ name: 'card', description: 'Make a card', prompt: 'Create a card for: $ARGUMENTS' }] : [],
+        isFolder: async (p) => p === '/a',
+        place: async (_agent, cwd) => ({ cwd }),
+        lastFolder: async () => null,
+        home: '/home/me',
+        push: (p) => pushes.push(p),
+        newId: () => `m${++ids}`
+      })
+    )
   })
   const card = async (): Promise<string> => {
     await svc.userAdd('Investigate watchers', listChat)
     return (await svc.list(null)).items.at(-1)!.id
   }
+
+  describe('routing', () => {
+    const writer: AgentSummary = {
+      filePath: '/a/writer.md',
+      name: 'writer',
+      description: 'Writes notes.',
+      color: null,
+      icon: null,
+      error: null,
+      builtIn: false
+    }
+    let inputs: RouteInput[]
+    let recorded: string[]
+    const routed = (answer: (input: RouteInput) => RoutedAsk[] | null | Promise<RoutedAsk[] | null>): CommentAsks =>
+      new CommentAsks({
+        ...base,
+        route: async (input) => {
+          inputs.push(input)
+          const asks = await answer(input)
+          return asks === null ? null : { asks, record: (chatId) => recorded.push(chatId) }
+        }
+      })
+    beforeEach(() => {
+      agents.push(writer)
+      inputs = []
+      recorded = []
+    })
+    afterEach(() => {
+      agents.splice(agents.indexOf(writer), 1)
+    })
+
+    // The routing call held open until `go` is called, so a test sees the comment while it picks.
+    const held = (): { answer: () => Promise<RoutedAsk[] | null>; go(asks: RoutedAsk[] | null): void } => {
+      let go!: (asks: RoutedAsk[] | null) => void
+      const gate = new Promise<RoutedAsk[] | null>((r) => (go = r))
+      return { answer: () => gate, go }
+    }
+    const routingOf = async (id: string, n = 0) => (await item(id)).comments![n]!.routing
+
+    it('stores the comment at once, picking, and fills in who it asks when the routing call answers', async () => {
+      const id = await card()
+      const h = held()
+      await routed(h.answer).comment(id, '@work-assistant and @writer look', null)
+      expect((await item(id)).comments![0]).toMatchObject({ text: '@work-assistant and @writer look', routing: true })
+      expect((await item(id)).comments![0]).not.toHaveProperty('asked')
+      expect(sent).toEqual([])
+      h.go([{ agent: 'writer', message: 'Look at this card.' }])
+      await vi.waitFor(async () => expect(await routingOf(id)).toBeUndefined())
+      expect((await item(id)).comments![0]!.asked).toEqual(['writer'])
+      await vi.waitFor(() => expect(sent).toHaveLength(1))
+      expect(sent[0]!.text).toBe('Look at this card.')
+    })
+
+    it('asks nobody for a comment deleted while it was picking', async () => {
+      const id = await card()
+      const h = held()
+      const done = vi.spyOn(svc, 'commentRouted')
+      await routed(h.answer).comment(id, '@writer look', null)
+      const c = (await item(id)).comments![0]!
+      await svc.userDeleteComment(id, c.id)
+      h.go([{ agent: 'writer', message: 'Look.' }])
+      await vi.waitFor(() => expect(done).toHaveBeenCalled())
+      await expect(done.mock.results[0]!.value).resolves.toBeNull()
+      expect(sent).toEqual([])
+      expect((await item(id)).comments![0]).not.toHaveProperty('asked')
+    })
+
+    it('shows the comment as it is now, not the line, when it was edited while picking', async () => {
+      const id = await card()
+      const h = held()
+      await routed(h.answer).comment(id, '@writer look', null)
+      const c = (await item(id)).comments![0]!
+      await svc.userEditComment(id, c.id, '@writer look again')
+      h.go([{ agent: 'writer', message: 'Look.' }])
+      await vi.waitFor(() => expect(sent).toHaveLength(1))
+      expect(sent[0]!.text).toBe('@writer look again')
+      expect(sent[0]!.cardAsk).not.toHaveProperty('comment')
+      expect(recorded).toEqual([sent[0]!.chatId])
+    })
+
+    it('asks only the addressed agent, shows the line written for it, and the agent still reads the comment as written', async () => {
+      const id = await card()
+      const text = '@work-assistant Can you ask @writer to check if we have a card for this?'
+      await routed(() => [{ agent: 'work-assistant', message: 'Ask @writer to check whether we have a card for this.' }]).comment(
+        id,
+        text,
+        null
+      )
+      await vi.waitFor(async () => expect((await item(id)).comments![0]).toMatchObject({ text, asked: ['work-assistant'] }))
+      await vi.waitFor(async () => expect((await item(id)).comments).toHaveLength(2))
+      expect(sent).toHaveLength(1)
+      expect(sent[0]!.text).toBe('Ask @writer to check whether we have a card for this.')
+      expect(sent[0]!.cardAsk.comment).toBe(text)
+      expect(sent[0]!.prompt).toContain(`> ${text}`)
+      expect(recorded).toEqual([sent[0]!.chatId])
+      expect(inputs[0]).toEqual({
+        card: 'Investigate watchers',
+        comment: text,
+        thread: null,
+        candidates: [
+          { name: 'work-assistant', description: '' },
+          { name: 'writer', description: 'Writes notes.' }
+        ]
+      })
+    })
+
+    it('asks nobody when the comment is addressed to nobody', async () => {
+      const id = await card()
+      await routed(() => []).comment(id, 'Thanks @work-assistant!', null)
+      await vi.waitFor(async () => expect(await routingOf(id)).toBeUndefined())
+      expect((await item(id)).comments![0]!.asked).toBeUndefined()
+      expect(sent).toEqual([])
+    })
+
+    it('asks every agent the comment names, with the comment as written, when routing gives no answer or fails', async () => {
+      const id = await card()
+      await routed(() => null).comment(id, '@work-assistant and @writer look', null)
+      await vi.waitFor(async () => expect((await item(id)).comments![0]!.asked).toEqual(['work-assistant', 'writer']))
+      await vi.waitFor(() => expect(sent).toHaveLength(2))
+      expect(sent.map((s) => s.text)).toEqual(['@work-assistant and @writer look', '@work-assistant and @writer look'])
+      expect(sent[0]!.cardAsk).not.toHaveProperty('comment')
+      await routed(() => Promise.reject(new Error('boom'))).comment(id, '@writer again', null)
+      await vi.waitFor(async () => expect((await item(id)).comments!.find((c) => c.text === '@writer again')!.asked).toEqual(['writer']))
+      await vi.waitFor(() => expect(sent).toHaveLength(3))
+    })
+
+    it("gives a reply's routing the thread's first comment", async () => {
+      const id = await card()
+      await routed(() => null).comment(id, '@work-assistant draft the mail', null)
+      await vi.waitFor(async () => expect((await item(id)).comments).toHaveLength(2))
+      const answer = (await item(id)).comments![1]!
+      await routed(() => [{ agent: 'work-assistant', message: 'Send the mail.' }]).comment(id, 'send', answer.id)
+      expect(inputs[1]).toMatchObject({ comment: 'send', thread: '@work-assistant draft the mail' })
+      await vi.waitFor(() => expect(sent).toHaveLength(2))
+      expect(sent[1]!.text).toBe('Send the mail.')
+    })
+  })
 
   it('runs a mentioned agent in a chat for the card, in the folder the card came from, and posts its last message under the comment', async () => {
     const id = await card()
@@ -603,8 +794,10 @@ describe('CommentAsks', () => {
     expect(reply).toMatchObject({ by: 'work-assistant', replyTo: asked!.id, text: 'Made the card: Fix watchers.' })
     const meta = pushes.flatMap((p) => (p.kind === 'meta' ? [p.meta] : []))[0]!
     expect(meta).toMatchObject({ agentName: 'work-assistant', cwd: '/a', cardComments: { todoId: id } })
-    expect(sent[0]!.text).toContain(`id ${id}`)
-    expect(sent[0]!.text).toContain('> Hey @Work-Assistant create a card')
+    expect(sent[0]!.text).toBe('Hey @Work-Assistant create a card for this, @broken and @zumi-bot too')
+    expect(sent[0]!.cardAsk).toMatchObject({ todoId: id, title: 'Investigate watchers' })
+    expect(sent[0]!.prompt).toContain(`id ${id}`)
+    expect(sent[0]!.prompt).toContain('> Hey @Work-Assistant create a card')
   })
 
   it("sends the card's images with a mention, each once: a later mention carries only an image added since", async () => {
@@ -613,7 +806,7 @@ describe('CommentAsks', () => {
     await asks.comment(id, '@work-assistant look at this', null)
     await vi.waitFor(async () => expect((await item(id)).comments).toHaveLength(2))
     expect(sent[0]!.files).toEqual(['shot.png'])
-    expect(sent[0]!.text).toContain("The card's image is attached to this message.")
+    expect(sent[0]!.prompt).toContain("The card's image is attached to this message.")
     await svc.userEdit(id, { addFiles: [await stage('later.png')] })
     await asks.comment(id, '@work-assistant and now?', null)
     await vi.waitFor(async () => expect((await item(id)).comments).toHaveLength(4))
@@ -621,7 +814,7 @@ describe('CommentAsks', () => {
     await asks.comment(id, '@work-assistant once more', null)
     await vi.waitFor(async () => expect((await item(id)).comments).toHaveLength(6))
     expect(sent[2]!.files).toEqual([])
-    expect(sent[2]!.text).not.toContain('attached to this message')
+    expect(sent[2]!.prompt).not.toContain('attached to this message')
   })
 
   it('reuses the same chat for a later mention and threads a reply to a reply under the top comment', async () => {
@@ -688,7 +881,7 @@ describe('CommentAsks', () => {
     const id = await card()
     await asks.comment(id, '@work-assistant /card fix the login', null)
     await vi.waitFor(() => expect(sent).toHaveLength(1))
-    expect(sent[0]!.text).toContain('The comment runs your command /card. Its instructions:\n\nCreate a card for: fix the login')
+    expect(sent[0]!.prompt).toContain('The comment runs your command /card. Its instructions:\n\nCreate a card for: fix the login')
   })
 
   it('posts nothing when the turn wrote no message, and a plain comment runs nobody', async () => {

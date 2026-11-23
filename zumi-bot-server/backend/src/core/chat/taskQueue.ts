@@ -1,6 +1,7 @@
 import type { SentCommand } from '@zumibot/shared/commands'
 import { RESUME_TEXT } from '@zumibot/shared/pause'
 import type { CapPause } from '@zumibot/shared/spendCaps'
+import type { CardAsk } from '@zumibot/shared/todos'
 import {
   isGroup,
   type Attachment,
@@ -67,14 +68,23 @@ const withSent = (
   sent?: WorkflowSent,
   auto?: true
 ): Promise<void> => (auto ? call(command, todo, sent, true) : sent ? call(command, todo, sent) : withTail(call, command, todo))
-// A single chat's send takes `auto` in the slot after the to-do flag, and the sender after it.
+// A single chat's send takes `auto` in the slot after the to-do flag, the sender after it, then a card comment's context
+// (only set when there is one, so every other call keeps its exact arguments).
 const withAuto = (
-  call: (...tail: [command?: SentCommand, todo?: true, auto?: true, sent?: WorkflowSent]) => Promise<void>,
+  call: (...tail: [command?: SentCommand, todo?: true, auto?: true, sent?: WorkflowSent, cardAsk?: CardAsk]) => Promise<void>,
   command?: SentCommand,
   todo?: true,
   auto?: true,
-  sent?: WorkflowSent
-): Promise<void> => (sent ? call(command, todo, auto, sent) : auto ? call(command, todo, true) : withTail(call, command, todo))
+  sent?: WorkflowSent,
+  cardAsk?: CardAsk
+): Promise<void> =>
+  cardAsk
+    ? call(command, todo, auto, sent, cardAsk)
+    : sent
+      ? call(command, todo, auto, sent)
+      : auto
+        ? call(command, todo, true)
+        : withTail(call, command, todo)
 
 /** A run started under the lock. Wrapped so the lock's promise does not wait for it. */
 interface Started {
@@ -119,6 +129,8 @@ const takeOverPatch = (cur: ChatMeta): Partial<Omit<ChatMeta, 'id' | 'updatedAt'
  * stored, queued or dropped, before its turn ends (submit itself settles only when a started turn ends). */
 export interface SubmitOptions {
   once?: true
+  // A card comment's @mention: the card's context, which the agent reads with the comment (single chats only).
+  cardAsk?: CardAsk
   committed?: (r: SendResult | 'duplicate') => void
 }
 
@@ -182,7 +194,7 @@ export class TaskQueue {
           if (over) this.pushMeta(over)
         }
         if (opts?.once && messageId !== undefined) this.recent.add(messageId)
-        return this.launch(meta, text, attachments, replyTo, messageId, command, todo, from !== 'user' ? true : undefined, workflowSent)
+        return this.launch(meta, text, attachments, replyTo, messageId, command, todo, from !== 'user' ? true : undefined, workflowSent, opts?.cardAsk)
       }
       // Before commit, so a send that is bound to fail moves no files.
       if ((meta.tasks?.length ?? 0) >= TASKS_MAX) throw new Error(`A chat can hold at most ${TASKS_MAX} queued messages`)
@@ -197,6 +209,7 @@ export class TaskQueue {
         ...(todo ? { todo } : {}),
         ...(from !== 'user' ? { auto: true as const } : {}),
         ...(workflowSent ? { workflowSent } : {}),
+        ...(opts?.cardAsk ? { cardAsk: opts.cardAsk } : {}),
         ts: now()
       }
       // A paused chat's tray is held in the same write, also after the user emptied it (the last task out clears held).
@@ -574,7 +587,8 @@ export class TaskQueue {
       task.command,
       task.todo,
       task.auto,
-      task.workflowSent
+      task.workflowSent,
+      task.cardAsk
     )
   }
 
@@ -587,7 +601,8 @@ export class TaskQueue {
     command?: SentCommand,
     todo?: true,
     auto?: true,
-    workflowSent?: WorkflowSent
+    workflowSent?: WorkflowSent,
+    cardAsk?: CardAsk
   ): Started {
     const chatId = meta.id
     return this.begin(chatId, () =>
@@ -604,7 +619,8 @@ export class TaskQueue {
             command,
             todo,
             auto,
-            workflowSent
+            workflowSent,
+            cardAsk
           )
     )
   }

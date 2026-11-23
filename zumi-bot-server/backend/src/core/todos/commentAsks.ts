@@ -3,20 +3,38 @@ import type { AgentCommand } from '@zumibot/shared/commands'
 import { commentCommands } from '@zumibot/shared/commentCommands'
 import { commentAskRefusal, engineCaps, engineOfAgent, type Engine, type EngineCaps } from '@zumibot/shared/engine'
 import { findMentions } from '@zumibot/shared/mentions'
-import { TODO_COMMENT_ASKS_MAX, TODO_COMMENT_MAX, TODO_FILES, threadAgents, type TodoComment, type TodoItem } from '@zumibot/shared/todos'
+import {
+  TODO_COMMENT_ASKS_MAX,
+  TODO_COMMENT_MAX,
+  TODO_FILES,
+  threadAgents,
+  type CardAsk,
+  type TodoComment,
+  type TodoItem
+} from '@zumibot/shared/todos'
 import type { AgentSummary, Attachment, ChatMeta, ChatPush, ChatWorktree } from '@zumibot/shared/types'
 import type { AttachmentStore } from '../attachments/attachmentStore'
 import type { ChatStore } from '../store/chatStore'
 import type { TodoService } from './todoService'
 import { logged, titleOf } from './taskCards'
-import { commentAskMessage } from './taskPrompt'
+import { commentAsk } from './taskPrompt'
+import type { RouteInput, RoutedAsk } from './commentRouting'
+
+/** The routing call's answer, and how to put what it cost on a chat once there is one. */
+export interface Routed {
+  asks: RoutedAsk[]
+  record(chatId: string): void
+}
 
 export interface CommentAsksDeps {
   store: Pick<ChatStore, 'get' | 'list' | 'create' | 'loadItems'>
-  todos: Pick<TodoService, 'card' | 'userComment' | 'agentReply'>
+  todos: Pick<TodoService, 'card' | 'userComment' | 'commentRouted' | 'agentReply'>
   files: Pick<AttachmentStore, 'pathOf' | 'stagePath'>
-  /** The message into a chat through the queue, as the user's, under `messageId`, with staged files. Resolves when its turn ends. */
-  submit(chatId: string, text: string, messageId: string, stagedIds: string[]): Promise<unknown>
+  /**
+   * The comment into a chat through the queue, as the user's, under `messageId`, with staged files. `cardAsk` is the card
+   * context around it: the CLI gets it rebuilt into one message, the chat shows only the comment. Resolves when its turn ends.
+   */
+  submit(chatId: string, text: string, messageId: string, stagedIds: string[], cardAsk: CardAsk): Promise<unknown>
   agents(): Promise<AgentSummary[]>
   /** The agent's valid commands, read fresh: a `/name` in the comment sends its saved prompt, as a chat's send does. */
   commandsOf(agent: string): Promise<AgentCommand[]>
@@ -30,6 +48,12 @@ export interface CommentAsksDeps {
   newId(): string
   /** What each engine can do (default engineCaps): only an agent with `bridges` answers a comment, as only one gets a card. */
   caps?(engine: Engine): EngineCaps
+  /**
+   * Which candidates the comment is addressed to, each with the line written for it (Haiku, commentRouting.ts). It runs
+   * after the comment is stored, which shows it is picking meanwhile. Null or a throw: every candidate is asked with the
+   * comment as written; absent: they are, with no picking.
+   */
+  route?(input: RouteInput): Promise<Routed | null>
 }
 
 const CUT_NOTE = '\n\n…(the rest is in the chat)'
@@ -37,7 +61,7 @@ const CUT_NOTE = '\n\n…(the rest is in the chat)'
 /**
  * `@agent` in a user's comment on a card: the agent answers in its own chat for that card (one per card and agent, kept for
  * later mentions, so it remembers the thread), and its final message is posted under the comment. The comment is stored
- * first; the agents run after, so posting never waits on a chat or a worktree.
+ * first; the routing call and the agents run after, so posting never waits on Haiku, a chat or a worktree.
  */
 export class CommentAsks {
   // One chat per card and agent, even when two comments mention it at once.
@@ -46,12 +70,51 @@ export class CommentAsks {
   constructor(private readonly d: CommentAsksDeps) {}
 
   async comment(todoId: string, text: string, replyTo: string | null): Promise<void> {
-    const asked = await this.asked(todoId, text, replyTo)
+    const candidates = await this.asked(todoId, text, replyTo)
+    const routing = candidates.length > 0 && this.d.route !== undefined
+    // Stored at once: while the routing call picks who it asks, the comment shows it is picking ("ask @b" leaves @b alone).
     const { item, comment } = await this.d.todos.userComment(todoId, text, {
       ...(replyTo ? { replyTo } : {}),
-      ...(asked.length > 0 ? { asked } : {})
+      ...(routing ? { routing } : candidates.length > 0 ? { asked: candidates } : {})
     })
-    for (const agent of comment.asked ?? []) void this.ask(item, comment, agent).catch(logged('a mentioned agent did not answer:'))
+    if (routing) void this.routeThenAsk(item, comment, candidates).catch(logged('routing a comment failed:'))
+    else this.askAll(item, comment, null, false)
+  }
+
+  private async routeThenAsk(item: TodoItem, comment: TodoComment, candidates: string[]): Promise<void> {
+    const routed = await this.route(item, comment, candidates)
+    const now = await this.d.todos.commentRouted(item.id, comment.id, routed ? routed.asks.map((a) => a.agent) : candidates)
+    if (now === null) return // the comment or its card was deleted meanwhile
+    // Edited while routing: the lines were written for the old text, so each agent is shown the comment as it is now.
+    this.askAll(now.item, now.comment, routed, now.comment.text === comment.text)
+  }
+
+  private askAll(item: TodoItem, comment: TodoComment, routed: Routed | null, lines: boolean): void {
+    ;(comment.asked ?? []).forEach((agent, i) => {
+      const line = lines ? routed?.asks.find((a) => a.agent === agent)?.message : undefined
+      // The routing call's cost goes on the first asked agent's chat, the first chat this comment touches.
+      const record = i === 0 ? routed?.record : undefined
+      void this.ask(item, comment, agent, line, record).catch(logged('a mentioned agent did not answer:'))
+    })
+  }
+
+  private async route(item: TodoItem, comment: TodoComment, candidates: string[]): Promise<Routed | null> {
+    const { d } = this
+    if (!d.route) return null
+    try {
+      const all = item.comments ?? []
+      const root = comment.replyTo ? all.find((c) => c.id === comment.replyTo) : undefined
+      const agents = await d.agents()
+      return await d.route({
+        card: item.text,
+        comment: comment.text,
+        thread: root && root.deletedAt === undefined ? root.text : null,
+        candidates: candidates.map((name) => ({ name, description: agents.find((a) => a.name === name)?.description ?? '' }))
+      })
+    } catch (e) {
+      logged('routing a comment failed, asking every agent it names:')(e)
+      return null
+    }
   }
 
   /**
@@ -77,15 +140,19 @@ export class CommentAsks {
       .slice(0, TODO_COMMENT_ASKS_MAX)
   }
 
-  private async ask(item: TodoItem, comment: TodoComment, agent: string): Promise<void> {
+  /** `line`: what the routing call wrote for this agent; the chat shows it, and the agent still reads the comment itself. */
+  private async ask(item: TodoItem, comment: TodoComment, agent: string, line?: string, record?: (chatId: string) => void): Promise<void> {
     const { d } = this
     const chat = await this.chatFor(item, agent)
+    record?.(chat.id)
     const messageId = d.newId()
     // A broken agent file just has no commands; it must not stop the answer.
     const owned = await d.commandsOf(agent).catch(() => [] as AgentCommand[])
     const names = (await d.agents()).map((a) => a.name)
     const staged = await this.stageUnsent(item, chat.id)
-    await d.submit(chat.id, commentAskMessage(item, comment, commentCommands(comment.text, owned, names), staged.length), messageId, staged)
+    const cardAsk = commentAsk(item, comment, commentCommands(comment.text, owned, names), staged.length)
+    if (line === undefined) await d.submit(chat.id, comment.text, messageId, staged, cardAsk)
+    else await d.submit(chat.id, line, messageId, staged, { ...cardAsk, comment: comment.text })
     const reply = finalReply(await d.store.loadItems(chat.id), messageId)
     if (reply === null) return // stopped or failed: the comment's link to the chat shows what happened
     await d.todos.agentReply(item.id, agent, comment.id, reply)

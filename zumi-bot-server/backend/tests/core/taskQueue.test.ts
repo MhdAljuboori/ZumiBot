@@ -1231,6 +1231,44 @@ describe('pause and resume', () => {
       expect(f.chats.send.mock.calls[1]).toEqual([c.id, 'later', [], undefined, 'm2'])
     })
 
+    describe('cardAsk', () => {
+      const ask = { todoId: 't1', title: 'Card', before: 'b', after: 'a' }
+
+      it('goes to the chat service in the slot after the sender when the chat is idle', async () => {
+        const c = await single()
+        const p = q.submit(c.id, 'hi', [], undefined, 'm1', undefined, undefined, 'user', undefined, { cardAsk: ask })
+        await flush()
+        expect(f.chats.send.mock.calls[0]).toEqual([c.id, 'hi', [], undefined, 'm1', undefined, undefined, undefined, undefined, ask])
+        turns[0].resolve()
+        await p
+      })
+
+      it('is stored on the queued task and sent with it after the tray releases it', async () => {
+        const c = await single()
+        const first = q.submit(c.id, 'go', [], undefined, 'm1')
+        await flush()
+        await expect(
+          q.submit(c.id, 'later', [], undefined, 'm2', undefined, undefined, 'user', undefined, { cardAsk: ask })
+        ).resolves.toBe('queued')
+        expect((await store.get(c.id))?.tasks).toMatchObject([{ id: 'm2', cardAsk: ask }])
+        turns[0].resolve()
+        await first
+        q.idle(c.id)
+        await flush()
+        expect(f.chats.send.mock.calls[1]).toEqual([c.id, 'later', [], undefined, 'm2', undefined, undefined, undefined, undefined, ask])
+      })
+
+      it('a message without it stores and sends none', async () => {
+        const c = await single()
+        const first = q.submit(c.id, 'go', [], undefined, 'm1')
+        await flush()
+        await q.submit(c.id, 'later', [], undefined, 'm2')
+        expect((await store.get(c.id))?.tasks?.[0]).not.toHaveProperty('cardAsk')
+        turns[0].resolve()
+        await first
+      })
+    })
+
     describe('workflowSent', () => {
       const sent = { workflowId: 'w1', runId: 'r1', stepId: 's1', name: 'WF', step: 'Chat' }
 

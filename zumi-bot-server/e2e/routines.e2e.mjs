@@ -942,7 +942,9 @@ async function main() {
   await page.locator(tid('routine-row'), { hasText: 'Standup room' }).first().click()
   await page.locator(tid('routine-editor')).waitFor({ timeout: T })
   await waitFor(async () => path() === `/routines/${standup.id}`, T, 'the room routine to open')
+  assert(await page.locator(tid('routine-save')).isDisabled(), 'Save is on for a saved routine with no edits')
   await page.fill(tid('routine-name'), 'Standup room v2')
+  assert(await page.locator(tid('routine-save')).isEnabled(), 'Save stayed off after an edit')
   await page.click(tid('routine-save'))
   await waitFor(
     async () => (await readJson('routines.json')).find((r) => r.id === standup.id)?.name === 'Standup room v2',

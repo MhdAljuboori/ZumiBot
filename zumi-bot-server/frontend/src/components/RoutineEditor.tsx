@@ -199,6 +199,8 @@ export function RoutineEditor({
   const dirty = isDraftDirty(draft, { ...baseline, id: draft.id })
   const dirtyRef = useRef(dirty)
   dirtyRef.current = dirty
+  // As in the workflow editor: a saved routine with no edits has nothing to save; a new one can always be saved.
+  const canSave = errors.length === 0 && !saving && (dirty || routine === null)
 
   const doSave = async (): Promise<Routine | null> => {
     const d = draftRef.current
@@ -344,7 +346,7 @@ export function RoutineEditor({
         // Ctrl+S (Cmd+S on a Mac) saves, as in the workflow editor; the browser's own save page is never wanted here.
         if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 's') {
           e.preventDefault()
-          if (errors.length === 0 && !saving) void save()
+          if (canSave) void save()
         }
       }}
     >
@@ -390,7 +392,7 @@ export function RoutineEditor({
           className="btn primary"
           data-testid="routine-save"
           data-tip={errors.length > 0 ? `Fix ${errors.length === 1 ? 'the problem' : `the ${errors.length} problems`} first` : 'Save (Ctrl+S)'}
-          disabled={errors.length > 0 || saving}
+          disabled={!canSave}
           onClick={() => void save()}
         >
           {saving ? 'Saving…' : 'Save'}

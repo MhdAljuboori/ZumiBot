@@ -153,6 +153,7 @@ export interface QueuedTask {
   replyTo?: string
   command?: SentCommand
   todo?: true // began with /todo or used a command that makes to-dos
+  cardAsk?: import('./todos').CardAsk // a card comment that @mentioned the agent: the bubble shows the comment, the agent reads it inside the card's context (cardAskPrompt)
   auto?: true // a routine's or workflow's message, not typed by the user
   workflowSent?: WorkflowSent
   ts: number
@@ -447,6 +448,7 @@ export type ChatItem = (
       replyTo?: string
       command?: SentCommand
       todo?: true
+      cardAsk?: import('./todos').CardAsk // a card comment that @mentioned this agent: the bubble shows the comment, the agent reads it inside the card's context (cardAskPrompt)
       versions?: VersionInfo
       from?: string
       workflowSent?: WorkflowSent
