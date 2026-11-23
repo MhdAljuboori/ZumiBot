@@ -9,6 +9,7 @@ import {
   boardOf,
   changesSince,
   checkTodos,
+  clearRouting,
   commentTodo,
   deleteComment,
   editComment,
@@ -21,6 +22,7 @@ import {
   reopenTodo,
   restoreTodos,
   reviewTodo,
+  routedComment,
   seenKey,
   setStatus,
   startTask,
@@ -239,12 +241,12 @@ export class TodoService {
 
   /**
    * The user's comment on a card; agents hear of it as of an edit, the card's task agent on its next turn. `asked`: the
-   * agents it mentions, which answer under it (`CommentAsks`).
+   * agents it mentions, which answer under it (`CommentAsks`); `routing`: who it asks is still being picked (`commentRouted`).
    */
   async userComment(
     id: string,
     text: string,
-    o: { replyTo?: string; asked?: string[] } = {}
+    o: { replyTo?: string; asked?: string[]; routing?: boolean } = {}
   ): Promise<{ item: TodoItem; comment: TodoComment }> {
     let out!: { item: TodoItem; comment: TodoComment }
     await this.mutate((f) => {
@@ -253,6 +255,23 @@ export class TodoService {
       return { file: r.file, changed: [] }
     })
     return out
+  }
+
+  /** Who a routing comment asks, picked; null when the card or the comment went meanwhile. Told to every tab, not the agents. */
+  async commentRouted(id: string, commentId: string, asked: string[]): Promise<{ item: TodoItem; comment: TodoComment } | null> {
+    let out: { item: TodoItem; comment: TodoComment } | null = null
+    await this.mutate((f) => {
+      const r = routedComment(f, id, commentId, asked, this.deps.now())
+      if (r === null) return { file: f, changed: [] }
+      out = { item: r.item, comment: r.comment }
+      return { file: r.file, changed: [] }
+    }, 'file')
+    return out
+  }
+
+  /** At start, before the hub serves a call: a comment a restart caught routing asks nobody, rather than "picking" for ever. */
+  async clearRouting(): Promise<void> {
+    await this.mutate((f) => ({ file: clearRouting(f, this.deps.now()), changed: [] }), 'none')
   }
 
   /** A mentioned agent's answer, posted under the comment that asked it. */

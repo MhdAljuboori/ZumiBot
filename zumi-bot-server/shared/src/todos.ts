@@ -110,6 +110,7 @@ export interface TodoComment {
   deletedAt?: number
   replyTo?: string // the comment it answers: always a top-level one, so a thread is one level deep
   asked?: string[] // agents the user's comment mentioned; each answers in its card-comment chat, its reply posted under this one
+  routing?: true // the user's comment while the routing call picks which of the agents it names to ask; cleared as `asked` is set
 }
 
 /** On the ChatMeta of a task's chat: the board item it works on. */
@@ -366,6 +367,37 @@ export function withTodoTools(tools: string[] | null): string[] | null {
 export const liveComments = (i: Pick<TodoItem, 'comments'>): TodoComment[] => (i.comments ?? []).filter((c) => c.deletedAt === undefined)
 export const normalizeTodoComment = (text: string): string => block(text, TODO_COMMENT_MAX)
 
+/** A card comment's @mention sent to the agent's chat for that card: the bubble shows the comment, the agent reads it in the card's context. */
+export interface CardAsk {
+  todoId: string
+  title: string
+  /** What the agent reads before the comment, and after it. */
+  before: string
+  after: string
+  /**
+   * The comment as the user wrote it, when the message's text is the line written for this agent (commentRouting.ts): the
+   * agent still reads the comment itself. Absent: the text is the comment.
+   */
+  comment?: string
+}
+
+/** What a card ask's message quotes: the comment as written, else the message's own text. */
+export const cardAskComment = (ask: Pick<CardAsk, 'comment'>, text: string): string => ask.comment ?? text
+
+/** The card context without the comment as written: an edited message quotes its own text. */
+export const withoutComment = ({ comment: _gone, ...ask }: CardAsk): CardAsk => ask
+
+/** Text as a markdown quote, one `> ` per line. */
+export const quoteLines = (text: string): string =>
+  text
+    .split('\n')
+    .map((l) => `> ${l}`)
+    .join('\n')
+
+/** The message the agent reads: the card's context, the quoted comment, then the instructions. */
+export const cardAskPrompt = (ask: Pick<CardAsk, 'before' | 'after'>, text: string): string =>
+  `${ask.before}${quoteLines(text)}${ask.after}`
+
 /**
  * A new comment on a card. It moves the rev with `last.action` `commented`, so every agent hears of it as of an edit
  * (the card's own task agent included, which is how a comment reaches its chat on its next turn).
@@ -377,7 +409,7 @@ export function commentTodo(
   by: TodoBy,
   now: number,
   newId: () => string,
-  o: { replyTo?: string; asked?: string[] } = {}
+  o: { replyTo?: string; asked?: string[]; routing?: boolean } = {}
 ): { file: TodoFile; comment: TodoComment } {
   const item = liveItem(f, id)
   const body = normalizeTodoComment(text)
@@ -391,9 +423,43 @@ export function commentTodo(
     by,
     at: now,
     ...(replyTo ? { replyTo } : {}),
-    ...(asked.length > 0 ? { asked } : {})
+    ...(asked.length > 0 ? { asked } : {}),
+    ...(o.routing ? { routing: true as const } : {})
   }
   return { file: put(f, { ...item, comments: [...(item.comments ?? []), comment] }, now, { action: 'commented', by }), comment }
+}
+
+/**
+ * The routing call is over: the comment asks `asked` (none: nobody). Only restamps the item, as agents already heard of the
+ * comment. Null when the card or the comment went meanwhile (a deleted comment's tombstone holds no flag), so nobody is asked.
+ */
+export function routedComment(
+  f: TodoFile,
+  id: string,
+  commentId: string,
+  asked: string[],
+  now: number
+): { file: TodoFile; item: TodoItem; comment: TodoComment } | null {
+  const item = f.items.find((i) => i.id === id)
+  const c = item?.comments?.find((x) => x.id === commentId)
+  if (!item || item.removed !== null || !c?.routing) return null
+  const { routing: _done, asked: _old, ...rest } = c
+  const kept = asked.slice(0, TODO_COMMENT_ASKS_MAX)
+  const comment: TodoComment = { ...rest, ...(kept.length > 0 ? { asked: kept } : {}) }
+  const next = { ...item, comments: item.comments!.map((x) => (x.id === commentId ? comment : x)) }
+  const file = put(f, next, now)
+  return { file, item: file.items.find((i) => i.id === id)!, comment }
+}
+
+/** Every comment still routing, as after a restart cut its call short: it asks nobody. The same file when none is. */
+export function clearRouting(f: TodoFile, now: number): TodoFile {
+  let out = f
+  for (const item of f.items) {
+    if (!(item.comments ?? []).some((c) => c.routing)) continue
+    const comments = item.comments!.map(({ routing: _gone, ...c }) => c)
+    out = put(out, { ...item, comments }, now)
+  }
+  return out
 }
 
 /** The top-level comment a reply goes under: a reply to a reply joins its thread. A deleted parent still holds its thread. */

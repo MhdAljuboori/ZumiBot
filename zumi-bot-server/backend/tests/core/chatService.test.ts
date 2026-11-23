@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path'
 import { ChatStore } from '../../src/core/store/chatStore'
 import { ApprovalStore } from '../../src/core/store/approvalStore'
 import { checkPrefix, continueText } from '@zumibot/shared/allowRules'
+import { cardAskPrompt } from '@zumibot/shared/todos'
 import { AttachmentStore } from '../../src/core/attachments/attachmentStore'
 import { SnapshotStore } from '../../src/core/files/snapshotStore'
 import { branch } from '../../src/core/chat/versions'
@@ -249,8 +250,7 @@ afterEach(async () => {
 const tick = () => new Promise((r) => setTimeout(r, 20))
 // Queues a hanging script and resolves once its events are in. A fixed tick() before stop() was too short on a slow
 // Windows runner, so the turn was stopped before it had started.
-const hangUntilReady = (events?: RunEvent[]) =>
-  new Promise<void>((ready) => scripts.push({ hang: true, events, ready }))
+const hangUntilReady = (events?: RunEvent[]) => new Promise<void>((ready) => scripts.push({ hang: true, events, ready }))
 const itemsOf = async (id: string) => store.loadItems(id)
 
 describe('ChatService', () => {
@@ -658,7 +658,13 @@ describe('ChatService', () => {
         { kind: 'denied', toolUseId: 't2', reasonType: 'other' },
         { kind: 'toolResult', toolUseId: 't2', content: APPROVAL_REQUIRED, isError: true },
         { kind: 'denied', toolUseId: 'unknown', reasonType: 'classifier' }, // a subagent's call has no top-level row
-        { ...(okResult as object), denials: [{ toolUseId: 't1', toolName: 'Bash' }, { toolUseId: 't2', toolName: 'Bash' }] } as RunEvent
+        {
+          ...(okResult as object),
+          denials: [
+            { toolUseId: 't1', toolName: 'Bash' },
+            { toolUseId: 't2', toolName: 'Bash' }
+          ]
+        } as RunEvent
       ]
     })
     await svc.send(c.id, 'go')
@@ -2159,7 +2165,7 @@ describe('ChatService', () => {
       expect((await itemsOf(c.id)).find((i) => i.type === 'tool')).toMatchObject({ blocked: true })
     })
 
-    it('deny: the user\'s Deny never sets blockedBy', async () => {
+    it("deny: the user's Deny never sets blockedBy", async () => {
       const c = await store.create('helper', dir)
       const { p } = await hold(c.id, [tool('t1'), req('r1', 't1')])
       svc.answer(c.id, 'r1', 'deny')
@@ -2839,8 +2845,8 @@ describe('agentTurn', () => {
     })
     // init queues a session save that blocks; the assistant text's save queues behind it
     const up = hangUntilReady([
-        { kind: 'init', sessionId: 's1' },
-        { kind: 'assistantText', text: 'one' }
+      { kind: 'init', sessionId: 's1' },
+      { kind: 'assistantText', text: 'one' }
     ])
     const r = svc.claim(c.id)
     const ref = memRef()
@@ -2871,7 +2877,9 @@ describe('agentTurn', () => {
     const c = await store.create('helper', dir)
     const input = { command: 'ls' }
     const turnIn = async (scope: string, requestId: string, act?: () => void) => {
-      const up = hangUntilReady([{ kind: 'permissionRequest', requestId, toolName: 'Bash', input, description: 'd', reason: 'r', toolUseId: null }])
+      const up = hangUntilReady([
+        { kind: 'permissionRequest', requestId, toolName: 'Bash', input, description: 'd', reason: 'r', toolUseId: null }
+      ])
       const r = svc.claim(c.id)
       const p = svc.agentTurn(c.id, r, spec({ allowScope: scope }), memRef())
       await up
@@ -2897,7 +2905,9 @@ describe('agentTurn', () => {
     const c = await store.create('helper', dir)
     const input = { command: 'ls' }
     const turnIn = async (scope: string, requestId: string, act?: () => void) => {
-      const up = hangUntilReady([{ kind: 'permissionRequest', requestId, toolName: 'Bash', input, description: 'd', reason: 'r', toolUseId: null }])
+      const up = hangUntilReady([
+        { kind: 'permissionRequest', requestId, toolName: 'Bash', input, description: 'd', reason: 'r', toolUseId: null }
+      ])
       const r = svc.claim(c.id)
       const p = svc.agentTurn(c.id, r, spec({ allowScope: scope }), memRef())
       await up
@@ -3103,10 +3113,10 @@ describe('agentTurn side by side', () => {
     const itemsOfTurn = async (o: Partial<TurnSpec>) => {
       const c = await store.create('helper', dir)
       const up = hangUntilReady([
-          { kind: 'toolUse', id: 't1', name: 'Bash', input: {} },
-          req('r1', {}),
-          { kind: 'assistantText', text: 'hi' },
-          { kind: 'controlUnknown', requestId: null, subtype: 'x' }
+        { kind: 'toolUse', id: 't1', name: 'Bash', input: {} },
+        req('r1', {}),
+        { kind: 'assistantText', text: 'hi' },
+        { kind: 'controlUnknown', requestId: null, subtype: 'x' }
       ])
       const r = svc.claim(c.id)
       const ref = memRef()
@@ -3521,18 +3531,18 @@ it('browser transcript summaries keep the original private permission input for 
   const c = await store.create('helper', dir)
   const input = { text: 'private-typed-value', ref: 'ref1' }
   const up = hangUntilReady([
-      { kind: 'toolUse', id: 'browser-tool', name: 'mcp__zumibot_browser__browser_type', input },
-      {
-        kind: 'permissionRequest',
-        requestId: 'browser-permission',
-        toolName: 'mcp__zumibot_browser__browser_type',
-        input,
-        description: 'private-typed-value',
-        reason: 'private-typed-value',
-        toolUseId: 'browser-tool'
-      },
-      { kind: 'toolResult', toolUseId: 'browser-tool', content: 'private-page-observation-or-base64', isError: false }
-    ])
+    { kind: 'toolUse', id: 'browser-tool', name: 'mcp__zumibot_browser__browser_type', input },
+    {
+      kind: 'permissionRequest',
+      requestId: 'browser-permission',
+      toolName: 'mcp__zumibot_browser__browser_type',
+      input,
+      description: 'private-typed-value',
+      reason: 'private-typed-value',
+      toolUseId: 'browser-tool'
+    },
+    { kind: 'toolResult', toolUseId: 'browser-tool', content: 'private-page-observation-or-base64', isError: false }
+  ])
   const done = svc.send(c.id, 'go')
   await up
   await tick()
@@ -4726,8 +4736,8 @@ describe('context meter and compact', () => {
   it('the window an earlier turn reported shows while the next turn runs', async () => {
     const c = await chatWithSession()
     const up = hangUntilReady([
-        { kind: 'init', sessionId: 's1' },
-        { kind: 'context', model: 'm', tokens: 70_000 }
+      { kind: 'init', sessionId: 's1' },
+      { kind: 'context', model: 'm', tokens: 70_000 }
     ])
     const p = svc.send(c.id, 'two')
     await up
@@ -4755,8 +4765,8 @@ describe('context meter and compact', () => {
   it('shows compacting while the CLI compacts, and never once the turn ends', async () => {
     const c = await chatWithSession()
     const up = hangUntilReady([
-        { kind: 'init', sessionId: 's1' },
-        { kind: 'compacting', on: true }
+      { kind: 'init', sessionId: 's1' },
+      { kind: 'compacting', on: true }
     ])
     const p = svc.send(c.id, 'two')
     await up
@@ -4942,15 +4952,15 @@ describe('turn-end signal', () => {
   it('names the approvals push after the agent', async () => {
     const c = await store.create('helper', dir)
     const up = hangUntilReady([
-        {
-          kind: 'permissionRequest',
-          requestId: 'r1',
-          toolName: 'Bash',
-          input: { command: 'ls' },
-          description: 'd',
-          reason: 'r',
-          toolUseId: null
-        }
+      {
+        kind: 'permissionRequest',
+        requestId: 'r1',
+        toolName: 'Bash',
+        input: { command: 'ls' },
+        description: 'd',
+        reason: 'r',
+        toolUseId: null
+      }
     ])
     const p = svc.send(c.id, 'go')
     await up
@@ -5992,6 +6002,54 @@ describe('chat to-dos', () => {
     expect((await store.loadItems(c.id)).filter((i) => i.type === 'user')[1]).not.toHaveProperty('workflowSent')
   })
 
+  describe('cardAsk', () => {
+    const ask = { todoId: 't1', title: 'Card', before: 'earlier', after: 'later' }
+
+    it('stores only the comment with the card ask on the user item, and the CLI reads it with the context', async () => {
+      const c = await store.create('helper', dir)
+      await svc.send(c.id, 'comment', [], undefined, undefined, undefined, undefined, undefined, undefined, ask)
+      const user = (await store.loadItems(c.id)).find((i) => i.type === 'user')!
+      expect(user).toMatchObject({ text: 'comment', cardAsk: ask })
+      expect(String(calls[0].stdin).startsWith(cardAskPrompt(ask, 'comment'))).toBe(true)
+    })
+
+    it('a Resend keeps it, and an edit keeps it with the edited comment', async () => {
+      const c = await store.create('helper', dir)
+      await svc.send(c.id, 'comment', [], undefined, undefined, undefined, undefined, undefined, undefined, ask)
+      const user = (await store.loadItems(c.id)).find((i) => i.type === 'user')!
+      await svc.rerun(c.id, user.id, null)
+      const again = (await store.loadItems(c.id)).find((i) => i.type === 'user')!
+      expect(again).toMatchObject({ text: 'comment', cardAsk: ask })
+      expect(String(calls[1].stdin).startsWith(cardAskPrompt(ask, 'comment'))).toBe(true)
+      await svc.rerun(c.id, again.id, 'edited')
+      const edited = (await store.loadItems(c.id)).find((i) => i.type === 'user')!
+      expect(edited).toMatchObject({ text: 'edited', cardAsk: ask })
+      expect(String(calls[2].stdin).startsWith(cardAskPrompt(ask, 'edited'))).toBe(true)
+    })
+
+    it('a routed ask reads the comment as written; a Resend keeps it, an edit drops it and reads the edited text', async () => {
+      const routed = { ...ask, comment: '@helper ask @other to check' }
+      const c = await store.create('helper', dir)
+      await svc.send(c.id, 'Ask @other to check.', [], undefined, undefined, undefined, undefined, undefined, undefined, routed)
+      const user = (await store.loadItems(c.id)).find((i) => i.type === 'user')!
+      expect(user).toMatchObject({ text: 'Ask @other to check.', cardAsk: routed })
+      expect(String(calls[0].stdin).startsWith(cardAskPrompt(ask, '@helper ask @other to check'))).toBe(true)
+      await svc.rerun(c.id, user.id, null)
+      const again = (await store.loadItems(c.id)).find((i) => i.type === 'user')!
+      expect(again).toMatchObject({ cardAsk: routed })
+      await svc.rerun(c.id, again.id, 'Ask @other to check today.')
+      const edited = (await store.loadItems(c.id)).find((i) => i.type === 'user')!
+      expect((edited as { cardAsk?: unknown }).cardAsk).toEqual(ask)
+      expect(String(calls[2].stdin).startsWith(cardAskPrompt(ask, 'Ask @other to check today.'))).toBe(true)
+    })
+
+    it('a plain send stores none', async () => {
+      const c = await store.create('helper', dir)
+      await svc.send(c.id, 'typed')
+      expect((await store.loadItems(c.id)).find((i) => i.type === 'user')).not.toHaveProperty('cardAsk')
+    })
+  })
+
   it('a send without the flag stores none and gets no note when the agent saw the list', async () => {
     const c = await store.create('helper', dir)
     await store.update(c.id, { sessionId: 's1' })
@@ -6642,7 +6700,18 @@ describe('allowBlocked', () => {
   const RULE = 'Bash(git branch -D:*)'
   let approvals: ApprovalStore
   const blockedTool = (over: Record<string, unknown> = {}): ChatItem =>
-    ({ type: 'tool', id: 't1', name: 'Bash', input: { command: CMD }, result: 'denied', isError: true, blocked: true, blockedBy: 'classifier', ts: 1, ...over }) as ChatItem
+    ({
+      type: 'tool',
+      id: 't1',
+      name: 'Bash',
+      input: { command: CMD },
+      result: 'denied',
+      isError: true,
+      blocked: true,
+      blockedBy: 'classifier',
+      ts: 1,
+      ...over
+    }) as ChatItem
   const rulesWith = (): ChatServiceDeps['agentRules'] => ({
     ...rules,
     cli: (a) => approvals.cliRules(a),
@@ -6744,7 +6813,7 @@ describe('allowBlocked', () => {
     expect((await itemsOf(c.id))[0]).not.toHaveProperty('allowedAs')
     expect(pushes.some((p) => p.kind === 'items')).toBe(false)
   })
-  it('a room: the row\'s agent is item.agent and the text starts with @member', async () => {
+  it("a room: the row's agent is item.agent and the text starts with @member", async () => {
     const g = await store.createGroup(['ui', 'wk'], dir)
     approvals = new ApprovalStore(dir)
     await approvals.load()
@@ -6790,7 +6859,11 @@ describe('allowBlocked', () => {
     await refused(c, checkPrefix('sh -c', CMD)!, ['sh -c'])
     await refused(c, checkPrefix('npm test', CMD)!, ['git branch -D', 'npm test'], 'agent')
     await refused(c, 'between 1 and 10', [])
-    await refused(c, 'between 1 and 10', Array.from({ length: 11 }, (_, i) => `git branch -D${i}`))
+    await refused(
+      c,
+      'between 1 and 10',
+      Array.from({ length: 11 }, (_, i) => `git branch -D${i}`)
+    )
   })
 })
 
@@ -12224,9 +12297,7 @@ describe('ack line', () => {
     expect(items[0]).toMatchObject({ type: 'user', text: 'what is due?', ack: 'Looking into it now.' })
     expect(items.map((i) => i.type)).toEqual(['user', 'assistant'])
     expect(JSON.stringify(sent)).not.toContain('Looking into it now.')
-    expect(
-      pushes.some((p) => p.kind === 'items' && p.items.some((i) => i.type === 'user' && i.ack === 'Looking into it now.'))
-    ).toBe(true)
+    expect(pushes.some((p) => p.kind === 'items' && p.items.some((i) => i.type === 'user' && i.ack === 'Looking into it now.'))).toBe(true)
   })
 
   it('drops a line that comes after the turn ended', async () => {

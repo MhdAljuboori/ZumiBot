@@ -57,6 +57,32 @@ describe('readAs with /todo', () => {
   })
 })
 
+describe('readAs with a card ask', () => {
+  const ask: User = {
+    type: 'user',
+    id: 'u6',
+    text: 'hi\nthere',
+    ts: 6,
+    cardAsk: { todoId: 't', title: 'T', before: 'B\n\n', after: '\n\nA' }
+  }
+
+  it('wraps the quoted comment in the card context for every reader', () => {
+    for (const reader of ['wk', 'rv']) expect(readAs(ask, reader)).toBe('B\n\n> hi\n> there\n\nA')
+  })
+
+  it('quotes the comment as written when the text is the line written for the agent', () => {
+    const routed: User = { ...ask, text: 'Ask @b to check.', cardAsk: { ...ask.cardAsk!, comment: '@a ask @b to check' } }
+    expect(readAs(routed, 'a')).toBe('B\n\n> @a ask @b to check\n\nA')
+  })
+
+  it('withCommands rewrites it and keeps the card ask on the item', () => {
+    const out = withCommands([ask], 'x')[0] as User
+    expect(out.text).toBe('B\n\n> hi\n> there\n\nA')
+    expect(out.cardAsk).toEqual(ask.cardAsk)
+    expect(ask.text).toBe('hi\nthere')
+  })
+})
+
 describe('withCommands', () => {
   it('rewrites a /todo message for every reader and leaves the stored item alone', () => {
     const todo: User = { type: 'user', id: 'u3', text: '/todo plan', ts: 3, todo: true }

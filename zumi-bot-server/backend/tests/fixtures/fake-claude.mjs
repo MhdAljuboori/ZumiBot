@@ -50,7 +50,8 @@ const firstLine = new Promise(r => { resolveFirst = r })
 const mcpChildren = []
 
 process.on('exit', () => {
-  if (process.env.FAKE_STDIN_OUT) writeFileSync(process.env.FAKE_STDIN_OUT, Buffer.concat(chunks))
+  // A run's stdin only, as for env and argv above: the ack line's one-shot call would overwrite it.
+  if (process.env.FAKE_STDIN_OUT && streams) writeFileSync(process.env.FAKE_STDIN_OUT, Buffer.concat(chunks))
   // The real CLI stops its MCP servers when it ends; none may outlive the run.
   for (const c of mcpChildren) c.kill()
 })

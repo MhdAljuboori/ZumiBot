@@ -58,7 +58,8 @@ import type { MemoryStore } from '../core/memory/memoryStore'
 import type { MemoryTurns } from '../core/memory/memoryTurns'
 import type { TodoService } from '../core/todos/todoService'
 import { TaskCards } from '../core/todos/taskCards'
-import { CommentAsks } from '../core/todos/commentAsks'
+import { CommentAsks, type Routed } from '../core/todos/commentAsks'
+import type { RouteInput } from '../core/todos/commentRouting'
 import { AttemptSets } from '../core/attempts/attemptSets'
 import type { PullRequests } from '../core/github/pullRequests'
 import type { PrWatcher } from '../core/github/prWatcher'
@@ -259,6 +260,7 @@ export interface HandlerDeps {
     | 'userKeepAttempt'
     | 'userDropAttempts'
     | 'userComment'
+    | 'commentRouted'
     | 'userEditComment'
     | 'userDeleteComment'
     | 'agentReply'
@@ -297,6 +299,8 @@ export interface HandlerDeps {
   }
   // What Codex reports here (found, models). Absent: reported as not found.
   codexInfo?(): Promise<CodexInfo>
+  /** Which of the agents a card comment names it is addressed to, with a line for each (Haiku). Absent: all are asked. */
+  routeComment?(input: RouteInput): Promise<Routed | null>
   // What each engine can do (default engineCaps); a test turns a flag off through it.
   caps?(engine: Engine): EngineCaps
   account(): Promise<ClaudeAccount>
@@ -1093,7 +1097,8 @@ export function createHandlers(d: HandlerDeps): Handlers {
     store: chats,
     todos: d.todos,
     files: attachments,
-    submit: (chatId, text, messageId, staged) => tasks.submit(chatId, text, staged, undefined, messageId),
+    submit: (chatId, text, messageId, staged, cardAsk) =>
+      tasks.submit(chatId, text, staged, undefined, messageId, undefined, undefined, 'user', undefined, { cardAsk }),
     agents: () => agents.list(),
     commandsOf: (agent) => agents.commandsOf(agent),
     isFolder: isDir,
@@ -1103,7 +1108,8 @@ export function createHandlers(d: HandlerDeps): Handlers {
     push: (p) => d.push(p),
     newId: () => randomUUID(),
     // Read per call, so a test that swaps `d.caps` after building the handlers is still honoured.
-    caps: (e) => (d.caps ?? engineCaps)(e)
+    caps: (e) => (d.caps ?? engineCaps)(e),
+    ...(d.routeComment ? { route: (input: RouteInput) => d.routeComment!(input) } : {})
   })
   // Fire and forget: archive and delete must not wait on git, and never fail on it (release logs its own errors).
   const releaseInBackground = (meta: ChatMeta, deleted: boolean): void => {

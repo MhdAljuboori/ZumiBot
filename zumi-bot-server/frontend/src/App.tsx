@@ -2379,8 +2379,8 @@ export default function App() {
   // What a to-do card reads: every chat (an archived task chat is still there), the approval counts, and a way to its chat.
   // Memoized so card rows do not redraw on every streamed token; `navigate` reads only refs, so an older one is the same.
   const todoCardEnv = useMemo<TodoCardEnv>(
-    () => ({ agents, chats, approvals, openChat: (chatId) => navigate(() => openChat(chatId)) }),
-    [agents, chats, approvals, openChat]
+    () => ({ agents, chats, approvals, board: board.board, openChat: (chatId) => navigate(() => openChat(chatId)) }),
+    [agents, chats, approvals, board.board, openChat]
   )
   const railActive: RailEntry =
     settings !== null ? 'settings' : inboxPage !== null ? 'inbox' : todosPage !== null ? 'todos' : archive ? 'archived' : mode

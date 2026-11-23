@@ -9,6 +9,7 @@ import {
   normalizeTodoText,
   openTodos,
   boardOf,
+  cardAskPrompt,
   removeTodos,
   restoreTodos,
   splitTodo,
@@ -207,5 +208,11 @@ describe('boardOf', () => {
     expect(b.done.map((i) => i.text)).toEqual(['d'])
     expect(b.doneTotal).toBe(2)
     expect(b.rev).toBe(f.rev)
+  })
+})
+
+describe('cardAskPrompt', () => {
+  it('puts the quoted comment between the parts', () => {
+    expect(cardAskPrompt({ before: 'B\n\n', after: '\n\nA' }, 'one\ntwo')).toBe('B\n\n> one\n> two\n\nA')
   })
 })

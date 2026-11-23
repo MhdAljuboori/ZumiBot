@@ -114,6 +114,10 @@
 .todo-comment-ask-state {
   color: var(--fg-muted);
 }
+/* While the routing call picks which agents the comment asks: a spinner where a face goes. */
+.todo-comment-ask.routing {
+  padding: 3px 8px 3px 6px;
+}
 .todo-comment-ask.working .todo-comment-ask-state,
 .todo-comment-ask.starting .todo-comment-ask-state {
   color: var(--agent-orange-ink); /* --status-progress as text: the fill is 2.8:1 on white */

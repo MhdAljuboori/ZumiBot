@@ -29,7 +29,8 @@
 //   todo-card-notes-input, todo-card-save, todo-card-notes, todo-card-file-input, todo-card-paste, todo-card-file, todo-give,
 //   todo-give-agent, todo-give-pick, todo-give-folder, todo-give-button, todo-question (+ data-answered), todo-option,
 //   todo-card-send-answers, todo-card-review, todo-card-reply, todo-card-reply-send, todo-card-open-chat, inbox-card
-//   (+ data-kind), inbox-open, inbox-answered, agent-message, user-message, todo-change, approval-card.
+//   (+ data-kind), inbox-open, inbox-answered, agent-message, user-message, todo-change, approval-card, todo-comment-ask,
+//   card-ask (+ card-ask-status, card-ask-title, card-ask-open), full-prompt-toggle, full-prompt.
 // Stored state read: <dataDir>/chats.json, <dataDir>/todos.json (the board), <dataDir>/chats/<id>.todos.json (gone).
 
 import { randomUUID } from 'node:crypto'
@@ -229,6 +230,8 @@ async function main() {
   await h.restartServer()
   await page.goto(`${h.origin}/todos`)
   await page.locator(tid('todo-board')).waitFor({ timeout: T })
+  // The columns draw once the board's first fetch answers, after the page itself.
+  await page.locator(tid('board-col')).first().waitFor({ timeout: T })
   const cols = await page.locator(tid('board-col')).evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))
   assert(JSON.stringify(cols) === JSON.stringify(['New', 'To do', 'Blocked', 'In progress', 'In review', 'Done']), `the columns: ${cols}`)
   await inCol('m1', 'new', 'the migrated card in New')
@@ -835,7 +838,13 @@ async function main() {
     T,
     'the user reply to join the thread'
   )
-  // A reply with no @ goes on with the thread's agent, which answers it in the same chat.
+  // A reply with no @ goes on with the thread's agent, which answers it in the same chat. Who it asks lands once the
+  // routing call is over (the fake claude gives it no answer, so every candidate is asked).
+  await waitFor(
+    async () => (await stored('m2')).comments.find((c) => c.text === 'Thanks!')?.routing === undefined,
+    T,
+    'the plain reply to finish picking who to ask'
+  )
   const thanks14 = (await stored('m2')).comments.find((c) => c.text === 'Thanks!')
   assert(thanks14.asked?.[0] === AGENT, `the plain reply did not ask the thread's agent: ${JSON.stringify(thanks14)}`)
   await waitFor(
@@ -850,6 +859,49 @@ async function main() {
     'the thread to show all three replies'
   )
   await shot(page, '14-mention-thread')
+  // The ask chip's Open chat link opens the card's chat. There the user's bubble is only the comment, the card sits
+  // above it, and the full prompt the agent read is one toggle away.
+  await drawer14.locator(`${tid('todo-comment-ask')} .inbox-link`).first().click()
+  const ask14 = page.locator(tid('card-ask')).first()
+  await ask14.waitFor({ timeout: T })
+  const user14 = page.locator(tid('user-message')).first()
+  await user14.waitFor({ timeout: T })
+  const flat = (t) => (t ?? '').replace(/\s+/g, ' ').trim()
+  const askText = flat(await ask14.textContent())
+  assert(askText.includes('Task card') && askText.includes('Approve the budget sheet'), `the card-ask: ${askText}`)
+  assert(flat(await ask14.locator(tid('card-ask-status')).textContent()) !== '', 'the card-ask shows no status')
+  const bubble14 = flat(await user14.locator('.bubble.user').textContent())
+  assert(!bubble14.includes('The user mentioned you'), `the bubble shows the wrapper: ${bubble14}`)
+  // A mention inside the comment is a chip, as on the card, the chat's own agent too.
+  assert(bubble14 === `Please ${AGENT_LABEL} /card make a card for this`, `the bubble is not just the comment: ${bubble14}`)
+  assert(
+    (await user14.locator(`.bubble.user ${tid('mention')}[data-agent-name="${AGENT}"]`).count()) === 1,
+    "the bubble does not draw the agent's mention as a chip"
+  )
+  // The card sits above the bubble.
+  const cardBox = await ask14.boundingBox()
+  const bubbleBox = await user14.locator('.bubble.user').boundingBox()
+  assert(cardBox.y + cardBox.height <= bubbleBox.y, 'the card is not above the bubble')
+  assert(await user14.locator(tid('full-prompt')).count() === 0, 'the full prompt is open before the click')
+  await user14.locator(tid('full-prompt-toggle')).click()
+  const full14 = await user14.locator(tid('full-prompt')).textContent()
+  assert(
+    full14.includes('The user mentioned you in a comment on the task card') &&
+      full14.includes("The user's comment:") &&
+      full14.includes('> Please @e2e-board-builder /card make a card for this'),
+    `the full prompt: ${full14}`
+  )
+  await shot(page, '14-card-ask')
+  if (SHOTS) {
+    await page.emulateMedia({ colorScheme: 'dark' }) // the app's theme follows the system by default
+    await shot(page, '14-card-ask-dark')
+    await page.emulateMedia({ colorScheme: 'light' })
+  }
+  // Open card → lands on the card's page with its drawer open.
+  await ask14.locator(tid('card-ask-open')).click()
+  await drawer.waitFor({ timeout: T })
+  assert(new URL(page.url()).pathname === '/todos/m2', `Open card went to ${page.url()}`)
+  assert((await drawer.locator(tid('todo-card')).textContent()).includes('Approve the budget sheet'), 'the drawer is not the card m2')
   await page.click(tid('board-drawer-close'))
   ok(
     '14 an @agent in a comment ran in its own chat for the card, its answer was posted as a threaded reply, and a plain reply in the thread asked it again'
