@@ -394,16 +394,18 @@ export function VisitPanel({ run, visit, step, now, named = false, answerable, a
           </span>
         )}
         {named && <span className="wf-visit-name">{step?.name.trim() || 'A step'}</span>}
-        <span className="wf-visit-n">Visit {visit.n}</span>
-        <span className={`wf-visit-status ${state}`} data-testid="wf-visit-status">
-          {stateLabel(state)}
-        </span>
-        {ended !== undefined && <span className="wf-visit-time">{durationText(visit.startedAt, ended)}</span>}
-        {cost && (
-          <span className="wf-visit-cost" data-testid="wf-visit-cost" data-tip="API estimate, in USD">
-            {cost}
+        <span className="wf-visit-meta">
+          <span className="wf-visit-n">Visit {visit.n}</span>
+          <span className={`wf-visit-status ${state}`} data-testid="wf-visit-status">
+            {stateLabel(state)}
           </span>
-        )}
+          {ended !== undefined && <span className="wf-visit-time">{durationText(visit.startedAt, ended)}</span>}
+          {cost && (
+            <span className="wf-visit-cost" data-testid="wf-visit-cost" data-tip="API estimate, in USD">
+              {cost}
+            </span>
+          )}
+        </span>
       </header>
       {waitingApproval && answerable && step.kind === 'approval' && <ApprovalBox visit={visit} step={step} onApprove={actions.approve} />}
       {until !== null && (
