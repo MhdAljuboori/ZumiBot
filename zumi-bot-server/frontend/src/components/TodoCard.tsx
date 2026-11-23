@@ -14,6 +14,7 @@ import {
   agentAssignee,
   commentThreads,
   liveComments,
+  type TodoBoard,
   type TodoComment,
   type TodoItem,
   type TodoQuestion,
@@ -61,6 +62,8 @@ export interface TodoCardEnv {
   agents: AgentSummary[]
   chats: ChatMeta[]
   approvals: Record<string, number>
+  /** The task board, once fetched: the chat's inline card reads its card's live title and status from it. */
+  board?: TodoBoard | null
   openChat(chatId: string): void
 }
 export const TodoCardEnvContext = createContext<TodoCardEnv | null>(null)
@@ -657,6 +660,14 @@ function CommentRow({
             </div>
           )}
         </div>
+        {c.routing && !gone && (
+          <div className="todo-comment-asks">
+            <span className="todo-comment-ask routing" role="status" data-testid="todo-comment-routing">
+              <span className="spinner" aria-hidden="true" />
+              <span className="todo-comment-ask-state">Picking who to ask…</span>
+            </span>
+          </div>
+        )}
         {asks.length > 0 && (
           <div className="todo-comment-asks">
             {asks.map((a) => (

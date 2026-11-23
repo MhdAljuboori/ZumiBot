@@ -15,6 +15,7 @@ import type {
 } from '@zumibot/shared/types'
 import { isGroup, NOTICE_TEXT } from '@zumibot/shared/types'
 import type { SentCommand } from '@zumibot/shared/commands'
+import { withoutComment, type CardAsk } from '@zumibot/shared/todos'
 import type { ApprovalRisk } from '@zumibot/shared/jev'
 import type { TurnEnd } from '@zumibot/shared/notify'
 import { checkFeedback, PLAN_TOOL } from '@zumibot/shared/plans'
@@ -1248,11 +1249,12 @@ export class ChatService {
     command?: SentCommand,
     todo?: true,
     auto?: true,
-    workflowSent?: WorkflowSent
+    workflowSent?: WorkflowSent,
+    cardAsk?: CardAsk
   ): Promise<void> {
     try {
       const r = this.claim(chatId)
-      r.done = this.sendTurn(chatId, text, attachments, replyTo, messageId, command, todo, auto, workflowSent, r).finally(() =>
+      r.done = this.sendTurn(chatId, text, attachments, replyTo, messageId, command, todo, auto, workflowSent, cardAsk, r).finally(() =>
         this.endSingle(chatId, r)
       )
       return r.done
@@ -1421,8 +1423,13 @@ export class ChatService {
     const item = items[at]
     const agent = item?.type === 'tool' ? (item.agent ?? meta.agentName) : ''
     if (
-      item?.type !== 'tool' || item.name !== 'Bash' || item.blockedBy !== 'classifier' ||
-      agent === ZUMI_BOT_NAME || meta.workflow || meta.workflowTest !== undefined || !agent
+      item?.type !== 'tool' ||
+      item.name !== 'Bash' ||
+      item.blockedBy !== 'classifier' ||
+      agent === ZUMI_BOT_NAME ||
+      meta.workflow ||
+      meta.workflowTest !== undefined ||
+      !agent
     ) {
       throw new Error(NOT_ALLOWABLE)
     }
@@ -1557,6 +1564,7 @@ export class ChatService {
     todo: true | undefined,
     auto: true | undefined,
     workflowSent: WorkflowSent | undefined,
+    cardAsk: CardAsk | undefined,
     r: Running
   ): Promise<void> {
     const { store, now, newId } = this.d
@@ -1573,7 +1581,8 @@ export class ChatService {
       ...(quoted ? { replyTo: quoted.id } : {}),
       ...(command ? { command } : {}),
       ...(todo ? { todo } : {}),
-      ...(workflowSent ? { workflowSent } : {})
+      ...(workflowSent ? { workflowSent } : {}),
+      ...(cardAsk ? { cardAsk } : {})
     }
     const title = meta.title === '' ? { title: makeTitle(text.trim() ? text : (attachments[0]?.name ?? '')) } : {}
     await this.runTurn(chatId, r, meta, {
@@ -1615,7 +1624,10 @@ export class ChatService {
       // Resend keeps the flag the message had; an edit has its own, or none.
       ...((text === null ? old.todo : todo) ? { todo: true as const } : {}),
       // Resend keeps the workflow that sent it; an edit is the user's own text.
-      ...(text === null && old.workflowSent ? { workflowSent: old.workflowSent } : {})
+      ...(text === null && old.workflowSent ? { workflowSent: old.workflowSent } : {}),
+      // Resend and edit both keep the card context: an edited comment is still read inside its card. An edit drops the
+      // comment as first written, so the edited text is what the agent reads.
+      ...(old.cardAsk ? { cardAsk: text === null ? old.cardAsk : withoutComment(old.cardAsk) } : {})
     }
     const b = branch(stored, await store.loadVersions(chatId), userId, user)
     const shown = b.items.slice(0, -1)

@@ -11,6 +11,7 @@ import {
   boardColumn,
   changesSince,
   checkTodos,
+  clearRouting,
   commentTodo,
   deleteComment,
   editComment,
@@ -22,6 +23,7 @@ import {
   removeTodos,
   reopenTodo,
   reviewTodo,
+  routedComment,
   seenKey,
   setStatus,
   splitSeenKey,
@@ -344,6 +346,34 @@ describe('comments', () => {
     expect(gone.items[0].comments![0]).toEqual({ id: cid, text: '', by: 'user', at: 5, deletedAt: 9 })
     expect(liveComments(gone.items[0]).map((c) => c.text)).toEqual(['From the agent'])
     expect(() => deleteComment(gone, id, cid, 'user', 10)).toThrow('This comment was deleted.')
+  })
+
+  it('fills in who a routing comment asks, restamping the card only, and asks nobody for one deleted meanwhile', () => {
+    const { f, id } = board()
+    const posted = commentTodo(f, id, '@a and @b look', 'user', 5, nid, { routing: true })
+    expect(posted.comment).toMatchObject({ routing: true })
+    expect(posted.comment).not.toHaveProperty('asked')
+    const r = routedComment(posted.file, id, posted.comment.id, ['b'], 7)!
+    expect(r.comment).toEqual({ id: posted.comment.id, text: '@a and @b look', by: 'user', at: 5, asked: ['b'] })
+    expect(r.item.comments![0]).toEqual(r.comment)
+    expect(r.file.rev).toBe(posted.file.rev) // agents heard of the comment when it was posted
+    expect(r.item.updatedAt).toBe(7)
+    expect(routedComment(r.file, id, posted.comment.id, ['a'], 8)).toBeNull() // routed once only
+    expect(routedComment(posted.file, id, posted.comment.id, [], 7)!.comment).not.toHaveProperty('asked')
+    const gone = deleteComment(posted.file, id, posted.comment.id, 'user', 6).file
+    expect(gone.items[0].comments![0]).not.toHaveProperty('routing')
+    expect(routedComment(gone, id, posted.comment.id, ['b'], 7)).toBeNull()
+  })
+
+  it('clears every routing flag at start, and leaves a board with none as it is', () => {
+    const { f, id } = board()
+    const a = commentTodo(f, id, '@a look', 'user', 5, nid, { routing: true })
+    const b = commentTodo(a.file, id, 'plain', 'user', 6, nid)
+    const cleared = clearRouting(b.file, 9)
+    expect(cleared.items[0].comments!.map((c) => c.routing)).toEqual([undefined, undefined])
+    expect(cleared.items[0].comments![0]).not.toHaveProperty('asked')
+    expect(cleared.rev).toBe(b.file.rev)
+    expect(clearRouting(cleared, 10)).toBe(cleared)
   })
 
   it('merges two copies by id: the later edit wins and a deletion always does', () => {

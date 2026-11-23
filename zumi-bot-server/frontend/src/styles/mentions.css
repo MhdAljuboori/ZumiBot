@@ -299,3 +299,82 @@ button.command-chip:not(.broken):hover {
 .member-row.gone .bot {
   opacity: 0.5;
 }
+
+/* The task card a comment was written on, over its bubble: a chip-sized panel like .user-from, not a card of its own.
+   The status pill follows .board-tag.status: orange and yellow are too light to mix to 4.5:1 in light, so they take
+   their agent inks; with no column (Card removed has its own rule) and for New the text is plain --fg. */
+.card-ask {
+  --col-dot: var(--status-new);
+  box-sizing: border-box;
+  max-width: min(420px, 100%);
+  min-width: 0;
+  padding: 5px 10px 6px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--fg-muted);
+}
+.card-ask[data-col='todo'] {
+  --col-dot: var(--status-todo);
+  --col-ink: color-mix(in srgb, var(--col-dot) 70%, var(--fg));
+}
+.card-ask[data-col='blocked'] {
+  --col-dot: var(--status-blocked);
+  --col-ink: color-mix(in srgb, var(--col-dot) 70%, var(--fg));
+}
+.card-ask[data-col='progress'] {
+  --col-dot: var(--status-progress);
+  --col-ink: var(--agent-orange-ink);
+}
+.card-ask[data-col='review'] {
+  --col-dot: var(--status-review);
+  --col-ink: var(--agent-yellow-ink);
+}
+.card-ask[data-col='done'] {
+  --col-dot: var(--status-done);
+  --col-ink: color-mix(in srgb, var(--col-dot) 70%, var(--fg));
+}
+.card-ask-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.card-ask-meta .glyph {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+.card-ask-status {
+  padding: 0 6px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--col-dot) 22%, transparent);
+  color: var(--col-ink, var(--fg));
+  font-weight: 600;
+  white-space: nowrap;
+}
+.card-ask-status.removed {
+  background: none;
+  color: var(--fg-muted);
+  font-weight: 400;
+  font-style: italic;
+}
+.card-ask-open {
+  margin-inline-start: auto;
+  padding-inline-start: 8px;
+  color: var(--link);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.card-ask-open:hover {
+  text-decoration: underline;
+}
+.card-ask-title {
+  margin-top: 1px;
+  overflow: hidden;
+  color: var(--fg);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -71,8 +71,8 @@ export function CommandBubble({
   }
 }
 
-/** The "Full prompt" toggle under a sent command, and the exact text the agent read when it is open. */
-export function FullPrompt({ command, open, onToggle }: { command: SentCommand; open: boolean; onToggle: () => void }) {
+/** The "Full prompt" toggle under a sent command or a card comment, and the exact text the agent read when it is open. */
+export function FullPrompt({ prompt, open, onToggle }: { prompt: string; open: boolean; onToggle: () => void }) {
   return (
     <>
       <button
@@ -87,7 +87,7 @@ export function FullPrompt({ command, open, onToggle }: { command: SentCommand; 
       </button>
       {open && (
         <div className="full-prompt" data-testid="full-prompt">
-          {command.prompt}
+          {prompt}
         </div>
       )}
     </>

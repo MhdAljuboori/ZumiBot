@@ -15,6 +15,7 @@ import { displayName } from '@zumibot/shared/frontmatter'
 import { PLAN_TOOL } from '@zumibot/shared/plans'
 import { QUESTION_TOOL } from '@zumibot/shared/questions'
 import type { EngineCaps } from '@zumibot/shared/engine'
+import { cardAskComment, cardAskPrompt } from '@zumibot/shared/todos'
 import type { AgentSummary, ChatItem, ChatMeta } from '@zumibot/shared/types'
 import { agentColor, agentInk } from '../state/bot'
 import type { SendNotice } from '../state/sendNotices'
@@ -69,6 +70,8 @@ import { PlanCard } from './PlanCard'
 import { QuestionCard } from './QuestionCard'
 import { SentAttachments } from './Attachments'
 import { BotIcon } from './BotIcon'
+import { CardAskCard } from './CardAskCard'
+import { cardAskText } from '../state/cardAsk'
 import { CommandBubble, FullPrompt } from './CommandBubble'
 import { HandoffCard } from './HandoffCard'
 import { Markdown, MentionScope } from './Markdown'
@@ -1022,6 +1025,8 @@ export function MessageList({
   }
 
   const userMentions = { ...scope, memberAgents: group ? memberAgents(group.members, agents) : [], everyone: group !== null }
+  // A single chat leaves its own agent out of the chips; a card comment draws it as the card did.
+  const cardMentions = { ...userMentions, members: [...userMentions.members, chat.agentName] }
 
   // A room's running turn: drawn as its finished turn will be. Its finished messages get their buttons, less Fork and
   // Resend (liveActions); the text still streaming in is no item, so it has none.
@@ -1117,9 +1122,11 @@ export function MessageList({
         onJump={jumpTo}
       />
     )
+    const card = item.cardAsk && <CardAskCard ask={item.cardAsk} />
     const quote =
-      sender || reply ? (
+      card || sender || reply ? (
         <>
+          {card}
           {sender}
           {reply}
         </>
@@ -1147,12 +1154,22 @@ export function MessageList({
         />
       ) : parts ? (
         <WorkflowPrompt parts={parts} link={chat.workflow} mentions={userMentions} {...(from ? { from: from.name } : {})} />
+      ) : item.cardAsk ? (
+        // A card comment reads as on the card: without its opening address, every other mention a chip, this agent's too.
+        <div className="bubble user">
+          <UserText text={cardAskText(item.text, chat.agentName)} mentions={cardMentions} />
+        </div>
       ) : (
         <div className="bubble user" {...(from ? { 'data-from': from.name } : {})}>
           <UserText text={item.text} mentions={userMentions} />
         </div>
       ))
-    const footer = hasText && item.command && <FullPrompt command={item.command} open={open} onToggle={flip} />
+    const fullPrompt = item.command
+      ? item.command.prompt
+      : item.cardAsk
+        ? cardAskPrompt(item.cardAsk, cardAskComment(item.cardAsk, item.text))
+        : null
+    const footer = hasText && fullPrompt !== null && <FullPrompt prompt={fullPrompt} open={open} onToggle={flip} />
     // Never reached the chat, or still on its way: dimmed with its warning, and nothing to do to it yet.
     if (failed[item.id] !== undefined || pendingIds.has(item.id)) {
       return (
