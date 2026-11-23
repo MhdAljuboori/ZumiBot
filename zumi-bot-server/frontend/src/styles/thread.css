@@ -133,21 +133,20 @@
 .agent-turn:has(> .agent-turn-body > .msg:last-child) + .room-live {
   margin-top: -12px;
 }
-/* The moderator's placeholder and the queued members: the spinner sits where a turn's icon goes. */
+/* The moderator's placeholder and the queued members start where a turn's name does (its 20px avatar and 9px gap; studio.css
+   redoes it for its bigger tile), and the placeholder reads as a member's working line: its spinner sits where the
+   member's will once the moderator picks, so it never jumps sideways. */
 .room-status {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 9px;
+  gap: 8px;
+  padding-left: 29px;
   color: var(--fg-muted);
   font-size: 12.5px;
 }
-.room-status .spinner {
-  margin: 0 2.5px;
-}
 .room-queue {
   display: block;
-  padding-left: 29px;
 }
 .room-queue-name {
   font-weight: 600;

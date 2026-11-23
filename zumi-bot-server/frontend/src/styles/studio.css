@@ -392,6 +392,10 @@ body {
   gap: 10px;
   padding-top: 5px;
 }
+/* A room's "Thinking…" and queue lines start at the name's 44px, past the 32px tile and its gap. */
+.room-status {
+  padding-left: 44px;
+}
 .agent-turn-name {
   padding-left: 0;
   font-size: 13.5px;
@@ -1096,5 +1100,8 @@ body {
   .agent-turn-avatar > svg {
     width: 20px;
     height: 20px;
+  }
+  .room-status {
+    padding-left: 38px;
   }
 }
