@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net'
 import { homedir, hostname, userInfo } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { isInside } from './core/fsutil'
+import { folderOfRule } from '@zumibot/shared/allowRules'
 import { ZUMI_BOT_NAME } from '@zumibot/shared/zumiBot'
 import { groupKey, type SidebarLayout } from '@zumibot/shared/sidebarLayout'
 import type { ChatMeta, ChatPush } from '@zumibot/shared/types'
@@ -1106,7 +1107,8 @@ export async function startServer(
         cli: (a) => approvals.cliRules(a),
         // Awaited: the user's Allow is stored before the continue message goes out.
         addCli: async (a, rule) => {
-          await approvals.add(a, { key: JSON.stringify(['cli', rule]), toolName: 'Bash', command: null, cli: rule })
+          const toolName = folderOfRule(rule) !== null ? 'Read' : 'Bash'
+          await approvals.add(a, { key: JSON.stringify(['cli', rule]), toolName, command: null, cli: rule })
           approvalsChanged(a)
         },
         // Memory is already updated; the write and the broadcast must not hold up the reply.

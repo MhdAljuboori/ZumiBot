@@ -4,7 +4,7 @@ import os from 'node:os'
 import { join, resolve } from 'node:path'
 import { ChatStore } from '../../src/core/store/chatStore'
 import { ApprovalStore } from '../../src/core/store/approvalStore'
-import { checkPrefix, continueText } from '@zumibot/shared/allowRules'
+import { checkFolder, checkPrefix, continueText } from '@zumibot/shared/allowRules'
 import { cardAskPrompt } from '@zumibot/shared/todos'
 import { AttachmentStore } from '../../src/core/attachments/attachmentStore'
 import { SnapshotStore } from '../../src/core/files/snapshotStore'
@@ -6728,11 +6728,17 @@ describe('allowBlocked', () => {
   }
   const approvalsFile = async (): Promise<string | null> => fs.readFile(join(dir, 'approvals.json'), 'utf8').catch(() => null)
   // A refusal leaves meta, items and approvals.json as they were.
-  const refused = async (c: { id: string }, message: string, prefixes = ['git branch -D'], scope: 'chat' | 'agent' = 'chat') => {
+  const refused = async (
+    c: { id: string },
+    message: string,
+    prefixes = ['git branch -D'],
+    scope: 'chat' | 'agent' = 'chat',
+    folders: string[] = []
+  ) => {
     const meta = JSON.stringify(await store.get(c.id))
     const items = JSON.stringify(await itemsOf(c.id))
     const file = await approvalsFile()
-    await expect(svc.allowBlocked(c.id, 't1', prefixes, scope)).rejects.toThrow(message)
+    await expect(svc.allowBlocked(c.id, 't1', prefixes, scope, folders)).rejects.toThrow(message)
     expect(JSON.stringify(await store.get(c.id))).toBe(meta)
     expect(JSON.stringify(await itemsOf(c.id))).toBe(items)
     expect(await approvalsFile()).toBe(file)
@@ -6864,6 +6870,44 @@ describe('allowBlocked', () => {
       'between 1 and 10',
       Array.from({ length: 11 }, (_, i) => `git branch -D${i}`)
     )
+  })
+
+  describe('folders', () => {
+    const CD = `cd /work/repo && gh pr merge 1 --merge; cd ${os.homedir()} && ls`
+    const FOLDER_RULE = 'Read(//work/repo/**)'
+    const cdTool = (): ChatItem => blockedTool({ input: { command: CD } })
+
+    it('chat scope: stores the folder rule with the prefix rules, in that order, and names both in the text', async () => {
+      const c = await setup([cdTool()])
+      const r = await svc.allowBlocked(c.id, 't1', ['gh pr merge'], 'chat', ['/work/repo'])
+      expect(r.rules).toEqual(['Bash(gh pr merge:*)', FOLDER_RULE])
+      expect(r.text).toBe(continueText(['Bash(gh pr merge:*)', FOLDER_RULE], 'chat', 'helper', null))
+      expect((await store.get(c.id))?.allowRules).toEqual(['Bash(gh pr merge:*)', FOLDER_RULE])
+      expect((await itemsOf(c.id))[0]).toMatchObject({ allowedAs: 'chat' })
+    })
+    it('agent scope: a folder alone is enough, stored as a CLI rule', async () => {
+      const c = await setup([cdTool()])
+      const r = await svc.allowBlocked(c.id, 't1', [], 'agent', ['/work/repo', '/work/repo'])
+      expect(r.rules).toEqual([FOLDER_RULE])
+      expect(approvals.cliRules('helper')).toEqual([FOLDER_RULE])
+    })
+    it('refuses a folder the command does not enter, the home folder, and a bad shape, storing nothing', async () => {
+      const c = await setup([cdTool()])
+      await refused(c, checkFolder('/work/other', CD)!, ['gh pr merge'], 'chat', ['/work/repo', '/work/other'])
+      await refused(c, 'home folder', [], 'agent', [os.homedir()])
+      await refused(c, checkFolder('/work/repo/', CD)!, [], 'chat', ['/work/repo/'])
+    })
+    it('counts prefixes and folders together', async () => {
+      const c = await setup([cdTool()])
+      await refused(c, 'between 1 and 10', [], 'chat', [])
+      await refused(
+        c,
+        'between 1 and 10',
+        Array.from({ length: 10 }, () => 'gh pr merge'),
+        'chat',
+        ['/work/repo']
+      )
+    })
   })
 })
 

@@ -1,4 +1,15 @@
-import { checkPrefix, commandParts, coveredBy, isSafePart, programError, suggestPrefix } from '@zumibot/shared/allowRules'
+import {
+  cdTarget,
+  checkFolder,
+  checkPrefix,
+  commandParts,
+  coveredBy,
+  folderCoveredBy,
+  isGitPart,
+  isSafePart,
+  programError,
+  suggestPrefix
+} from '@zumibot/shared/allowRules'
 import type { ChatItem, ChatMeta } from '@zumibot/shared/types'
 
 type ToolItem = Extract<ChatItem, { type: 'tool' }>
@@ -58,6 +69,9 @@ export function inLatestTurn(items: readonly ChatItem[], toolId: string): boolea
 export interface SheetRow {
   part: string
   prefix: string
+  /** A `cd` into this folder, outside the chat's own: the CLI asks about it before any Bash rule, so it gets a Read rule
+   *  instead of a prefix. null for every other part. */
+  folder: string | null
   ticked: boolean
   /** The held rule that already allows this part, or null. */
   heldBy: string | null
@@ -65,15 +79,40 @@ export interface SheetRow {
   refused: string | null
 }
 
-/** One row per part of the refused command. Read-only helpers start unticked; a held part is ticked and fixed. */
-export function sheetRows(command: string, held: readonly string[]): SheetRow[] {
+const insideFolder = (path: string, folder: string): boolean =>
+  path === folder || path.startsWith(folder.endsWith('/') ? folder : folder + '/')
+
+/** One row per part of the refused command. Read-only helpers start unticked; a held part is ticked and fixed. A `cd` into a
+ *  folder outside `cwd` (the chat's folder) is a folder row, ticked: a Bash rule cannot let it through. */
+export function sheetRows(command: string, held: readonly string[], cwd?: string): SheetRow[] {
   return commandParts(command).map((part) => {
+    const folder = cdTarget(part)
+    if (folder !== null && !(cwd && insideFolder(folder, cwd))) {
+      // The server also refuses the home folder, which the page does not know.
+      const refused = checkFolder(folder, command)
+      if (refused !== null) return { part, prefix: '', folder, ticked: false, heldBy: null, refused }
+      return { part, prefix: '', folder, ticked: true, heldBy: folderCoveredBy(folder, held), refused: null }
+    }
     // `timeout 30 git …` is not offered as `git …`: whether the CLI matches the wrapped command is unverified.
     const refused = programError(part)
-    if (refused !== null) return { part, prefix: '', ticked: false, heldBy: null, refused }
+    if (refused !== null) return { part, prefix: '', folder: null, ticked: false, heldBy: null, refused }
     const heldBy = coveredBy(part, held)
-    return { part, prefix: suggestPrefix(part), ticked: heldBy !== null || !isSafePart(part), heldBy, refused: null }
+    return { part, prefix: suggestPrefix(part), folder: null, ticked: heldBy !== null || !isSafePart(part), heldBy, refused: null }
   })
+}
+
+/** The folders a click would send: each ticked, not yet held folder row's, without repeats. */
+export function chosenFolders(rows: readonly SheetRow[]): string[] {
+  const out: string[] = []
+  for (const r of rows) if (r.folder && r.ticked && r.heldBy === null && r.refused === null && !out.includes(r.folder)) out.push(r.folder)
+  return out
+}
+
+/** The folder of a folder row that a later part runs git in, or null. The CLI asks about `cd <folder> && git …` whatever
+ *  is allowed (it could pick up the folder's hooks), so no rule helps there; `git -C <folder>` does not trip it. */
+export function gitAfterFolder(rows: readonly SheetRow[]): string | null {
+  const at = rows.findIndex((r) => r.folder)
+  return at >= 0 && rows.slice(at + 1).some((r) => isGitPart(r.part)) ? rows[at].folder : null
 }
 
 /** Every row that would be allowed is already held: the CLI refused anyway, so a new rule cannot help. */
@@ -87,7 +126,7 @@ export const allHeld = (rows: readonly SheetRow[]): boolean =>
 export function chosenPrefixes(rows: readonly SheetRow[], command: string): { prefixes: string[]; errors: (string | null)[] } {
   const prefixes: string[] = []
   const errors = rows.map((r) => {
-    if (!r.ticked || r.heldBy !== null) return null
+    if (!r.ticked || r.heldBy !== null || r.folder) return null
     const p = r.prefix.trim()
     const bad = checkPrefix(p, command)
     if (bad === null && !prefixes.includes(p)) prefixes.push(p)

@@ -95,7 +95,7 @@ export function createApi(
       compact: (chatId, note, agent) => call('chats:compact', chatId, note, agent),
       setModel: (chatId, model) => call('chats:setModel', chatId, model),
       setPermissionMode: (chatId, mode) => call('chats:setPermissionMode', chatId, mode),
-      allowBlocked: (chatId, toolUseId, prefixes, scope) => call('chats:allowBlocked', chatId, toolUseId, prefixes, scope),
+      allowBlocked: (chatId, toolUseId, prefixes, scope, folders = []) => call('chats:allowBlocked', chatId, toolUseId, prefixes, scope, folders),
       setEffort: (chatId, effort) => call('chats:setEffort', chatId, effort),
       cancelResume: (chatId) => call('chats:cancelResume', chatId),
       continueNow: (chatId) => call('chats:continueNow', chatId),
@@ -178,6 +178,7 @@ export function createApi(
     approvals: {
       list: (agentName) => call('approvals:list', agentName),
       remove: (agentName, key) => call('approvals:remove', agentName, key),
+      addCli: (agentName, kind, value) => call('approvals:addCli', agentName, kind, value),
       onChanged: (cb) => rpc.on('approvals:changed', (p: { agent: string }) => cb(p.agent))
     },
     routines: {

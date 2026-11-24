@@ -41,6 +41,7 @@ import { HOUSE_STYLE } from './houseStyle'
 import { randomUUID } from 'node:crypto'
 import { existsSync, promises as fs } from 'node:fs'
 import { dirname, resolve, sep, basename } from 'node:path'
+import { homedir } from 'node:os'
 import { MEMORY_INDEX, type MemoryTouch } from '@zumibot/shared/memory'
 import type { BrowserHandoff, BrowserOwner } from '../browser/types'
 import type { BrowserTurn } from '../browser/browserIpc'
@@ -87,7 +88,7 @@ import { droppedTurn, engineField, enginesAfter, memberStartsBefore, startBefore
 import { branch, switchTo, type UserItem, type Versions } from './versions'
 import { APPROVAL_REQUIRED, isCutRefused, isMissingSession, type RunEvent } from './streamParser'
 import { allowSettingsArgs } from './allowRules'
-import { checkPrefix, continueText, ruleOfPrefix } from '@zumibot/shared/allowRules'
+import { checkFolder, checkPrefix, continueText, ruleOfFolder, ruleOfPrefix } from '@zumibot/shared/allowRules'
 import type { ModelSpends } from '@zumibot/shared/usageReport'
 import { engineChatModel, isCommandModel, modelFits, turnModel } from '@zumibot/shared/chatModel'
 import {
@@ -390,7 +391,7 @@ export const NOT_ALLOWABLE = 'This call was not refused by Auto mode, so a rule 
 /** Allow while a reply runs: it would race the running turn's own item list. */
 export const CHAT_BUSY = 'Wait for the reply to finish'
 export const ALREADY_ALLOWED = 'This call was already allowed'
-const ALLOW_COUNT = 'Pick between 1 and 10 commands to allow'
+const ALLOW_COUNT = 'Pick between 1 and 10 commands or folders to allow'
 const MAX_ALLOW = 10
 /** An effort for a Codex chat, which has none (chatRun.ts). */
 export const EFFORT_REFUSED = "This chat's agent has no effort setting"
@@ -1404,15 +1405,17 @@ export class ChatService {
   }
 
   /**
-   * "Allow and continue" on a row Auto mode's classifier refused: stores a `Bash(<prefix>:*)` rule per prefix, for this chat or
-   * the row's agent, marks the row so it cannot be allowed twice, and returns the text the client sends as a normal message.
-   * Every prefix is checked before any rule is stored. The user's click is the only way a rule gets made.
+   * "Allow and continue" on a row Auto mode's classifier refused: stores a `Bash(<prefix>:*)` rule per prefix and a
+   * `Read(//<folder>/**)` rule per folder the command cd's into, for this chat or the row's agent, marks the row so it cannot be
+   * allowed twice, and returns the text the client sends as a normal message. Every prefix and folder is checked before any rule
+   * is stored. The user's click is the only way a rule gets made.
    */
   async allowBlocked(
     chatId: string,
     toolUseId: string,
     prefixes: string[],
-    scope: 'chat' | 'agent'
+    scope: 'chat' | 'agent',
+    folders: string[] = []
   ): Promise<{ rules: string[]; text: string; agent: string }> {
     const { store, push } = this.d
     const meta = await store.get(chatId)
@@ -1434,14 +1437,21 @@ export class ChatService {
       throw new Error(NOT_ALLOWABLE)
     }
     if (item.allowedAs) throw new Error(ALREADY_ALLOWED)
-    if (!Array.isArray(prefixes) || prefixes.length < 1 || prefixes.length > MAX_ALLOW) throw new Error(ALLOW_COUNT)
+    if (!Array.isArray(prefixes) || !Array.isArray(folders)) throw new Error(ALLOW_COUNT)
+    const count = prefixes.length + folders.length
+    if (count < 1 || count > MAX_ALLOW) throw new Error(ALLOW_COUNT)
     const command = (item.input as { command?: unknown } | null)?.command
     if (typeof command !== 'string') throw new Error(NOT_ALLOWABLE)
     for (const p of prefixes) {
       const bad = checkPrefix(p, command)
       if (bad) throw new Error(bad)
     }
-    const rules = [...new Set(prefixes.map(ruleOfPrefix))]
+    // The server's home: a folder rule on it (or above it) would let the agent read ~/.ssh and the like.
+    for (const f of folders) {
+      const bad = checkFolder(f, command, homedir())
+      if (bad) throw new Error(bad)
+    }
+    const rules = [...new Set([...prefixes.map(ruleOfPrefix), ...folders.map(ruleOfFolder)])]
     let next = meta
     if (scope === 'chat') {
       // Merged in the write, so a second tab's rules are not lost.

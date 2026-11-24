@@ -9,6 +9,9 @@ const A = 'git branch -D probe-a probe-c; git push origin :probe-a :probe-b'
 const B = `C=${REPO}; cd $C\ngit branch -D probe-a probe-c\ngit push origin :probe-a :probe-b 2>&1 | tail -1`
 const C = `sh -c '${A}'`
 const D = 'for b in probe-a probe-c; do git branch -D "$b"; done'
+const E = `cd ${REPO} && tar --version >/dev/null && echo PROBE-RAN-OK`
+const E1 = `cd ${REPO} && git branch -D probe-a probe-c`
+const printed = (id: string) => ({ id, text: 'PROBE-RAN-OK' })
 const START = { local: ['main', 'probe-a', 'probe-c'], remote: ['main', 'probe-a', 'probe-b'] }
 const GONE = { local: ['main'], remote: ['main'] }
 const call = (id: string, command: string) => ({ id, command })
@@ -19,6 +22,7 @@ const run = (o: Record<string, unknown>) => ({
   bash: [],
   asked: [],
   denied: [],
+  results: [],
   result: { is_error: false },
   stderr: '',
   error: null,
@@ -63,6 +67,29 @@ it('(d) reports RAN or REFUSED for the loop and never fails', () => {
   expect(classify(run({ id: 'd', bash: [call('t1', D)], denied: [classifier('t1')] }))).toMatchObject({ outcome: 'info', verdict: 'REFUSED' })
   expect(classify(run({ id: 'd', bash: [call('t0', 'cat NOTES.md'), call('t1', D)], denied: [classifier('t0')] })).outcome).toBe('inconclusive')
   expect(classify(run({ id: 'd', bash: [call('t1', A)], local: ['main'] })).outcome).toBe('inconclusive')
+})
+
+it('(e) passes only when the cd outside the cwd ran with no question, and fails when it was asked', () => {
+  expect(classify(run({ id: 'e', bash: [call('t1', E)], results: [printed('t1')] })).outcome).toBe('pass')
+  expect(classify(run({ id: 'e', bash: [call('t1', E)], asked: [{ id: 'q1', tool: 'Bash', command: E }] })).outcome).toBe('fail')
+  // The marker came from another call, or never came: nothing is learnt.
+  expect(classify(run({ id: 'e', bash: [call('t0', 'echo PROBE-RAN-OK'), call('t1', E)], results: [printed('t0')] })).outcome).toBe(
+    'inconclusive'
+  )
+  expect(classify(run({ id: 'e', bash: [call('t1', E)] })).outcome).toBe('inconclusive')
+})
+
+it('(e0, e1) report ASKED or RAN and never fail', () => {
+  expect(classify(run({ id: 'e0', bash: [call('t1', E)], asked: [{ id: 'q1', tool: 'Bash', command: E }] }))).toMatchObject({
+    outcome: 'info',
+    verdict: 'ASKED'
+  })
+  expect(classify(run({ id: 'e0', bash: [call('t1', E)], results: [printed('t1')] }))).toMatchObject({ outcome: 'info', verdict: 'RAN' })
+  expect(classify(run({ id: 'e1', bash: [call('t1', E1)], asked: [{ id: 'q1', tool: 'Bash', command: E1 }] }))).toMatchObject({
+    outcome: 'info',
+    verdict: 'ASKED'
+  })
+  expect(classify(run({ id: 'e1', bash: [call('t1', E1)], local: ['main'] }))).toMatchObject({ outcome: 'info', verdict: 'RAN' })
 })
 
 it('calls a run that never reached the script inconclusive', () => {

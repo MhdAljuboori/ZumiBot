@@ -399,16 +399,24 @@ function covers(part: string, prefix: string): boolean {
   return part === prefix || part.startsWith(prefix + ' ')
 }
 
-/** An error message when `prefix` may not become a rule for `command`, or null when it may. */
-export function checkPrefix(prefix: string, command: string): string | null {
+/** An error message when `prefix` may not become a rule at all (its shape, a shell or wrapper, git with no subcommand), or
+ *  null. Agent Studio's Add checks only this, since the user typed the prefix with no refused command to match. */
+export function prefixRuleError(prefix: string): string | null {
   const bad = shapeError(prefix)
   if (bad) return bad
-  if (typeof command !== 'string') return 'The command is missing.'
   const program = programError(prefix)
   if (program !== null) return program
   if (gitWithoutSubcommand(prefix)) {
     return 'Add the git subcommand (such as git push): without it the rule would allow every git command, and git -c can run any program.'
   }
+  return null
+}
+
+/** An error message when `prefix` may not become a rule for `command`, or null when it may. */
+export function checkPrefix(prefix: string, command: string): string | null {
+  const bad = prefixRuleError(prefix)
+  if (bad) return bad
+  if (typeof command !== 'string') return 'The command is missing.'
   if (!commandParts(command).some((part) => covers(part, prefix))) {
     return 'The prefix must be the start of one command in the refused command, ending at a space.'
   }
@@ -436,6 +444,101 @@ export function isSafePart(part: string): boolean {
   if (head === 'sort' && /(^|\s)(-[A-Za-z]*o|--output)/.test(part)) return false
   if (head === 'awk' && /system|\|/.test(part)) return false
   return true
+}
+
+/** Whether a part runs git, whatever its path, case or `.exe`. */
+export function isGitPart(part: string): boolean {
+  return isGit(part.trim().split(/\s+/)[0] ?? '')
+}
+
+// --- folders ---------------------------------------------------------------------------------
+// The CLI checks a `cd` into a folder outside the run's working folders before any Bash rule (Bash(cd:*) does not help), so a
+// command such as `cd /other/repo && gh pr merge 1` is refused although every part's rule is held. A `Read(//<folder>/**)` allow
+// rule lets that cd through (verified with CLI 2.1.329; `cd <folder> && git …` is still asked, by a check no rule passes).
+
+// Glob and rule syntax a folder must not carry: it would widen `Read(//…/**)` or break out of it.
+const FOLDER_BAD = /[\x00-\x1f\x7f*?[\]{}!()\\]/
+
+/** `/a/./b/../c/` as `/a/c`; `..` above the root stays at the root. */
+function normaliseFolder(path: string): string {
+  const out: string[] = []
+  for (const seg of path.split('/')) {
+    if (seg === '' || seg === '.') continue
+    if (seg === '..') out.pop()
+    else out.push(seg)
+  }
+  return '/' + out.join('/')
+}
+
+/** The absolute folder a `cd <path>` part goes to, normalised, or null when it cannot be read for sure: a relative path, `~`,
+ *  an expansion, an option, more than one argument, or quotes other than one pair around the whole path. */
+export function cdTarget(part: string): string | null {
+  const words = wordsOf(part.trim()).map((w) => w.text)
+  if (words.length !== 2 || words[0] !== 'cd') return null
+  let path = words[1]
+  if (/^'[^']*'$/.test(path) || /^"[^"$`\\]*"$/.test(path)) path = path.slice(1, -1)
+  else if (/['"$`\\]/.test(path)) return null
+  return path.startsWith('/') ? normaliseFolder(path) : null
+}
+
+export function ruleOfFolder(folder: string): string {
+  return `Read(/${folder}/**)`
+}
+
+/** What is wrong with the shape of a folder, or null. It must be absolute and already normalised, so the rule names exactly it. */
+function folderShapeError(f: unknown): string | null {
+  if (typeof f !== 'string' || f === '') return 'The folder is empty.'
+  if (!f.startsWith('/')) return 'The folder must be an absolute path.'
+  if (normaliseFolder(f) !== f) return 'The folder must be written plainly, without . or .. or a slash at the end.'
+  if (f.length > MAX_PREFIX) return `The folder is longer than ${MAX_PREFIX} characters.`
+  if (FOLDER_BAD.test(f)) return 'The folder cannot contain line breaks, *, ?, !, brackets, braces, parentheses or backslashes.'
+  // `/` or `/etc` would let the agent read the whole disk or a whole system tree.
+  if (f.split('/').length < 3) return 'Allow a narrower folder: this one holds too much.'
+  return null
+}
+
+/** The folder of exactly `Read(//<folder>/**)`, or null for any other rule or a folder of a bad shape. */
+export function folderOfRule(rule: string): string | null {
+  if (typeof rule !== 'string') return null
+  const m = /^Read\(\/(\/[^()]*)\/\*\*\)$/.exec(rule)
+  return m && folderShapeError(m[1]) === null ? m[1] : null
+}
+
+/** A rule the Allow card can make: `Bash(<prefix>:*)` or `Read(//<folder>/**)`. */
+export function isAllowRule(rule: string): boolean {
+  return prefixOfRule(rule) !== null || folderOfRule(rule) !== null
+}
+
+/** Whether `path` is `folder` or inside it. */
+const inside = (path: string, folder: string): boolean => path === folder || path.startsWith(folder + '/')
+
+/** The first rule whose folder holds `folder`, or null. */
+export function folderCoveredBy(folder: string, rules: readonly string[]): string | null {
+  for (const rule of rules) {
+    const f = folderOfRule(rule)
+    if (f !== null && inside(folder, f)) return rule
+  }
+  return null
+}
+
+/** An error message when `folder` may not become a rule at all, or null. `home`, when known, may not be the folder or inside
+ *  it: such a rule would let the agent read ~/.ssh and every other secret there. Agent Studio's Add checks only this. */
+export function folderRuleError(folder: string, home?: string): string | null {
+  const bad = folderShapeError(folder)
+  if (bad) return bad
+  if (home && home.startsWith('/') && inside(normaliseFolder(home), folder)) {
+    return 'The folder is your home folder or holds it: allow a folder inside it instead.'
+  }
+  return null
+}
+
+/** An error message when `folder` may not become a rule for `command`, or null when it may. */
+export function checkFolder(folder: string, command: string, home?: string): string | null {
+  const bad = folderRuleError(folder, home)
+  if (bad) return bad
+  if (typeof command !== 'string') return 'The command is missing.'
+  if (!commandParts(command).some((part) => cdTarget(part) === folder)) return 'The folder must be one the refused command changes into.'
+  return null
 }
 
 /** The message sent after the rules are granted. In a room it starts with `@member` so that member answers. */

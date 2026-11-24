@@ -7,6 +7,7 @@ import type { AuditLog } from '../core/audit/auditLog'
 import { AUDIT_CAPS, AUDIT_PAGE_MAX, parseAuditFilter } from '@zumibot/shared/audit'
 import { mkdir, stat } from 'node:fs/promises'
 import { basename, isAbsolute, resolve } from 'node:path'
+import { homedir } from 'node:os'
 import type { AgentStore } from '../core/agents/agentStore'
 import type { AttachmentStore } from '../core/attachments/attachmentStore'
 import type { SideQuestions } from '../core/btw/sideQuestions'
@@ -159,6 +160,7 @@ import type { VoiceStore } from '../core/voice/voiceStore'
 import { JEV_KEY_MAX, SUGGEST_MIN_CHARS, type JevCheck, type JevSwitches } from '@zumibot/shared/jev'
 import { CONTACT_FIELDS, listView, type VaultInput } from '@zumibot/shared/vault'
 import { ZUMI_BOT_NAME } from '@zumibot/shared/zumiBot'
+import { folderRuleError, prefixRuleError, ruleOfFolder, ruleOfPrefix } from '@zumibot/shared/allowRules'
 import {
   EXT_TEXT,
   isReservedServerName,
@@ -1568,13 +1570,15 @@ export function createHandlers(d: HandlerDeps): Handlers {
       await writable(id)
       return chatService.setPermissionMode(id, mode)
     },
-    'chats:allowBlocked': async (chatId, toolUseId, prefixes, scope) => {
+    'chats:allowBlocked': async (chatId, toolUseId, prefixes, scope, folders) => {
       const id = str(chatId, 'chatId')
       const toolId = str(toolUseId, 'toolUseId')
       const list = strings(prefixes, 'prefixes')
       if (scope !== 'chat' && scope !== 'agent') throw new TypeError("scope must be 'chat' or 'agent'")
+      // Absent from a page loaded before folder grants.
+      const dirs = folders === undefined ? [] : strings(folders, 'folders')
       await writable(id)
-      const { agent, ...out } = await chatService.allowBlocked(id, toolId, list, scope)
+      const { agent, ...out } = await chatService.allowBlocked(id, toolId, list, scope, dirs)
       if (scope === 'agent') d.approvalsChanged(agent)
       return out
     },
@@ -1890,6 +1894,20 @@ export function createHandlers(d: HandlerDeps): Handlers {
     'approvals:remove': async (agentName, key) => {
       const agent = str(agentName, 'agentName')
       await approvals.remove(agent, str(key, 'key'))
+      d.approvalsChanged(agent)
+      return approvals.list(agent)
+    },
+    // Agent Studio's Add: the same CLI rule the Allow card makes for an agent, typed by the user. No refused command to match,
+    // so only the rule's own checks apply; the server's home folder (and any folder holding it) is refused.
+    'approvals:addCli': async (agentName, kind, value) => {
+      const agent = str(agentName, 'agentName')
+      if (kind !== 'prefix' && kind !== 'folder') throw new TypeError("kind must be 'prefix' or 'folder'")
+      const v = str(value, 'value').trim()
+      if (agent === '' || agent === ZUMI_BOT_NAME) throw new Error('Zumi Bot and an unnamed agent take no rules')
+      const bad = kind === 'prefix' ? prefixRuleError(v) : folderRuleError(v, homedir())
+      if (bad) throw new Error(bad)
+      const rule = kind === 'prefix' ? ruleOfPrefix(v) : ruleOfFolder(v)
+      await approvals.add(agent, { key: JSON.stringify(['cli', rule]), toolName: kind === 'prefix' ? 'Bash' : 'Read', command: null, cli: rule })
       d.approvalsChanged(agent)
       return approvals.list(agent)
     },

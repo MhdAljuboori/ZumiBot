@@ -1,4 +1,4 @@
-import { prefixOfRule } from '@zumibot/shared/allowRules'
+import { folderOfRule, folderRuleError, prefixOfRule, prefixRuleError, ruleOfFolder, ruleOfPrefix } from '@zumibot/shared/allowRules'
 import { confirmOnly } from '@zumibot/shared/automations'
 import { connectorById } from '@zumibot/shared/connectors'
 import { PROCESS_START_TOOL } from '@zumibot/shared/processes'
@@ -118,6 +118,16 @@ export function agentHasPending(
   return chats.some((c) => c.agentName === agentName && (pendingByChat[c.id] ?? 0) > 0)
 }
 
+/** Agent Studio's Add: the rule a typed prefix or folder makes, or why it cannot be one. An empty field is neither. The
+ *  server checks again and also refuses its home folder, which the page does not know. */
+export function addRuleCheck(kind: 'prefix' | 'folder', value: string): { rule: string | null; error: string | null } {
+  const v = value.trim()
+  if (v === '') return { rule: null, error: null }
+  const error = kind === 'prefix' ? prefixRuleError(v) : folderRuleError(v)
+  if (error !== null) return { rule: null, error }
+  return { rule: kind === 'prefix' ? ruleOfPrefix(v) : ruleOfFolder(v), error: null }
+}
+
 export function ruleLabel(rule: AgentRule): string {
   if (rule.toolName === PROCESS_START_TOOL && rule.command !== null) {
     // The key is [tool, command, folder as written] (controlProtocol.ts); the folder is read back from it.
@@ -132,6 +142,8 @@ export function ruleLabel(rule: AgentRule): string {
   }
   // A rule given to the CLI (Allow on a refused call): its key never equals a request's, so it is not an "any Bash" rule.
   if (rule.cli !== undefined) {
+    const folder = folderOfRule(rule.cli)
+    if (folder !== null) return `Read: files in ${folder}`
     const prefix = prefixOfRule(rule.cli)
     return `Bash: ${prefix !== null ? `commands starting with ${prefix}` : rule.cli}`
   }

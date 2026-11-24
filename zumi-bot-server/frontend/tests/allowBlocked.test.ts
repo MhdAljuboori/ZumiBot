@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatItem, ChatMeta } from '@zumibot/shared/types'
-import { allHeld, allowCardState, canAllowBlocked, chosenPrefixes, inLatestTurn, sheetRows } from '../src/state/allowBlocked'
+import {
+  allHeld,
+  allowCardState,
+  canAllowBlocked,
+  chosenFolders,
+  chosenPrefixes,
+  gitAfterFolder,
+  inLatestTurn,
+  sheetRows
+} from '../src/state/allowBlocked'
 
 type ToolItem = Extract<ChatItem, { type: 'tool' }>
 
@@ -157,5 +166,50 @@ describe('allowBlocked: chosenPrefixes', () => {
     const r = chosenPrefixes(rows, command)
     expect(r.errors[0]).toMatch(/start of one command/)
     expect(r.errors[1]).toBeNull()
+  })
+})
+
+describe('allowBlocked: folder rows', () => {
+  const cmd = 'cd /work/repo && gh pr view 1 && gh pr merge 1; cd /cwd/sub && ls'
+  it('offers a cd outside the chat folder as a ticked folder row with no prefix, and none for one inside', () => {
+    const rows = sheetRows(cmd, [], '/cwd')
+    expect(rows.map((r) => r.folder)).toEqual(['/work/repo', null, null, null, null])
+    expect(rows[0]).toMatchObject({ part: 'cd /work/repo', folder: '/work/repo', prefix: '', ticked: true, heldBy: null, refused: null })
+    expect(rows[3]).toMatchObject({ part: 'cd /cwd/sub', folder: null, ticked: false })
+  })
+  it('treats the chat folder itself and a sibling whose name starts the same correctly', () => {
+    expect(sheetRows('cd /cwd && make x', [], '/cwd')[0].folder).toBeNull()
+    expect(sheetRows('cd /cwd-loc/x && make x', [], '/cwd')[0].folder).toBe('/cwd-loc/x')
+  })
+  it('marks a folder a held Read rule covers as held', () => {
+    const rows = sheetRows(cmd, ['Read(//work/repo/**)'], '/cwd')
+    expect(rows[0].heldBy).toBe('Read(//work/repo/**)')
+    expect(chosenFolders(rows)).toEqual([])
+  })
+  it("the reported case: every Bash part held but not the folder, so it is not stuck and the click sends the folder alone", () => {
+    const user =
+      `cd /home/u/Dev/OC-loc && gh pr view 242 --json state --jq '.state+" "+.x' && gh pr merge 242 --merge; gh pr view 242 --json state`
+    const held = ['Bash(gh pr view:*)', 'Bash(gh pr merge:*)']
+    const rows = sheetRows(user, held, '/home/u/Dev/OC')
+    expect(allHeld(rows)).toBe(false)
+    expect(chosenFolders(rows)).toEqual(['/home/u/Dev/OC-loc'])
+    expect(chosenPrefixes(rows, user)).toEqual({ prefixes: [], errors: [null, null, null, null] })
+    expect(allHeld(sheetRows(user, [...held, 'Read(//home/u/Dev/OC-loc/**)'], '/home/u/Dev/OC'))).toBe(true)
+  })
+  it('shows a folder that holds too much unticked with its reason', () => {
+    const rows = sheetRows('cd /etc && make x', [], '/cwd')
+    expect(rows[0]).toMatchObject({ folder: '/etc', ticked: false })
+    expect(rows[0].refused).toMatch(/narrower/)
+    expect(chosenFolders(rows)).toEqual([])
+  })
+  it('chosenFolders skips unticked rows and repeats', () => {
+    const rows = sheetRows('cd /work/repo && make; cd /work/repo/ && make y', [], '/cwd')
+    expect(chosenFolders(rows)).toEqual(['/work/repo'])
+    expect(chosenFolders(rows.map((r) => ({ ...r, ticked: false })))).toEqual([])
+  })
+  it('gitAfterFolder names the folder a command enters before running git', () => {
+    expect(gitAfterFolder(sheetRows('cd /work/repo && git push origin x', [], '/cwd'))).toBe('/work/repo')
+    expect(gitAfterFolder(sheetRows('git status; cd /work/repo && gh pr view 1', [], '/cwd'))).toBeNull()
+    expect(gitAfterFolder(sheetRows('cd /cwd/sub && git push', [], '/cwd'))).toBeNull()
   })
 })

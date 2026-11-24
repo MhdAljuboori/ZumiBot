@@ -2,12 +2,21 @@ import { describe, expect, it } from 'vitest'
 import {
   INTERPRETERS,
   SAFE_HEADS,
+  cdTarget,
+  checkFolder,
   checkPrefix,
   commandParts,
   continueText,
   coveredBy,
+  folderCoveredBy,
+  folderOfRule,
+  folderRuleError,
+  isAllowRule,
+  isGitPart,
   isSafePart,
   prefixOfRule,
+  prefixRuleError,
+  ruleOfFolder,
   ruleOfPrefix,
   suggestPrefix
 } from '@zumibot/shared/allowRules'
@@ -367,5 +376,137 @@ describe('continueText', () => {
   })
   it('addresses the member even for a chat-scope rule', () => {
     expect(continueText(['Bash(a:*)'], 'chat', 'loc', 'ui')).toBe('@ui I allowed `Bash(a:*)` for this chat. Continue.')
+  })
+})
+
+describe('cdTarget', () => {
+  it('gives the absolute folder a cd goes to, normalised', () => {
+    expect(cdTarget('cd /a/b')).toBe('/a/b')
+    expect(cdTarget('cd /a/b/')).toBe('/a/b')
+    expect(cdTarget('cd /a/./b/../c')).toBe('/a/c')
+    expect(cdTarget('cd //a//b')).toBe('/a/b')
+    expect(cdTarget("cd '/a b/c'")).toBe('/a b/c')
+    expect(cdTarget('cd "/a/b"')).toBe('/a/b')
+    expect(cdTarget('cd /')).toBe('/')
+    expect(cdTarget('cd /a/../..')).toBe('/')
+  })
+  it('is null for anything it cannot read for sure', () => {
+    for (const part of ['cd rel', 'cd ../x', 'cd ~/x', 'cd ~', 'cd $HOME/x', 'cd "/a/$X"', 'cd /a/`x`', 'cd', 'cd /a /b', 'cd -P /a', 'cd /a\\ b', "cd '/a'b", 'pushd /a', 'ls /a', 'cdx /a'])
+      expect(cdTarget(part)).toBeNull()
+  })
+})
+
+describe('folder rules', () => {
+  it('builds and parses', () => {
+    expect(ruleOfFolder('/a/b')).toBe('Read(//a/b/**)')
+    expect(folderOfRule('Read(//a/b/**)')).toBe('/a/b')
+    expect(folderOfRule(ruleOfFolder('/x/my repo'))).toBe('/x/my repo')
+  })
+  it('returns null for anything else', () => {
+    for (const rule of [
+      'Read(/a/b/**)', // one slash: relative to the settings file, not absolute
+      'Read(//a/b/**) ',
+      ' Read(//a/b/**)',
+      'Read(//**)',
+      'Read(///**)',
+      'Read(//a/../b/**)',
+      'Read(//a/./b/**)',
+      'Read(//a/b/)',
+      'Read(//a/b)',
+      'Read(//a*/b/**)',
+      'Read(//a/[b]/**)',
+      'Read(//a/b\nc/**)',
+      'Edit(//a/b/**)',
+      'Bash(a:*)',
+      `Read(//a/${'x'.repeat(300)}/**)`
+    ])
+      expect(folderOfRule(rule)).toBeNull()
+    expect(folderOfRule(5 as unknown as string)).toBeNull()
+  })
+  it('isAllowRule takes both kinds and nothing else', () => {
+    expect(isAllowRule('Bash(git push:*)')).toBe(true)
+    expect(isAllowRule('Read(//a/b/**)')).toBe(true)
+    expect(isAllowRule('Read(/a/b/**)')).toBe(false)
+    expect(isAllowRule('Edit(x)')).toBe(false)
+    expect(isAllowRule('Bash(*)')).toBe(false)
+  })
+})
+
+describe('folderCoveredBy', () => {
+  const rules = ['Bash(git push:*)', 'Read(//a/b/**)', 'Read(/x/**)']
+  it('returns the rule whose folder holds the target', () => {
+    expect(folderCoveredBy('/a/b', rules)).toBe('Read(//a/b/**)')
+    expect(folderCoveredBy('/a/b/c', rules)).toBe('Read(//a/b/**)')
+  })
+  it('needs a folder boundary and ignores malformed rules', () => {
+    expect(folderCoveredBy('/a/bc', rules)).toBeNull()
+    expect(folderCoveredBy('/a', rules)).toBeNull()
+    expect(folderCoveredBy('/x/y', rules)).toBeNull()
+  })
+})
+
+describe('checkFolder', () => {
+  const command = 'cd /work/repo && gh pr view 1; cd /home/u && ls; cd /etc && ls; cd / && ls'
+  it('accepts a folder the command changes into', () => {
+    expect(checkFolder('/work/repo', command, '/home/u')).toBeNull()
+    expect(checkFolder('/work/repo', command)).toBeNull()
+  })
+  it('refuses a folder the command does not change into', () => {
+    expect(checkFolder('/work/repo/sub', command, '/home/u')).toMatch(/changes into/)
+    expect(checkFolder('/other/x', command)).toMatch(/changes into/)
+  })
+  it('refuses the root, a top folder, and the home folder or one that holds it', () => {
+    expect(checkFolder('/', command)).toMatch(/narrower/)
+    expect(checkFolder('/etc', command)).toMatch(/narrower/)
+    expect(checkFolder('/home/u', command, '/home/u')).toMatch(/home folder/)
+    expect(checkFolder('/home/u', command, '/home/u/')).toMatch(/home folder/)
+  })
+  it('refuses a folder of a bad shape', () => {
+    expect(checkFolder('', command)).not.toBeNull()
+    expect(checkFolder('work/repo', command)).not.toBeNull()
+    expect(checkFolder('/work/../work/repo', command)).not.toBeNull()
+    expect(checkFolder('/work/repo/', command)).not.toBeNull()
+    expect(checkFolder('/a/b*', 'cd /a/b*')).not.toBeNull()
+    expect(checkFolder('/a/[b]', "cd '/a/[b]'")).not.toBeNull()
+    expect(checkFolder('/a/b(c)', "cd '/a/b(c)'")).not.toBeNull()
+    expect(checkFolder(5 as unknown as string, command)).not.toBeNull()
+  })
+})
+
+describe('isGitPart', () => {
+  it('spots git, whatever its path or case', () => {
+    expect(isGitPart('git push origin x')).toBe(true)
+    expect(isGitPart('/usr/bin/git status')).toBe(true)
+    expect(isGitPart('GIT.exe log')).toBe(true)
+    expect(isGitPart('gh pr view 1')).toBe(false)
+    expect(isGitPart('gitk')).toBe(false)
+    expect(isGitPart('')).toBe(false)
+  })
+})
+
+describe('continueText with a folder rule', () => {
+  it('names it like any rule', () => {
+    expect(continueText(['Bash(gh pr merge:*)', 'Read(//a/b/**)'], 'agent', 'loc', null)).toBe(
+      'I allowed `Bash(gh pr merge:*)` and `Read(//a/b/**)` for loc. Continue.'
+    )
+  })
+})
+
+describe('rule errors with no refused command (Agent Studio)', () => {
+  it('prefixRuleError checks the shape, the program and git, not a command', () => {
+    expect(prefixRuleError('gh pr merge')).toBeNull()
+    expect(prefixRuleError('git push origin')).toBeNull()
+    expect(prefixRuleError('')).toMatch(/empty/)
+    expect(prefixRuleError('a*')).toMatch(/\*/)
+    expect(prefixRuleError('sh -c')).toMatch(/Auto ignores/)
+    expect(prefixRuleError('git -C /repo')).toMatch(/git subcommand/)
+  })
+  it('folderRuleError checks the shape and the home folder, not a command', () => {
+    expect(folderRuleError('/work/repo')).toBeNull()
+    expect(folderRuleError('/home/u/repo', '/home/u')).toBeNull()
+    expect(folderRuleError('/home/u', '/home/u')).toMatch(/home folder/)
+    expect(folderRuleError('/home', '/home/u')).toMatch(/narrower/)
+    expect(folderRuleError('work/repo')).toMatch(/absolute/)
+    expect(folderRuleError('/work/repo/')).toMatch(/plainly/)
   })
 })

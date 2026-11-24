@@ -202,7 +202,7 @@ export interface ChatMeta {
   cardComments?: TodoTaskLink // where an agent answers the comments that mention it on that card (one per card and agent)
   attempt?: ChatAttempt // one of a card's parallel attempts (see review-loop.md); absent = not an attempt
   pr?: ChatPr // the GitHub pull request opened from this chat's worktree branch (see review-loop.md); absent = none
-  allowRules?: string[] // `Bash(<prefix>:*)` rules the user granted for this chat, passed to its turns outside Plan; absent = none
+  allowRules?: string[] // `Bash(<prefix>:*)` and `Read(//<folder>/**)` rules the user granted for this chat, passed to its turns outside Plan; absent = none
 }
 
 export type PrState = 'open' | 'merged' | 'closed'
@@ -407,7 +407,7 @@ export interface AgentRule {
   key: string
   toolName: string
   command: string | null
-  cli?: string // a `Bash(<prefix>:*)` rule given to every turn of the agent (not matched against requests); its key never equals a request's
+  cli?: string // a `Bash(<prefix>:*)` or `Read(//<folder>/**)` rule given to every turn of the agent (not matched against requests); its key never equals a request's
 }
 
 /** A card edit from the UI; files come as staged ids, never as attachments the client describes. */
@@ -674,7 +674,7 @@ export interface ZumiBotApi {
     compact(chatId: string, note: string, agent?: string): Promise<void> // /compact on the agent's session; agent = the room member
     setModel(chatId: string, model: string | null): Promise<void> // a single chat's model picked by hand (one its engine runs, modelFits); null = back to the agent's own, commands may set it again
     setPermissionMode(chatId: string, mode: ChatMode | null): Promise<void> // a single chat's mode from its next turn (one its engine runs, modeFits); null = the server's
-    allowBlocked(chatId: string, toolUseId: string, prefixes: string[], scope: 'chat' | 'agent'): Promise<{ rules: string[]; text: string }> // Allow on a row Auto mode's classifier refused: stores a Bash(<prefix>:*) rule for the chat or the agent; the text is what the client then sends as a message
+    allowBlocked(chatId: string, toolUseId: string, prefixes: string[], scope: 'chat' | 'agent', folders?: string[]): Promise<{ rules: string[]; text: string }> // Allow on a row Auto mode's classifier refused: stores a Bash(<prefix>:*) rule per prefix and a Read(//<folder>/**) rule per folder the command cd's into, for the chat or the agent; the text is what the client then sends as a message
     setEffort(chatId: string, effort: Effort | null): Promise<void> // a single Claude chat's --effort from its next turn; null = Medium (DEFAULT_EFFORT)
     cancelResume(chatId: string): Promise<void> // Don't continue: the chat the usage limit stopped no longer continues by itself at the reset, and its queued tasks wait for the user
     continueNow(chatId: string): Promise<void> // Continue now: the usage limit wait's continue goes in at once, ahead of the queued tasks
@@ -732,6 +732,7 @@ export interface ZumiBotApi {
   approvals: {
     list(agentName: string): Promise<AgentRule[]>
     remove(agentName: string, key: string): Promise<AgentRule[]> // resolves to the agent's remaining rules
+    addCli(agentName: string, kind: 'prefix' | 'folder', value: string): Promise<AgentRule[]> // Agent Studio's Add: a Bash(<prefix>:*) or Read(//<folder>/**) rule given to the agent's turns; resolves to its rules
     onChanged(cb: (agentName: string) => void): () => void
   }
   memory: {

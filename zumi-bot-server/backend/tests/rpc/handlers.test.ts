@@ -517,6 +517,7 @@ const KEPT = [
   'sidebar:save',
   'approvals:list',
   'approvals:remove',
+  'approvals:addCli',
   'memory:list',
   'memory:save',
   'memory:remove',
@@ -1006,6 +1007,24 @@ describe('createHandlers', () => {
     await expect(h['approvals:list'](5)).rejects.toThrow(/agentName must be a string/)
     await expect(h['approvals:remove'](5, 'k')).rejects.toThrow(/agentName must be a string/)
     await expect(h['approvals:remove']('a', 5)).rejects.toThrow(/key must be a string/)
+  })
+
+  it('approvals:addCli stores a prefix or folder rule as a CLI rule and refuses anything else', async () => {
+    const listed = await h['approvals:addCli']('a', 'prefix', ' gh pr merge ')
+    expect(listed).toEqual([{ key: JSON.stringify(['cli', 'Bash(gh pr merge:*)']), toolName: 'Bash', command: null, cli: 'Bash(gh pr merge:*)' }])
+    await h['approvals:addCli']('a', 'folder', '/work/repo')
+    expect(approvals.cliRules('a')).toEqual(['Bash(gh pr merge:*)', 'Read(//work/repo/**)'])
+    expect(approvals.list('a')[1].toolName).toBe('Read')
+    expect(approvalsTold).toEqual(['a', 'a'])
+    await expect(h['approvals:addCli'](5, 'prefix', 'x')).rejects.toThrow(/agentName must be a string/)
+    await expect(h['approvals:addCli']('a', 'any', 'x')).rejects.toThrow(/kind must be/)
+    await expect(h['approvals:addCli']('a', 'prefix', 5)).rejects.toThrow(/value must be a string/)
+    await expect(h['approvals:addCli']('a', 'prefix', 'bash -c')).rejects.toThrow(/Auto ignores/)
+    await expect(h['approvals:addCli']('a', 'folder', os.homedir())).rejects.toThrow(/home folder/)
+    await expect(h['approvals:addCli']('a', 'folder', '/etc')).rejects.toThrow(/narrower/)
+    await expect(h['approvals:addCli']('zumi-bot', 'prefix', 'gh pr view')).rejects.toThrow(/Zumi Bot/)
+    expect(approvals.cliRules('a')).toHaveLength(2)
+    expect(approvalsTold).toEqual(['a', 'a'])
   })
 
   describe('agents:save and launch trust (ACP)', () => {
@@ -2185,9 +2204,14 @@ describe('createHandlers', () => {
     await expect(h['chats:allowBlocked']('c1', 7, ['git status'], 'chat')).rejects.toThrow(TypeError)
     await expect(h['chats:allowBlocked']('c1', 't1', 'git status', 'chat')).rejects.toThrow(TypeError)
     await expect(h['chats:allowBlocked']('c1', 't1', ['git status'], 'all')).rejects.toThrow(TypeError)
+    await expect(h['chats:allowBlocked']('c1', 't1', ['git status'], 'chat', '/a/b')).rejects.toThrow(/folders must be/)
+    await expect(h['chats:allowBlocked']('c1', 't1', ['git status'], 'chat', [3])).rejects.toThrow(/folders must be/)
     expect(allow).not.toHaveBeenCalled()
     expect(await h['chats:allowBlocked']('c1', 't1', ['git status'], 'agent')).toEqual({ rules: ['Bash(git status:*)'], text: 'go' })
-    expect(allow).toHaveBeenCalledWith('c1', 't1', ['git status'], 'agent')
+    // An older page sends no folders.
+    expect(allow).toHaveBeenCalledWith('c1', 't1', ['git status'], 'agent', [])
+    await h['chats:allowBlocked']('c1', 't1', [], 'chat', ['/a/b'])
+    expect(allow).toHaveBeenLastCalledWith('c1', 't1', [], 'chat', ['/a/b'])
     expect(approvalsTold.at(-1)).toBe('helper')
   })
 
