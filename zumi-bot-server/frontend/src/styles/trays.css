@@ -207,3 +207,69 @@
   outline: 2px solid var(--ring);
   outline-offset: -2px;
 }
+
+/* Suggested replies (ReplyOptions.tsx): a card over the message box with what the reply did, the question it asks and
+   the answers as buttons; a click sends that text as the user's message. */
+.reply-options {
+  width: 100%;
+  max-width: 1008px;
+  margin: 0 auto 8px;
+  padding: 0 24px;
+  flex: none;
+}
+.reply-options-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--bg-raised);
+}
+.reply-options-summary {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.reply-options-question {
+  margin: 0;
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.reply-options-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.reply-option {
+  max-width: 100%;
+  min-height: 30px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  /* Wraps instead of cutting: a click sends the whole text, so all of it must be readable first. */
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.reply-option:hover:not(:disabled),
+.reply-option:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.reply-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.reply-option:disabled {
+  cursor: default;
+  opacity: 0.55;
+}

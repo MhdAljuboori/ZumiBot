@@ -14,6 +14,7 @@ export type RpcEvent =
   | { event: 'chats:push'; payload: WirePush }
   | { event: 'agents:changed'; payload: AgentRename[] }
   | { event: 'sidebar:changed'; payload: SidebarLayout }
+  | { event: 'app:suggestedReplies'; payload: { on: boolean } } // the Suggested replies switch changed: every tab shows or hides them at once
   | { event: 'approvals:changed'; payload: { agent: string } }
   | { event: 'memory:changed'; payload: { agent: string } }
   | { event: 'todos:changed'; payload: { rev: number } } // the board changed (also at an unchanged rev: a task's own change)

@@ -273,6 +273,7 @@ export interface HandlerDeps {
   search: Pick<SearchIndex, 'search'>
   /** Tells every tab the sidebar layout changed. */
   sidebarChanged(layout: SidebarLayout): void
+  suggestedRepliesChanged(on: boolean): void
   chatService: ChatService
   groupService: GroupService
   tasks: TaskQueue
@@ -2473,6 +2474,14 @@ export function createHandlers(d: HandlerDeps): Handlers {
       const houseStyle = bool(v, 'on')
       await settings.set({ houseStyle })
       return houseStyle
+    },
+    'app:getSuggestedReplies': async () => (await settings.get()).suggestedReplies,
+    'app:setSuggestedReplies': async (v) => {
+      const suggestedReplies = bool(v, 'on')
+      await settings.set({ suggestedReplies })
+      // Every tab, this one too: a switched-off block must vanish everywhere without a reload.
+      d.suggestedRepliesChanged(suggestedReplies)
+      return suggestedReplies
     }
   }
 

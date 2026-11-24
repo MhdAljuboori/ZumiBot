@@ -11,6 +11,7 @@ const defaults = (): AppSettings => ({
   accent: 'blue',
   lastGroupFolder: null,
   houseStyle: true,
+  suggestedReplies: true,
   keepWarm: { ...KEEP_WARM_DEFAULT },
   worktreeFolders: []
 })
@@ -62,6 +63,7 @@ export class SettingsStore {
         lastGroupFolder: typeof raw.lastGroupFolder === 'string' ? raw.lastGroupFolder : null,
         // On unless turned off: a file from before the setting, or a bad value, reads as on.
         houseStyle: raw.houseStyle !== false,
+        suggestedReplies: raw.suggestedReplies !== false,
         keepWarm: keepWarmOf(raw.keepWarm),
         worktreeFolders: Array.isArray(raw.worktreeFolders) ? raw.worktreeFolders.filter((f): f is string => typeof f === 'string') : [],
         // Absent until the page reports one; a stored value that is not a usable zone reads as absent.

@@ -203,6 +203,15 @@ export interface ChatMeta {
   attempt?: ChatAttempt // one of a card's parallel attempts (see review-loop.md); absent = not an attempt
   pr?: ChatPr // the GitHub pull request opened from this chat's worktree branch (see review-loop.md); absent = none
   allowRules?: string[] // `Bash(<prefix>:*)` rules the user granted for this chat, passed to its turns outside Plan; absent = none
+  suggested?: SuggestedReplies // the next messages offered for the reply ending at item `after` (replyOptions.ts); absent = none read yet
+}
+
+/** What the reply reader offered: 1 option is the composer's placeholder, 2 or 3 are buttons; empty = asked, nothing to offer. */
+export interface SuggestedReplies {
+  after: string // the chat's last item id when the read began; shown only while it is still the last
+  options: string[]
+  question?: string // the decision the buttons answer, shown above them; absent = none usable
+  summary?: string // one or two sentences on what the reply did, shown first; absent = none usable
 }
 
 export type PrState = 'open' | 'merged' | 'closed'
@@ -519,6 +528,7 @@ export interface AppSettings {
   accent: Accent
   lastGroupFolder: string | null
   houseStyle: boolean // append the shared reply style to every agent's system prompt
+  suggestedReplies: boolean // after a reply that asks the user something, offer their next message (replyOptions.ts)
   keepWarm: KeepWarmSettings // hours a big idle context's prompt cache is kept alive (keepWarm.ts)
   timeZone?: string // the user's IANA zone, as the page last reported it (setTimeZone)
   worktreeFolders: string[] // top folders of the repos where "Isolate in worktree" is on; keyed by top folder so a subfolder pick reads the same setting
@@ -717,6 +727,9 @@ export interface ZumiBotApi {
     setAccent(accent: Accent): Promise<Accent> // resolves to the applied value
     getHouseStyle(): Promise<boolean>
     setHouseStyle(on: boolean): Promise<boolean> // applies from each chat's next turn
+    getSuggestedReplies(): Promise<boolean>
+    setSuggestedReplies(on: boolean): Promise<boolean> // every tab hears it (onSuggestedRepliesChanged)
+    onSuggestedRepliesChanged(cb: (on: boolean) => void): () => void
     getKeepWarm(): Promise<KeepWarmSettings>
     setKeepWarm(v: KeepWarmSettings): Promise<KeepWarmSettings> // applies to the next ping each context is due
     setTimeZone(tz: string): Promise<void> // the page's zone, sent on every connect; a bad or unchanged one is ignored

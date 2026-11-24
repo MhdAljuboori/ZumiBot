@@ -21,6 +21,7 @@ describe('SettingsStore', () => {
       accent: 'blue',
       lastGroupFolder: null,
       houseStyle: true,
+      suggestedReplies: true,
       keepWarm: { roomHours: 12, chatHours: 2 },
       worktreeFolders: []
     })
@@ -60,6 +61,7 @@ describe('SettingsStore', () => {
       accent: 'blue',
       lastGroupFolder: null,
       houseStyle: true,
+      suggestedReplies: true,
       keepWarm: { roomHours: 12, chatHours: 2 },
       worktreeFolders: []
     })
@@ -79,6 +81,7 @@ describe('SettingsStore', () => {
       accent: 'blue',
       lastGroupFolder: null,
       houseStyle: true,
+      suggestedReplies: true,
       keepWarm: { roomHours: 12, chatHours: 2 },
       worktreeFolders: []
     })
@@ -94,6 +97,7 @@ describe('SettingsStore', () => {
       accent: 'blue',
       lastGroupFolder: null,
       houseStyle: true,
+      suggestedReplies: true,
       keepWarm: { roomHours: 12, chatHours: 2 },
       worktreeFolders: []
     })
@@ -114,6 +118,16 @@ describe('SettingsStore', () => {
     expect((await new SettingsStore(dir).get()).houseStyle).toBe(true)
     await fs.writeFile(join(dir, 'settings.json'), '{"houseStyle":"no"}')
     expect((await new SettingsStore(dir).get()).houseStyle).toBe(true)
+  })
+
+  it('suggested replies are on by default, persist off, and anything but false reads as on', async () => {
+    const s = new SettingsStore(dir)
+    await s.set({ suggestedReplies: false })
+    expect((await new SettingsStore(dir).get()).suggestedReplies).toBe(false)
+    await fs.writeFile(join(dir, 'settings.json'), '{"claudePath":"/c"}')
+    expect((await new SettingsStore(dir).get()).suggestedReplies).toBe(true)
+    await fs.writeFile(join(dir, 'settings.json'), '{"suggestedReplies":"no"}')
+    expect((await new SettingsStore(dir).get()).suggestedReplies).toBe(true)
   })
 
   it('accent is blue by default, persists a pick, and an unknown one reads as blue', async () => {
@@ -137,6 +151,7 @@ describe('SettingsStore', () => {
         accent: 'blue',
         lastGroupFolder: null,
         houseStyle: true,
+        suggestedReplies: true,
         keepWarm: { roomHours: 12, chatHours: 2 },
         worktreeFolders: []
       })
