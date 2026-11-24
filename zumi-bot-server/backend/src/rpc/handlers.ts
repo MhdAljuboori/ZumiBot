@@ -169,6 +169,7 @@ import {
   type McpScope,
   type McpServerInput
 } from '@zumibot/shared/extensions'
+import type { EngineCommands } from '@zumibot/shared/engineCommands'
 import { NAME_PATTERN, parseAgent } from '@zumibot/shared/frontmatter'
 import type { ExtensionsService } from '../core/extensions/extensionsService'
 import type { ConnectorsService } from '../core/connectors/connectorsService'
@@ -356,6 +357,7 @@ export interface HandlerDeps {
     | 'setSkill'
     | 'saveHook'
     | 'removeHook'
+    | 'engineCommands'
     | 'forget'
   >
   /** The claude.ai connector switches; the service tells every tab itself (`connectors:changed`, wired in app.ts). */
@@ -435,12 +437,13 @@ function messageId(v: unknown): string | undefined {
   return id
 }
 
-/** The `/` menu's pick (composer or message editor); the server looks the prompt up itself, so only the two names are read. */
+/** The `/` menu's pick (composer or message editor); the server looks the prompt up itself, so only the two names and the engine marker are read. */
 function commandPick(v: unknown): CommandPick | undefined {
   if (v === undefined || v === null) return undefined
   const o = v as Record<string, unknown>
   if (typeof v !== 'object' || typeof o.agent !== 'string' || typeof o.name !== 'string') throw new TypeError('Invalid command')
-  return { agent: o.agent, name: o.name }
+  if (o.engine !== undefined && !(o.engine === 'claude' || o.engine === 'codex')) throw new TypeError('Invalid command')
+  return o.engine === undefined ? { agent: o.agent, name: o.name } : { agent: o.agent, name: o.name, engine: o.engine }
 }
 
 /** A version position; the queue checks it against the message's versions. */
@@ -1289,6 +1292,19 @@ export function createHandlers(d: HandlerDeps): Handlers {
       return confirmed?.provider === 'ag-ui'
         ? { endpoint: confirmed.endpoint, authKey: confirmed.authKey, authHeader: confirmed.authHeader }
         : null
+    },
+    // Optional folder arrives as null (the new-chat screen before one is picked): home, as the extensions page uses.
+    'agents:engineCommands': async (agent, folder): Promise<EngineCommands | null> => {
+      const name = str(agent, 'agent')
+      if (!(await agents.list()).some((a) => a.name === name && a.error === null)) throw new Error(EXT_TEXT.notFound)
+      const f = folder === undefined || folder === null ? d.home : await extFolder(folder)
+      const found = await d.extensions.engineCommands(f, name)
+      // `path` is Codex's SKILL.md on this machine: it never leaves the server.
+      if (!found) return null
+      const commands = found.rows.map(({ name, description, hint, kind }) =>
+        hint ? { name, description, hint, kind } : { name, description, kind }
+      )
+      return { engine: found.engine, commands }
     },
     'agents:save': async (original, raw) => {
       const from = original === null ? null : str(original, 'originalFilePath')

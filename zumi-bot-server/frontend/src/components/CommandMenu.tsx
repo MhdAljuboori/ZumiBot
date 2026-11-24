@@ -23,11 +23,15 @@ export function CommandMenu({ options, grouped, active, onActive, onPick }: Prop
   const row = (o: CommandOption, i: number) => {
     const name = 'builtin' in o ? o.builtin : o.command.name
     const description = 'builtin' in o ? o.description : o.command.description
-    const agent = 'builtin' in o ? undefined : o.agent.name
-    const makesTodos = !('builtin' in o) && o.command.todos === true
+    const engine = 'engine' in o ? o.engine : undefined
+    const hint = 'engine' in o ? o.command.hint : undefined
+    // A skill says so; the engine's other commands carry the engine's name.
+    const label = 'engine' in o ? (o.command.kind === 'skill' ? 'skill' : o.engine) : undefined
+    const agent = 'builtin' in o || 'engine' in o ? undefined : o.agent.name
+    const makesTodos = !('builtin' in o) && !('engine' in o) && o.command.todos === true
     return (
       <button
-        key={`${agent ?? 'builtin'}/${name}`}
+        key={engine ? `engine:${engine}/${name}` : `${agent ?? 'builtin'}/${name}`}
         type="button"
         role="option"
         tabIndex={-1}
@@ -35,19 +39,34 @@ export function CommandMenu({ options, grouped, active, onActive, onPick }: Prop
         className={i === active ? 'command-option on' : 'command-option'}
         data-testid="command-option"
         data-agent-name={agent}
+        data-engine={engine}
         data-command-name={name}
         onMouseEnter={() => onActive(i)}
         onClick={() => onPick(o)}
       >
-        <span className="command-name">
-          /{name}
-          {makesTodos && (
-            <span className="command-todos" data-testid="command-todos" data-tip="Makes to-dos" role="img" aria-label="Makes to-dos">
-              ☑
+        <span className="command-head">
+          <span className="command-name">
+            /{name}
+            {makesTodos && (
+              <span className="command-todos" data-testid="command-todos" data-tip="Makes to-dos" role="img" aria-label="Makes to-dos">
+                ☑
+              </span>
+            )}
+          </span>
+          {hint && (
+            <span className="command-hint" data-tip={hint}>
+              {hint}
+            </span>
+          )}
+          {label && (
+            <span className="command-engine" data-testid="command-engine">
+              {label}
             </span>
           )}
         </span>
-        <span className="command-desc">{description}</span>
+        <span className="command-desc" data-tip={description}>
+          {description}
+        </span>
       </button>
     )
   }
@@ -62,7 +81,7 @@ export function CommandMenu({ options, grouped, active, onActive, onPick }: Prop
       ref={ref}
       onMouseDown={(e) => e.preventDefault()}
     >
-      {grouped && options.map((o, i) => ('builtin' in o ? row(o, i) : null))}
+      {/* filterCommands puts the agents' commands before the built-ins, so the groups come first and arrow keys follow the rows. */}
       {grouped
         ? groupOptions(options).map((g) => (
             <div key={g.agent.filePath} className="command-group" role="group" aria-label={displayName(g.agent.name)}>
@@ -74,6 +93,7 @@ export function CommandMenu({ options, grouped, active, onActive, onPick }: Prop
             </div>
           ))
         : options.map(row)}
+      {grouped && options.map((o, i) => ('builtin' in o ? row(o, i) : null))}
     </div>
   )
 }

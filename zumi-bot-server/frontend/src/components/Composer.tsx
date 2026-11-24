@@ -12,6 +12,7 @@ import { Slice } from '@tiptap/pm/model'
 import { Selection, type EditorState } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
 import type { CommandPick } from '@zumibot/shared/commands'
+import type { EngineCommands } from '@zumibot/shared/engineCommands'
 import { displayName } from '@zumibot/shared/frontmatter'
 import type { AgentSummary } from '@zumibot/shared/types'
 import {
@@ -81,6 +82,8 @@ interface Props {
   everyone?: boolean
   /** Whose commands a leading `/` lists: the chat's agent, or a room's loadable members (grouped under headers when `mentionMembers` is set). */
   commandAgents?: AgentSummary[]
+  /** The chat agent's engine rows after the agent's own in the `/` menu (single chat and new-chat screen only; a room has none). */
+  engineCommands?: EngineCommands | null
   /** Whether the `/` menu offers `/btw`: false for an engine without side questions (Codex). Default true. */
   btw?: boolean
   /** A typed leading `/btw` is not sent: this notice shows instead (the island, which has no side panel for the answer). */
@@ -142,6 +145,7 @@ export function Composer({
   mentionMembers,
   everyone = true,
   commandAgents,
+  engineCommands,
   btw = true,
   noBtw,
   runWorkflow = true,
@@ -209,7 +213,7 @@ export function Composer({
       return
     }
     // Checked against the agents as they are now: the new-chat agent may have been switched since the pick.
-    const sent = keepPick(text, pick, commandAgents ?? [])
+    const sent = keepPick(text, pick, commandAgents ?? [], engineCommands)
     const workflow = keepWorkflowPick(text, wfPick)
     lastSent.current = { text, pick: sent, workflow }
     setPick(null)
@@ -241,7 +245,13 @@ export function Composer({
   const options: MentionOption[] = mentionMembers && query ? mentionOptions(query.query, mentionMembers, everyone) : []
   const commands: CommandOption[] =
     commandAgents && slash
-      ? filterCommands(slash.query, commandAgents, { afterTodo: slash.afterTodo, btw, todo: offersTodo(commandAgents), runWorkflow })
+      ? filterCommands(slash.query, commandAgents, {
+          afterTodo: slash.afterTodo,
+          btw,
+          todo: offersTodo(commandAgents),
+          runWorkflow,
+          engine: engineCommands
+        })
       : []
   // The Workflows list shows only while it has names: typing past a name closes it.
   const workflowNames = runWorkflow && workflows && wfQuery ? filterWorkflowNames(wfQuery.query, workflows) : []
@@ -278,7 +288,16 @@ export function Composer({
       })
       .run()
     // After the insert's own update, which saw no pick yet.
-    setPick('builtin' in o ? null : { agent: o.agent.name, name: o.command.name })
+    // An engine row belongs to the chat's one agent (engine rows are offered only where `commandAgents` is that agent).
+    setPick(
+      'builtin' in o
+        ? null
+        : 'engine' in o
+          ? commandAgents?.[0]
+            ? { agent: commandAgents[0].name, name: o.command.name, engine: o.engine }
+            : null
+          : { agent: o.agent.name, name: o.command.name }
+    )
   }
 
   const pickWorkflow = (w: WorkflowPick): void => {

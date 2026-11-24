@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
 import { ZUMI_BOT_NAME } from '@zumibot/shared/zumiBot'
 import { assertNever, engineOfAgent, type Engine } from '@zumibot/shared/engine'
+import type { CommandEngine } from '@zumibot/shared/engineCommands'
 import {
   EXT_TEXT,
   type AgentExtensions,
@@ -33,7 +34,9 @@ import {
   storedServerNames,
   writeProjectServer
 } from './mcpFiles'
-import { probeClaude, probeCodex, type ProbeAnswers } from './probe'
+import { commandsProbeArgs } from './commandsProbeArgs'
+import { claudeCommandRows, codexSkillRows, type EngineCommandRow } from './engineCommandRows'
+import { probeClaude, probeClaudeCommands, probeCodex, probeCodexCommands, type ProbeAnswers } from './probe'
 import { toLoadout } from './sanitize'
 import {
   hookRows,
@@ -82,11 +85,25 @@ export interface ExtensionsDeps {
   /** Exit codes of failed CLI writes only. */
   log(line: string): void
   /** Test seams: the probes and their timings. */
-  probe?: { claude?: typeof probeClaude; codex?: typeof probeCodex; timings?: ProbeTimings }
+  probe?: {
+    claude?: typeof probeClaude
+    codex?: typeof probeCodex
+    claudeCommands?: typeof probeClaudeCommands
+    codexCommands?: typeof probeCodexCommands
+    timings?: ProbeTimings
+  }
+}
+
+/** What the `/` menu may show for an agent in a folder; `path` (Codex only) stays on the server. */
+export interface EngineCommandsAnswer {
+  engine: CommandEngine
+  rows: EngineCommandRow[]
 }
 
 const PROBES_MAX = 2
 const CACHE_MAX = 100
+/** A cached command list older than this is still served, and re-probed once in the background. */
+export const ENGINE_COMMANDS_STALE_MS = 300_000
 const HOOK_FILES: HookFile[] = ['user', 'project', 'local']
 // listSkillDirs never lists these folders, so a skill made under either name would vanish from the page.
 const RESERVED_SKILL_FOLDERS = new Set(['synced', '.trash'])
@@ -232,6 +249,9 @@ const cacheKey = (folder: string, agent: string | null, text: string): string =>
 export class ExtensionsService {
   private readonly cache = new Map<string, Loadout>()
   private readonly inflight = new Map<string, Promise<Loadout>>()
+  // The `/` menu's engine commands: their own cache, so a refresh of the loadout never waits on them (and the reverse).
+  private readonly engineCache = new Map<string, { at: number; answer: EngineCommandsAnswer }>()
+  private readonly engineInflight = new Map<string, Promise<EngineCommandsAnswer>>()
   // A probe that started before a forget() may have read the old files: its answer goes to its callers, never into the cache.
   private generation = 0
   private running = 0
@@ -272,6 +292,8 @@ export class ExtensionsService {
     this.generation++
     this.cache.clear()
     this.inflight.clear()
+    this.engineCache.clear()
+    this.engineInflight.clear()
   }
 
   // ---- what loads ----
@@ -345,6 +367,135 @@ export class ExtensionsService {
     this.cache.delete(key)
     this.cache.set(key, l)
     if (this.cache.size > CACHE_MAX) this.cache.delete(this.cache.keys().next().value as string)
+  }
+
+  // ---- the engine's own slash commands (Claude Code commands, Codex skills) ----
+
+  /**
+   * The rows of the `/` menu for an agent in a folder, from its CLI. Null for an ACP or remote agent and for an unknown or broken one;
+   * Zumi Bot counts as Claude. A missing CLI or a failed probe gives no rows and is not cached, so the next call tries again. A hit older
+   * than ENGINE_COMMANDS_STALE_MS is returned at once and re-probed once in the background.
+   */
+  async engineCommands(folder: string, agent: string): Promise<EngineCommandsAnswer | null> {
+    const target = await this.engineTarget(folder, agent)
+    if (!target) return null
+    const hit = this.engineCache.get(target.key)
+    if (hit) {
+      if (this.d.now() - hit.at > ENGINE_COMMANDS_STALE_MS)
+        void this.engineProbe(target.key, folder, target.summary, target.engine).catch(() => undefined)
+      return hit.answer
+    }
+    return this.engineProbe(target.key, folder, target.summary, target.engine)
+  }
+
+  /** What `engineCommands` has cached, however old, and never a probe: null on a miss and for an agent with no engine rows. */
+  async cachedEngineCommands(folder: string, agent: string): Promise<EngineCommandsAnswer | null> {
+    const target = await this.engineTarget(folder, agent)
+    return target ? (this.engineCache.get(target.key)?.answer ?? null) : null
+  }
+
+  private async engineTarget(
+    folder: string,
+    agent: string
+  ): Promise<{ summary: AgentSummary; engine: CommandEngine; key: string } | null> {
+    this.refuseStopped()
+    const summary = (
+      await this.d.agents().catch((err: unknown) => {
+        throw pageError(err)
+      })
+    ).find((a) => a.name === agent && a.error === null)
+    if (!summary) return null
+    const engine: Engine = summary.name === ZUMI_BOT_NAME ? 'claude' : engineOfAgent(summary)
+    if (!(engine === 'claude' || engine === 'codex')) return null
+    // The file's text keys the cache, so a Save is never served the old agent's commands.
+    const text = await fs.readFile(summary.filePath, 'utf8').catch(() => '')
+    return { summary, engine, key: cacheKey(folder, agent, text) }
+  }
+
+  /** A Codex skill's name and the SKILL.md path of its row, for the turn that runs it. Null when the agent has no such skill. */
+  async codexSkill(folder: string, agent: string, name: string): Promise<{ name: string; path: string } | null> {
+    const found = await this.engineCommands(folder, agent)
+    if (found?.engine === 'codex') {
+      const row = found.rows.find((r) => r.name === name)
+      return row?.path ? { name: row.name, path: row.path } : null
+    }
+    return null
+  }
+
+  // One probe per key at a time: a caller (or the background refresh) joins the one running.
+  private engineProbe(key: string, folder: string, agent: AgentSummary, engine: CommandEngine): Promise<EngineCommandsAnswer> {
+    const running = this.engineInflight.get(key)
+    if (running) return running
+    const generation = this.generation
+    const probe = this.slot(() => this.abortable((signal) => this.probeEngineCommands(folder, agent, engine, signal)))
+      .then(
+        (rows) => {
+          const answer = { engine, rows: rows ?? [] }
+          // Only a real answer is kept, and not one from before a forget(), which may have read the old files.
+          if (rows !== null && this.generation === generation) this.rememberEngine(key, answer)
+          return answer
+        },
+        (err: unknown) => {
+          throw pageError(err)
+        }
+      )
+      .finally(() => {
+        if (this.engineInflight.get(key) === probe) this.engineInflight.delete(key)
+      })
+    this.engineInflight.set(key, probe)
+    this.builds.add(probe)
+    void probe.then(
+      () => this.builds.delete(probe),
+      () => this.builds.delete(probe)
+    )
+    return probe
+  }
+
+  private rememberEngine(key: string, answer: EngineCommandsAnswer): void {
+    this.engineCache.delete(key)
+    this.engineCache.set(key, { at: this.d.now(), answer })
+    if (this.engineCache.size > CACHE_MAX) this.engineCache.delete(this.engineCache.keys().next().value as string)
+  }
+
+  // Null when the CLI is missing or the probe failed. The raw answer is read into rows here and goes no further. It runs on its
+  // own (a chat opens, a folder is picked), so it gets the least a command list needs: the base env with no agent's keys or own
+  // servers' values, hooks off, no MCP servers (`commandsProbeArgs`); only skill and plugin switches are kept.
+  private async probeEngineCommands(
+    folder: string,
+    agent: AgentSummary,
+    engine: CommandEngine,
+    signal: AbortSignal
+  ): Promise<EngineCommandRow[] | null> {
+    // Fixed words only: the engine and an error's code, never output, a path or a value.
+    const failed = (err?: unknown): null => {
+      const code = (err as NodeJS.ErrnoException | undefined)?.code
+      this.d.log(`engine commands probe failed (${engine}${typeof code === 'string' && CODE.test(code) ? `, ${code}` : ''})`)
+      return null
+    }
+    try {
+      const timings = this.d.probe?.timings
+      if (engine === 'codex') {
+        const [env, bin] = await Promise.all([this.d.env(), this.d.locateCodex()])
+        if (!bin) return null
+        const answer = await (this.d.probe?.codexCommands ?? probeCodexCommands)({ bin, folder, env, signal, ...timings })
+        return answer === null ? failed() : codexSkillRows(answer)
+      }
+      const [env, bin] = await Promise.all([this.d.env(), this.d.locate()])
+      if (!bin) return null
+      const config = await this.d.runConfig(agent.name, { serversOff: true, skillsOff: true })
+      const answer = await (this.d.probe?.claudeCommands ?? probeClaudeCommands)({
+        bin,
+        folder,
+        agent: agent.name,
+        args: commandsProbeArgs(config.extraArgs),
+        env,
+        signal,
+        ...timings
+      })
+      return answer === null ? failed() : claudeCommandRows(answer.commands, answer.skills)
+    } catch (err) {
+      return failed(err)
+    }
   }
 
   // At most two probes server-wide; the rest wait their turn in order.

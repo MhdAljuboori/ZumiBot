@@ -3554,7 +3554,7 @@ describe('step commands', () => {
     cwd: '/tmp',
     ...(command ? { command } : {})
   })
-  const real = () => new CommandResolver({ store: chats, commandsOf: async () => [check] })
+  const real = () => new CommandResolver({ store: chats, commandsOf: async () => [check], engineCommandsOf: async () => null })
   const recording = () => {
     const calls: { chatId: string; saved: string; text: string; pick?: CommandPick }[] = []
     const resolver = real()

@@ -68,7 +68,8 @@ export function createApi(
       testAcp: (agentName) => call('agents:testAcp', agentName),
       acpLaunch: (agentName) => call('agents:acpLaunch', agentName),
       testAgui: (agentName) => call('agents:testAgui', agentName),
-      aguiLaunch: (agentName) => call('agents:aguiLaunch', agentName)
+      aguiLaunch: (agentName) => call('agents:aguiLaunch', agentName),
+      engineCommands: (agent, folder) => call('agents:engineCommands', agent, folder)
     },
     chats: {
       list: () => call('chats:list'),

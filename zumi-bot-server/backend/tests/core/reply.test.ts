@@ -26,6 +26,12 @@ describe('reply quotes', () => {
     expect(withReply('why?', undefined)).toBe('why?')
   })
 
+  it('puts the quote after the text when asked, so a Claude command keeps the first position', () => {
+    expect(withReply('/goal x', said('a', 'done'), true)).toBe('/goal x\n\n<reply_to>\ndone\n</reply_to>')
+    expect(withReply('', said('a', 'done', 'ui'), true)).toBe('<reply_to from="ui">\ndone\n</reply_to>')
+    expect(withReply('/goal x', undefined, true)).toBe('/goal x')
+  })
+
   it('cuts a long quote', () => {
     const quote = withReply('ok', said('a', 'x'.repeat(REPLY_QUOTE_MAX + 50)))
     expect(quote).toContain(`${'x'.repeat(REPLY_QUOTE_MAX)}…\n</reply_to>`)

@@ -923,6 +923,7 @@ export async function startServer(
     if (claudeSdk) console.log('ZUMIBOT_CLAUDE_SDK=1: Claude turns run through the Agent SDK adapter')
     const chatService = new ChatService({
       engineOf,
+      codexSkill: (folder, agent, name) => extensions.codexSkill(folder, agent, name),
       // The CLI path asks each binary whether it takes the flag; the SDK path needs no probe, since its option is typed and
       // the SDK's own version pins the Claude Code version that has it.
       dropsTurn: claudeSdk ? async () => true : dropsTurnProbe,
@@ -1457,7 +1458,21 @@ export async function startServer(
       now: () => Date.now(),
       newId: () => randomUUID()
     })
-    const commands = new CommandResolver({ store: chats, commandsOf: (n) => agents.commandsOf(n) })
+    const commands = new CommandResolver({
+      store: chats,
+      commandsOf: (n) => agents.commandsOf(n),
+      // An unreadable agents list or a failed probe means no engine rows: the text goes out as typed.
+      engineCommandsOf: async (agent, folder, o) => {
+        if (o?.cachedOnly) {
+          const hit = await extensions.cachedEngineCommands(folder, agent).catch(() => null)
+          if (hit) return hit
+          // A cold cache never holds up a send: a Claude command goes out as typed (only its chip is lost); a Codex skill needs the list.
+          const found = (await agents.list().catch(() => [])).find((a) => a.name === agent)
+          if (!(found && engineOfAgent(found) === 'codex')) return null
+        }
+        return extensions.engineCommands(folder, agent).catch(() => null)
+      }
+    })
     // Whether a routine's or workflow's spend cap can hold for its agents' engines: at save, and again where a run starts.
     const capEngineCheck = capEngines({ agents: () => agents.list(), chats })
     runner = new RoutineRunner({

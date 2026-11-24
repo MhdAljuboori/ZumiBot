@@ -62,6 +62,7 @@ import { RoleChip } from './RoleMenu'
 import { ProcessMark, SidePanelToggle } from './SidePanelMenu'
 import { useNarrow } from '../media'
 import { useFitRow } from '../useFitRow'
+import { useEngineCommands } from '../net/useEngineCommands'
 import { coldNoticeShown } from '../state/contextMeter'
 import { chatCaps, cliMissing, missingFeaturesTitle, roomMissingFeaturesTitle } from '../state/agentEngine'
 import { TasksTray } from './TasksTray'
@@ -499,6 +500,8 @@ export function ChatView({
     [roomMembers, agents]
   )
   const singleAgents = useMemo(() => (agent ? [agent] : undefined), [agent])
+  // Engine rows only for a single chat's own composer (a room and the island's popup have none).
+  const engineCommands = useEngineCommands(chat.group || compact ? null : chat.agentName, chat.cwd)
   // A single chat's `@` asks another agent: the same list a room uses, without the chat's own agent.
   const selfName = chat.agentName
   const askable = useMemo(() => askableAgents(agents, selfName), [agents, selfName])
@@ -697,6 +700,7 @@ export function ChatView({
         mentionMembers={askable}
         everyone={false}
         commandAgents={singleAgents}
+        engineCommands={engineCommands}
         btw={caps.btw && !compact}
         noBtw={compact ? ISLAND_BTW_NOTICE : undefined}
         runWorkflow={offersRunWorkflow({ compact })}

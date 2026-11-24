@@ -9956,6 +9956,48 @@ describe('codex engine', () => {
     expect(codexCalls.at(-1)!.thread.model).toBe('gpt-6-sol')
   })
 
+  it('a Codex skill command rides as a skill item on the codex run, and the typed text goes in as the skill reads it', async () => {
+    const asked: Array<[string, string, string]> = []
+    svc = withCodex({
+      codexSkill: async (folder, agent, name) => {
+        asked.push([folder, agent, name])
+        return { name, path: '/s/pdf/SKILL.md' }
+      }
+    })
+    const c = await store.create('cx', dir)
+    const cmd = { agent: 'cx', name: 'pdf', prompt: '$pdf a', engine: 'codex' as const }
+    await svc.send(c.id, '/pdf a', [], undefined, undefined, cmd)
+    expect(asked).toEqual([[dir, 'cx', 'pdf']])
+    expect(codexCalls[0].skills).toEqual([{ name: 'pdf', path: '/s/pdf/SKILL.md' }])
+    expect(promptOf(codexCalls[0])).toBe('$pdf a')
+    expect(JSON.stringify(await itemsOf(c.id))).not.toContain('SKILL.md')
+  })
+
+  it('a Codex skill that is gone ends the turn with an error item and starts no CLI', async () => {
+    svc = withCodex({ codexSkill: async () => null })
+    const c = await store.create('cx', dir)
+    const cmd = { agent: 'cx', name: 'pdf', prompt: '$pdf a', engine: 'codex' as const }
+    await svc.send(c.id, '/pdf a', [], undefined, undefined, cmd).catch(() => {})
+    expect(codexCalls).toHaveLength(0)
+    const items = await itemsOf(c.id)
+    expect(items.at(-1)).toMatchObject({ type: 'error', text: 'Codex has no $pdf skill any more' })
+  })
+
+  it('a plain Codex message carries no skills', async () => {
+    svc = withCodex({ codexSkill: async () => ({ name: 'x', path: '/p' }) })
+    const c = await store.create('cx', dir)
+    await svc.send(c.id, 'hello')
+    expect(codexCalls[0].skills).toBeUndefined()
+  })
+
+  it('a Claude engine command keeps first position when the message quotes a reply', async () => {
+    const c = await store.create('helper', dir)
+    await store.saveItems(c.id, [{ type: 'assistant', id: 'a1', text: 'done', ts: 1 }])
+    const cmd = { agent: 'helper', name: 'goal', prompt: '/goal x', engine: 'claude' as const }
+    await svc.send(c.id, '/goal x', [], 'a1', undefined, cmd)
+    expect(calls[0].stdin).toBe('/goal x\n\n<reply_to>\ndone\n</reply_to>')
+  })
+
   it('a Claude session never reaches Codex: the turn starts a fresh thread from the history', async () => {
     const c = await store.create('cx', dir)
     await store.update(c.id, { sessionId: 'claude-s' })

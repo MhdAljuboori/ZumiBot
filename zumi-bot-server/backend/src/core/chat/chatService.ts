@@ -61,7 +61,7 @@ import {
 } from '@zumibot/shared/engine'
 import { displayName } from '@zumibot/shared/frontmatter'
 import type { CodexRunOptions } from '../codex/codexRunner'
-import { codexCompactLimit, codexModel, isCodexOwnEnv, type CodexHook } from '../codex/codexParams'
+import { codexCompactLimit, codexModel, isCodexOwnEnv, type CodexHook, type CodexSkillRef } from '../codex/codexParams'
 import { turnStart, type EngineAdapter, type EngineTurn, type TurnAction } from '../engines/engine'
 import { claudeEngine, type ClaudeTurnConfig } from '../engines/claudeEngine'
 import { codexEngine, type CodexEngine } from '../engines/codexEngine'
@@ -233,6 +233,8 @@ export interface ChatServiceDeps {
   // Whether a cut may declare the turn it discards on this binary (--resume-drops-turn, `dropsTurnProbe.ts`), asked per attempt
   // like thinkingDisplay. Absent, or false: the cut goes unvalidated, exactly as it did before the flag existed.
   dropsTurn?(bin: string): Promise<boolean>
+  // A Codex agent's skill by name in a folder (with its SKILL.md path), for the turn that runs a skill command; null = it is gone.
+  codexSkill?(folder: string, agent: string, name: string): Promise<CodexSkillRef | null>
   browserTurns?: {
     profileId(agent: string, chatId: string): Promise<string | null>
     create(owner: BrowserOwner, onHandoff: (handoff: BrowserHandoff) => Promise<void>): Promise<BrowserTurn>
@@ -614,6 +616,7 @@ export interface TurnSpec {
   lost?: string[] // what the subagents a stop killed in this agent's last turn were doing: told once, by a plain resume
   saveLost?(descriptions: string[] | null): Promise<unknown> // stores what this turn's stop killed; null clears it
   engine?: Engine // absent = Claude; 'codex' runs the turn on codex app-server, with what Codex cannot do left out
+  skills?: CodexSkillRef[] // Codex only: the skills the message runs, sent as skill items beside its prompt
 }
 
 /** text is this turn's assistant text, joined with blank lines. */
@@ -1769,7 +1772,18 @@ export class ChatService {
       // The one place every path (send, edit, resend, routine, workflow step) goes through: an agent without ZumiBot's to-do
       // tools is never asked for to-dos. Thrown here, it is this turn's error item and nothing runs.
       if (asksTodos(user) && !bridges) throw new Error(todoRefusal(engine, meta.agentName))
-      const noted = withNote(withReply(readAs(user, meta.agentName, bridges), repliedItem(history, user.replyTo)), refs)
+      // A Codex skill is looked up now: one removed since the menu was built is this turn's error, before anything is stored.
+      let skills: CodexSkillRef[] | undefined
+      if (engine === 'codex' && user.command?.engine === 'codex') {
+        const skill = await this.d.codexSkill?.(meta.cwd, meta.agentName, user.command.name)
+        if (!skill) throw new Error(`Codex has no $${user.command.name} skill any more`)
+        skills = [skill]
+      }
+      // A Claude command reads as one only at the start of the message, so a reply's quote goes after it.
+      const noted = withNote(
+        withReply(readAs(user, meta.agentName, bridges), repliedItem(history, user.replyTo), user.command?.engine === 'claude'),
+        refs
+      )
       const blocks = await imageBlocks(refs)
       // Versions first: a failure or crash between the two writes leaves the old tail stored twice, never lost, and
       // the next edit or switch reads the shown item's index (an unmarked original counts as slot 0) and reuses or drops
@@ -1844,6 +1858,7 @@ export class ChatService {
         ...(meta.next && 'at' in meta.next && meta.next.drops !== undefined ? { resumeDrops: meta.next.drops } : {}),
         reseed: stale || (meta.next !== undefined && 'seed' in meta.next),
         engine,
+        ...(skills ? { skills } : {}),
         ...(meta.next !== undefined && 'fresh' in meta.next ? { freshStart: true } : {}),
         window: meta.context?.window ?? null,
         saveContext: (context) => updateMeta({ context }),
@@ -3317,6 +3332,8 @@ export class ChatService {
             // Codex numbers each process's requests from 0 and a card's item id is its request id: a fresh tag per attempt keeps a
             // turn's first card from taking an earlier attempt's id and being dropped as a repeat.
             requestTag: randomUUID(),
+            // Skill items go on a real turn only: a compaction takes no input.
+            ...(spec.skills && !spec.compact ? { skills: spec.skills } : {}),
             ...(caps.questions ? {} : { questions: false }),
             // Codex subagents, which the Dispatched agents panel shows and a stop ends with the process; a compaction runs none.
             ...(caps.dispatch && !spec.compact ? { subagents: true } : {}),
