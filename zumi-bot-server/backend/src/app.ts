@@ -51,6 +51,8 @@ import { buildBriefing } from './core/chat/groupPrompts'
 import { HOUSE_STYLE } from './core/chat/houseStyle'
 import { runJsonCall, runModerator } from './core/chat/moderator'
 import { ackMessage, runAck } from './core/chat/acknowledge'
+import { runReplyOptions } from './core/chat/replyOptions'
+import { ReplyOptions } from './core/chat/replyOptionsService'
 import { runRoute } from './core/todos/commentRouting'
 import type { RunCost } from './core/usage/runCost'
 import { createRunEnv } from './core/chat/shellEnv'
@@ -797,6 +799,28 @@ export async function startServer(
     undo.push(() => processIpc.close())
     const vaultIpc = await serveVaultIpc({ items: (agent) => vault.agentItems(agent) })
     undo.push(() => vaultIpc.close())
+    // Suggested replies: a chat gone idle on a reply that asks the user gets their likely next messages (replyOptions.ts).
+    const replyOptions = new ReplyOptions({
+      store: chats,
+      push,
+      enabled: async () => (await settings.get()).suggestedReplies,
+      // Built later; only ever called once a chat goes idle, by which time it exists.
+      running: (chatId) => chatService.isRunning(chatId),
+      read: async (chatId, input, signal) => {
+        const bin = await claude.locate()
+        if (!bin) return null
+        await runEnv.ready()
+        // No tools and no session: the home folder is only where the call starts.
+        return runReplyOptions({
+          bin,
+          cwd: homedir(),
+          env: runEnv.env(),
+          input,
+          signal,
+          onCost: (c, id) => usage.recordModerator(chatId, c, id, Date.now())
+        })
+      }
+    })
     // Agent asks: B's turn runs through ChatService, which is built later, so `run` reaches it by closure.
     const asks = new AgentAsks({
       agents: () => agents.list(),
@@ -1090,6 +1114,8 @@ export async function startServer(
         spendCaps.chatIdle(id)
         // Last: a wake-up queues behind whatever the queue, routines and limit waits just did with the idle chat.
         wakes.idle(id)
+        // After everything that may start a new run: the reader skips a chat that is running again.
+        void replyOptions.idle(id)
       },
       approvalRisk: async (chatId, r) => {
         const meta = await chats.get(chatId)
@@ -1945,6 +1971,7 @@ export async function startServer(
       settings,
       sidebar,
       sidebarChanged,
+      suggestedRepliesChanged: (on) => hub.broadcast({ event: 'app:suggestedReplies', payload: { on } }),
       approvals,
       approvalsChanged,
       launchTrust,
@@ -2264,6 +2291,7 @@ export async function startServer(
         bare.stopAll() // after stop(): a call killed before it would be written as a failed visit and reported
         tasks.shutdown() // before stopAll: the runs it stops must not start queued tasks
         asks.close() // before stopAll too: an ask made while runs end is refused, not started
+        replyOptions.close() // its Haiku calls are child processes; none may outlive the server
         summaries.stopAll() // a summary call is a child process; it must not outlive the server
         keepWarm.stop() // before side.stopAll: no new ping may start while the running ones stop
         prWatcher.stopAll() // its timers only read GitHub, but none may outlive the server

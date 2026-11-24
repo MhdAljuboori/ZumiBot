@@ -3,6 +3,8 @@ import type { ApprovalReply } from '../state/approvals'
 import type { ChatViewState } from '../state/chatView'
 import type { DraftFiles } from '../state/draftFiles'
 import { isSending, type PendingSend } from '../state/pendingSends'
+import { replyOptionsOf } from '../state/replyOptions'
+import { useSuggestedRepliesOn } from '../useSuggestedReplies'
 import { sentTexts } from '../state/promptHistory'
 import {
   GROUP_LABEL,
@@ -66,6 +68,7 @@ import { useEngineCommands } from '../net/useEngineCommands'
 import { coldNoticeShown } from '../state/contextMeter'
 import { chatCaps, cliMissing, missingFeaturesTitle, roomMissingFeaturesTitle } from '../state/agentEngine'
 import { TasksTray } from './TasksTray'
+import { ReplyOptions } from './ReplyOptions'
 import { PausingLine } from './PausingLine'
 
 interface Props {
@@ -490,6 +493,16 @@ export function ChatView({
   const reply = replied ? { id: replied.id, agent: findAgent(agents, author) ?? missingAgent(author), text: replied.text } : null
   // A single chat runs from the moment its message is sent, not from when the server says so: no gap to see.
   const running = chat.inFlight || (!chat.group && isSending(pending))
+  const repliesOn = useSuggestedRepliesOn()
+  // A room's send is pending until the server says it runs: counted here so a clicked option hides at once there too.
+  const offered = replyOptionsOf({
+    on: repliesOn,
+    suggested: chat.suggested,
+    lastItemId: state.items.at(-1)?.id ?? null,
+    running: running || isSending(pending),
+    draftEmpty: draft.trim() === '' && files.files.length === 0 && replyTo === null
+  })
+  const suggestion = offered && 'placeholder' in offered ? offered.placeholder : undefined
   const failed = Object.fromEntries(pending.flatMap((p) => (p.error === null ? [] : [[p.item.id, p.error]])))
   const history = sentTexts([...state.items, ...pending.map((p) => p.item)], chat.tasks)
   // Stable references: the Composer repaints its colours whenever these change, and a streaming delta re-renders this view.
@@ -577,6 +590,15 @@ export function ChatView({
       onSend={tasksHeld(chat, state.items) && !offline && cliFound ? sendTask : null}
     />
   )
+  const replyButtons = offered && 'buttons' in offered && (
+    <ReplyOptions
+      options={offered.buttons}
+      question={offered.question}
+      summary={offered.summary}
+      disabled={offline || !cliFound}
+      onPick={(text) => send(text)}
+    />
+  )
 
   // Compacting is its own run: it waits for the reply, like an edit would not.
   const meter = (
@@ -635,9 +657,11 @@ export function ChatView({
         {chat.pause === 'pausing' && chat.inFlight && <PausingLine running={runningAgents} />}
         {/* Right over the box: the queued messages read as what goes next from it. */}
         {tasksTray}
+        {replyButtons}
         <Composer
           label={GROUP_LABEL}
           placeholder={GROUP_PLACEHOLDER}
+          suggestion={suggestion}
           draft={draft}
           inFlight={chat.inFlight}
           cliFound={cliFound}
@@ -690,8 +714,10 @@ export function ChatView({
       {cold}
       {chat.pause === 'pausing' && chat.inFlight && <PausingLine running={runningAgents} />}
       {tasksTray}
+      {replyButtons}
       <Composer
         label={`Message ${displayName(agent.name)}`}
+        suggestion={suggestion}
         draft={draft}
         inFlight={running}
         cliFound={cliFound}

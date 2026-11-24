@@ -38,6 +38,15 @@ Press the Up arrow on the first line of an empty box to bring back the messages 
 
 Every message you send starts with one short line from the agent saying what it's doing now, such as "Checking all channels and building your day right now." When the message asks for to-dos, the line also says it will add tasks to your board. The line shows a few seconds after you send, above the agent's reply. ZumiBot writes it with a quick, small model call, so it adds a little to the chat's cost. Routines, workflows and messages between agents don't get one, and neither do group rooms.
 
+## Suggested replies
+
+When a reply ends by asking you to choose or to confirm, ZumiBot offers what you might send next:
+
+- **Two or three choices** show in a card right above the message box: a line on what the agent just did, the question it's asking, and the choices as buttons. Click one to send that text as your message.
+- **One likely answer**, such as "Yes, commit it", shows in the empty message box. Press **Tab** (or tap **Use** on a phone) to write it into the box, change it if you like, then send it yourself.
+
+Typing your own message hides them. They appear in single chats, group rooms and routine chats, after any agent, and only for the latest reply. Chats whose questions you answer somewhere else never get them: task and card chats (you answer on the card), chats linked to Telegram or Slack, voice requests, workflow steps and parallel attempts. ZumiBot reads the end of the reply with a quick, small model call, so each reply that asks you something adds a little to the chat's cost. To turn them off, go to **Settings › General** and switch off **Suggested replies**; they disappear right away in every open window.
+
 ## Reply to one message
 
 To answer a specific agent message, hover over it and choose **Reply**. A card above the box reads "Replying to" and the agent's name, and the next message goes out as a reply to that message. Choose the ✕ on the card, or press Esc, to cancel.

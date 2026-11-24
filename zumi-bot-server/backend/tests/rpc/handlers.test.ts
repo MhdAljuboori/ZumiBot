@@ -89,6 +89,7 @@ let store: ChatStore
 let settings: SettingsStore
 let sidebar: SidebarStore
 let told: SidebarLayout[]
+let repliesTold: boolean[]
 let approvals: ApprovalStore
 let approvalsTold: string[]
 let saveResult: unknown
@@ -166,6 +167,7 @@ beforeEach(async () => {
   settings = new SettingsStore(dir)
   sidebar = new SidebarStore(dir)
   told = []
+  repliesTold = []
   approvals = new ApprovalStore(dir)
   approvalsTold = []
   saveResult = { ok: true, name: 'new', renamedFrom: 'old' }
@@ -361,6 +363,7 @@ beforeEach(async () => {
     settings,
     sidebar,
     sidebarChanged: (l) => told.push(l),
+    suggestedRepliesChanged: (on) => repliesTold.push(on),
     chatService: svc,
     groupService: { renameAgent: () => {} } as unknown as HandlerDeps['groupService'],
     tasks,
@@ -505,6 +508,8 @@ const KEPT = [
   'app:setAccent',
   'app:getHouseStyle',
   'app:setHouseStyle',
+  'app:getSuggestedReplies',
+  'app:setSuggestedReplies',
   'app:getKeepWarm',
   'app:setKeepWarm',
   'app:setTimeZone',
@@ -1507,6 +1512,16 @@ describe('createHandlers', () => {
     expect(await h['app:getHouseStyle']()).toBe(false)
     await expect(h['app:setHouseStyle']('true')).rejects.toThrow(/on must be a boolean/)
     expect((await settings.get()).houseStyle).toBe(false)
+  })
+
+  it('app:setSuggestedReplies saves a boolean, tells every tab, and rejects anything else', async () => {
+    expect(await h['app:getSuggestedReplies']()).toBe(true)
+    expect(await h['app:setSuggestedReplies'](false)).toBe(false)
+    expect(await h['app:getSuggestedReplies']()).toBe(false)
+    expect(repliesTold).toEqual([false])
+    await expect(h['app:setSuggestedReplies']('true')).rejects.toThrow(/on must be a boolean/)
+    expect(repliesTold).toEqual([false])
+    expect((await settings.get()).suggestedReplies).toBe(false)
   })
 
   it('app:setAccent saves one of the color themes and rejects anything else', async () => {
