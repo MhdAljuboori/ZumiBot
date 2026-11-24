@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CommandPick, CommandSummary } from '@zumibot/shared/commands'
 import type { AgentSummary } from '@zumibot/shared/types'
+import type { EngineCommands } from '@zumibot/shared/engineCommands'
 import { RUN_WORKFLOW_DESCRIPTION } from '@zumibot/shared/runWorkflow'
 import {
   commentCommandMap,
@@ -47,11 +48,11 @@ const flagged = agent('fl', [
 ])
 
 const ids = (options: readonly CommandOption[]): string[] =>
-  options.map((o) => ('builtin' in o ? `builtin/${o.builtin}` : `${o.agent.name}/${o.command.name}`))
+  options.map((o) => ('builtin' in o ? `builtin/${o.builtin}` : 'engine' in o ? `${o.engine}/${o.command.name}` : `${o.agent.name}/${o.command.name}`))
 
 describe('filterCommands btw option', () => {
   it('leaves out the btw built-in when btw is false, keeps todo and agent commands', () => {
-    expect(ids(filterCommands('', [wk], { btw: false }))).toEqual(['builtin/todo', 'builtin/run-workflow', 'wk/check', 'wk/fix'])
+    expect(ids(filterCommands('', [wk], { btw: false }))).toEqual(['wk/check', 'wk/fix', 'builtin/todo', 'builtin/run-workflow'])
     expect(ids(filterCommands('bt', [wk], { btw: false }))).toEqual([])
   })
   it('keeps btw by default and when btw is true', () => {
@@ -62,12 +63,12 @@ describe('filterCommands btw option', () => {
 
 describe('filterCommands todo option', () => {
   it('leaves out the todo built-in when todo is false, keeps btw and agent commands', () => {
-    expect(ids(filterCommands('', [wk], { todo: false }))).toEqual(['builtin/btw', 'builtin/run-workflow', 'wk/check', 'wk/fix'])
+    expect(ids(filterCommands('', [wk], { todo: false }))).toEqual(['wk/check', 'wk/fix', 'builtin/btw', 'builtin/run-workflow'])
     expect(ids(filterCommands('tod', [wk], { todo: false }))).toEqual([])
   })
   it('also leaves out an agent command that makes to-dos by itself: the server would refuse it', () => {
     expect(ids(filterCommands('', [flagged], { todo: false, btw: false, runWorkflow: false }))).toEqual([])
-    expect(ids(filterCommands('', [flagged], { btw: false, runWorkflow: false }))).toEqual(['builtin/todo', 'fl/my-day'])
+    expect(ids(filterCommands('', [flagged], { btw: false, runWorkflow: false }))).toEqual(['fl/my-day', 'builtin/todo'])
   })
   it('keeps todo by default and when todo is true', () => {
     expect(ids(filterCommands('tod', [wk]))).toEqual(['builtin/todo'])
@@ -83,14 +84,14 @@ describe('filterCommands run-workflow option', () => {
   it('is not offered after /todo, nor when runWorkflow is false', () => {
     expect(ids(filterCommands('run', [wk], { afterTodo: true }))).toEqual([])
     expect(ids(filterCommands('run', [wk], { runWorkflow: false }))).toEqual([])
-    expect(ids(filterCommands('', [wk], { runWorkflow: false }))).toEqual(['builtin/btw', 'builtin/todo', 'wk/check', 'wk/fix'])
+    expect(ids(filterCommands('', [wk], { runWorkflow: false }))).toEqual(['wk/check', 'wk/fix', 'builtin/btw', 'builtin/todo'])
   })
   it('hides an agent command of the same name', () => {
     const own = agent('own', [
       { name: 'run-workflow', description: 'Mine' },
       { name: 'run-it', description: 'Other' }
     ])
-    expect(ids(filterCommands('run', [own]))).toEqual(['builtin/run-workflow', 'own/run-it'])
+    expect(ids(filterCommands('run', [own]))).toEqual(['own/run-it', 'builtin/run-workflow'])
   })
 })
 
@@ -197,7 +198,8 @@ describe('slashQuery', () => {
   it('is null anywhere else', () => {
     expect(slashQuery('x /ch', true)).toBeNull()
     expect(slashQuery('/ch ', true)).toBeNull()
-    expect(slashQuery('/Ch', true)).toBeNull()
+    expect(slashQuery('/Ch', true)?.query).toBe('Ch') // engine rows have uppercase names
+    expect(slashQuery('/c$h', true)).toBeNull()
     expect(slashQuery('/ch', false)).toBeNull()
     expect(slashQuery('', true)).toBeNull()
   })
@@ -237,7 +239,7 @@ describe('insertCommandName', () => {
 
 describe('filterCommands', () => {
   it('lists /btw first, then every agent command in file order for an empty query', () => {
-    expect(ids(filterCommands('', [wk]))).toEqual(['builtin/btw', 'builtin/todo', 'builtin/run-workflow', 'wk/check', 'wk/fix'])
+    expect(ids(filterCommands('', [wk]))).toEqual(['wk/check', 'wk/fix', 'builtin/btw', 'builtin/todo', 'builtin/run-workflow'])
   })
   it('lists /todo after /btw with its description, and by prefix', () => {
     expect(filterCommands('to', [])).toEqual([{ builtin: 'todo', description: "Put this reply's action items on the chat's to-do list" }])
@@ -245,7 +247,7 @@ describe('filterCommands', () => {
     expect(ids(filterCommands('TO', [flagged]))).toEqual(['builtin/todo'])
   })
   it("hides an agent's own todo command like btw", () => {
-    expect(ids(filterCommands('', [flagged]))).toEqual(['builtin/btw', 'builtin/todo', 'builtin/run-workflow', 'fl/my-day'])
+    expect(ids(filterCommands('', [flagged]))).toEqual(['fl/my-day', 'builtin/btw', 'builtin/todo', 'builtin/run-workflow'])
   })
   it('after /todo lists agent commands only: no btw, no todo', () => {
     expect(ids(filterCommands('', [wk], { afterTodo: true }))).toEqual(['wk/check', 'wk/fix'])
@@ -274,10 +276,10 @@ describe('filterCommands', () => {
       { name: 'btw', description: 'Secret aside' },
       { name: 'btwin', description: 'Twin' }
     ])
-    expect(filterCommands('bt', [own])[0]).toEqual({ builtin: 'btw', description: 'Ask on the side; the run keeps going' })
-    expect(ids(filterCommands('bt', [own]))).toEqual(['builtin/btw', 'own/btwin'])
-    expect(ids(filterCommands('btw', [own]))).toEqual(['builtin/btw', 'own/btwin'])
-    expect(ids(filterCommands('BT', [own]))).toEqual(['builtin/btw', 'own/btwin'])
+    expect(filterCommands('bt', [own])).toContainEqual({ builtin: 'btw', description: 'Ask on the side; the run keeps going' })
+    expect(ids(filterCommands('bt', [own]))).toEqual(['own/btwin', 'builtin/btw'])
+    expect(ids(filterCommands('btw', [own]))).toEqual(['own/btwin', 'builtin/btw'])
+    expect(ids(filterCommands('BT', [own]))).toEqual(['own/btwin', 'builtin/btw'])
     expect(filterCommands('secret', [own])).toEqual([])
     expect(filterCommands('side', [])).toEqual([])
     expect(ids(filterCommands('', []))).toEqual(['builtin/btw', 'builtin/todo', 'builtin/run-workflow'])
@@ -369,5 +371,85 @@ describe('commentCommandMarks', () => {
     expect(commentCommandMap('@workiom-master @writer /card', [wm, other])).toEqual(new Map([['card', '']]))
     expect(commentCommandMarks('@workiom-master see /etc/hosts and `/card`', [wm])).toEqual([])
     expect(commentCommandMarks('@broken /fix', [broken])).toEqual([])
+  })
+})
+
+describe('engine rows', () => {
+  const goalAgent = agent('ga', [{ name: 'goal-check', description: 'Check the goal' }])
+  const claude: EngineCommands = {
+    engine: 'claude',
+    commands: [
+      { name: 'goal', description: 'Set a goal', kind: 'command' },
+      { name: 'superpowers:brainstorming', description: 'Explore ideas before building', kind: 'skill' },
+      { name: 'review', description: 'Review the goal of a change', kind: 'command' }
+    ]
+  }
+
+  it('lists them after the agent rows: name prefixes, then description words', () => {
+    const options = filterCommands('go', [goalAgent], { engine: claude })
+    expect(ids(options)).toEqual(['ga/goal-check', 'claude/goal', 'claude/review'])
+    expect(options[1]).toEqual({ engine: 'claude', command: { name: 'goal', description: 'Set a goal', kind: 'command' } })
+  })
+  it('puts description word matches after name matches', () => {
+    expect(ids(filterCommands('goal', [goalAgent], { engine: claude }))).toEqual(['ga/goal-check', 'claude/goal', 'claude/review'])
+  })
+  it("orders the agent's commands, ZumiBot's, the engine's skills, then the engine's commands", () => {
+    expect(ids(filterCommands('', [goalAgent], { engine: claude }))).toEqual([
+      'ga/goal-check',
+      'builtin/btw',
+      'builtin/todo',
+      'builtin/run-workflow',
+      'claude/superpowers:brainstorming',
+      'claude/goal',
+      'claude/review'
+    ])
+  })
+  it('keeps each group in its place while a query narrows it', () => {
+    const codexSkills: EngineCommands = { engine: 'codex', commands: [{ name: 'todo-list', description: 'Track work', kind: 'skill' }] }
+    const todoAgent = agent('ta', [{ name: 'todo-sync', description: 'Sync' }])
+    expect(ids(filterCommands('to', [todoAgent], { engine: codexSkills }))).toEqual(['ta/todo-sync', 'builtin/todo', 'codex/todo-list'])
+  })
+  it('matches a namespaced name by prefix, case-insensitively', () => {
+    expect(ids(filterCommands('superpowers:br', [], { engine: claude }))).toEqual(['claude/superpowers:brainstorming'])
+    expect(ids(filterCommands('SUPERPOWERS:', [], { engine: claude }))).toEqual(['claude/superpowers:brainstorming'])
+  })
+  it('shows after /todo too', () => {
+    expect(ids(filterCommands('go', [goalAgent], { engine: claude, afterTodo: true }))).toEqual(['ga/goal-check', 'claude/goal', 'claude/review'])
+  })
+  it('null or no list is the old result exactly', () => {
+    expect(filterCommands('', [wk], { engine: null })).toEqual(filterCommands('', [wk]))
+    expect(filterCommands('go', [goalAgent], { engine: null })).toEqual(filterCommands('go', [goalAgent]))
+  })
+  it('groupOptions and the comment list skip them', () => {
+    expect(groupOptions(filterCommands('', [goalAgent], { engine: claude })).map((g) => ids(g.options))).toEqual([['ga/goal-check']])
+    expect(commentCommandOptions('go', '@ga hi', [goalAgent]).map((o) => o.command.name)).toEqual(['goal-check'])
+  })
+  it('keeps a name with a colon in the slash query', () => {
+    expect(slashQuery('/superpowers:br', true)?.query).toBe('superpowers:br')
+    expect(slashQuery('/todo /a.b_c-d', true)).toEqual({ query: 'a.b_c-d', afterTodo: true })
+    expect(slashQuery('/super powers', true)).toBeNull()
+  })
+
+  describe('keepPick', () => {
+    const pick: CommandPick = { agent: 'a', name: 'superpowers:brainstorming', engine: 'claude' }
+    const agentA = agent('a', [])
+    it('keeps it while the leading name holds and the list still has it', () => {
+      expect(keepPick('/superpowers:brainstorming fix it', pick, [agentA], claude)).toBe(pick)
+      expect(keepPick('/todo /superpowers:brainstorming', pick, [agentA], claude)).toBe(pick)
+      expect(keepPick('/superpowers:brainstorming fix it', pick)).toBe(pick)
+    })
+    it('drops it once the name is edited', () => {
+      expect(keepPick('/superpowers:brainstormin fix it', pick, [agentA], claude)).toBeNull()
+      expect(keepPick('/superpowers:brainstormings', pick, [agentA], claude)).toBeNull()
+      expect(keepPick('hello', pick, [agentA], claude)).toBeNull()
+    })
+    it('drops it when the list no longer holds the name or is another engine', () => {
+      expect(keepPick('/superpowers:brainstorming x', pick, [agentA], { engine: 'claude', commands: [] })).toBeNull()
+      expect(keepPick('/superpowers:brainstorming x', pick, [agentA], { engine: 'codex', commands: claude.commands })).toBeNull()
+      expect(keepPick('/superpowers:brainstorming x', pick, [agentA], null)).toBe(pick)
+    })
+    it('drops it when its agent is no longer the chat agent, even while the new list loads', () => {
+      expect(keepPick('/superpowers:brainstorming x', pick, [agent('b', [])], null)).toBeNull()
+    })
   })
 })

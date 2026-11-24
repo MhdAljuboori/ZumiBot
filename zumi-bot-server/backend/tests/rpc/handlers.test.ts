@@ -449,6 +449,7 @@ const KEPT = [
   'agents:acpLaunch',
   'agents:testAgui',
   'agents:aguiLaunch',
+  'agents:engineCommands',
   'chats:list',
   'chats:create',
   'chats:createVoice',
@@ -1951,6 +1952,21 @@ describe('createHandlers', () => {
     expect(submit).not.toHaveBeenCalled()
     await h['chats:send']('c1', 'plain', null, null, null, null)
     expect(forSend).toHaveBeenLastCalledWith('c1', 'plain', undefined)
+  })
+
+  it('chats:send passes an engine pick on and refuses any other engine value', async () => {
+    const submit = vi.spyOn(tasks, 'submit').mockResolvedValue('sent')
+    for (const engine of ['claude', 'codex'] as const) {
+      await h['chats:send']('c1', '/goal x', null, null, null, { agent: 'a', name: 'goal', engine })
+      expect(forSend).toHaveBeenLastCalledWith('c1', '/goal x', { agent: 'a', name: 'goal', engine })
+    }
+    await h['chats:send']('c1', '/check', null, null, null, { agent: 'a', name: 'check' })
+    expect(forSend).toHaveBeenLastCalledWith('c1', '/check', { agent: 'a', name: 'check' })
+    submit.mockClear()
+    for (const engine of ['gemini', 1, null, true]) {
+      await expect(h['chats:send']('c1', '/goal x', null, null, null, { agent: 'a', name: 'goal', engine })).rejects.toThrow('Invalid command')
+    }
+    expect(submit).not.toHaveBeenCalled()
   })
 
   describe("/todo and an agent without ZumiBot's tools", () => {

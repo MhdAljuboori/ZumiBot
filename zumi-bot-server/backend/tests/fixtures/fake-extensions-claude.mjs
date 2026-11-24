@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Fake claude for the extensions probe and the `claude mcp` / `claude plugin` subcommands; no quota. State is the JSON file named
-// by FAKE_EXT_STATE: {version, mcpServers, skills, hooks, plugins}, each list in the shape the real CLI answers (mcp_status entries,
+// by FAKE_EXT_STATE: {version, mcpServers, skills, hooks, plugins, commands?}, each list in the shape the real CLI answers (mcp_status entries,
 // get_skills_dialog entries, get_hooks_listing entries, `claude plugin list --json` entries).
 //
 // Session mode (argv without `mcp` / `plugin` first): stream-json over stdin, `type: control_request` lines answered as the real CLI
@@ -172,7 +172,7 @@ if (env.FAKE_EXT_HANG === '1') {
     if (errorSubtypes.includes(subtype)) return refuse(id)
     switch (subtype) {
       // Beside the version, what the real answer holds and a probe must not keep.
-      case 'initialize': return answer(id, { commands: [], agents: [], claude_code_version: state.version, account: { email: 'someone@example.invalid' }, models: [], pid: process.pid })
+      case 'initialize': return answer(id, { commands: state.commands ?? [], agents: [], claude_code_version: state.version, account: { email: 'someone@example.invalid' }, models: [], pid: process.pid })
       case 'mcp_status': return answer(id, mcpStatus())
       case 'get_skills_dialog': return answer(id, { skills: state.skills })
       case 'get_hooks_listing': {

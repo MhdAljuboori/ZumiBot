@@ -1164,8 +1164,11 @@ export function MessageList({
           <UserText text={item.text} mentions={userMentions} />
         </div>
       ))
+    // An engine command has no filled prompt behind it: the text is what it sent.
     const fullPrompt = item.command
-      ? item.command.prompt
+      ? item.command.engine
+        ? null
+        : item.command.prompt
       : item.cardAsk
         ? cardAskPrompt(item.cardAsk, cardAskComment(item.cardAsk, item.text))
         : null

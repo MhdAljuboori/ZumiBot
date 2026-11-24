@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { EXT_TEXT } from '@zumibot/shared/extensions'
-import { probeClaude, probeCodex } from '../../../src/core/extensions/probe'
+import { probeClaude, probeClaudeCommands, probeCodex, probeCodexCommands } from '../../../src/core/extensions/probe'
 import { writeFakeBin } from '../../support/fakeBin'
 import { isWindows, removeDir } from '../../support/platform'
 
@@ -68,6 +68,60 @@ const gone = (pid: number) => {
     return (e as NodeJS.ErrnoException).code === 'ESRCH'
   }
 }
+
+describe('probeClaudeCommands', () => {
+  const commandsProbe = (extra: Record<string, string> = {}, over: Partial<Parameters<typeof probeClaudeCommands>[0]> = {}) =>
+    probeClaudeCommands({ bin: fakeClaude, folder, agent: null, args: [], env: envOf(extra), killGraceMs: 300, ...over })
+
+  it('resolves the initialize and skills answers, asks only those two and leaves no process', async () => {
+    state({
+      commands: [{ name: 'goal', description: 'Set a goal', argumentHint: '', builtin: true }],
+      skills: [{ name: 'pdf', description: 'Read PDFs', source: 'user' }]
+    })
+    const r = await commandsProbe({ FAKE_EXT_PID_FILE: at('pid'), FAKE_EXT_REQ_OUT: at('req') })
+    expect((r as any).commands.commands.map((c: any) => c.name)).toEqual(['goal'])
+    expect((r as any).skills.skills.map((s: any) => s.name)).toEqual(['pdf'])
+    // Two control requests, and never a user message (no model call).
+    expect(lines(at('req'))).toEqual(['initialize', 'get_skills_dialog'])
+    expect(gone(Number(readFileSync(at('pid'), 'utf8')))).toBe(true)
+  })
+
+  it('still resolves the commands when the skills listing is refused', async () => {
+    state({ commands: [{ name: 'goal', description: 'Set a goal', argumentHint: '', builtin: true }] })
+    const r = await commandsProbe({ FAKE_EXT_ERROR_SUBTYPES: 'get_skills_dialog' })
+    expect((r as any).commands.commands.map((c: any) => c.name)).toEqual(['goal'])
+    expect(r!.skills).toBeNull()
+  })
+
+  it('uses the probe argv, agent and extra args', async () => {
+    state()
+    await commandsProbe({ FAKE_EXT_START_OUT: at('start.jsonl') }, { agent: 'helper', args: ['--settings', '{}'] })
+    expect(JSON.parse(lines(at('start.jsonl'))[0]).args).toEqual([
+      '-p',
+      '--input-format',
+      'stream-json',
+      '--output-format',
+      'stream-json',
+      '--verbose',
+      '--permission-prompt-tool',
+      'stdio',
+      '--agent',
+      'helper',
+      '--no-session-persistence',
+      '--settings',
+      '{}'
+    ])
+  })
+
+  it('resolves null for an error answer, an early exit, a hung CLI and a missing binary', async () => {
+    state()
+    expect(await commandsProbe({ FAKE_EXT_ERROR_SUBTYPES: 'initialize' })).toBeNull()
+    expect(await commandsProbe({ FAKE_EXT_EXIT: '1' })).toBeNull()
+    expect(await commandsProbe({ FAKE_EXT_HANG: '1', FAKE_EXT_PID_FILE: at('pid') }, { deadlineMs: START_MS ?? 400 })).toBeNull()
+    expect(gone(Number(readFileSync(at('pid'), 'utf8')))).toBe(true)
+    expect(await commandsProbe({}, { bin: join(dir, 'no-such-claude') })).toBeNull()
+  })
+})
 
 describe('probeClaude', () => {
   it('returns the version and the three answers, and leaves no process', async () => {
@@ -228,7 +282,7 @@ describe('probeClaude', () => {
 })
 
 // A stand-in for `codex app-server`: the real answers' shapes, synthetic values, the servers on two pages.
-function fakeCodex(opts: { hang?: boolean } = {}): string {
+function fakeCodex(opts: { hang?: boolean; hangMcp?: boolean } = {}): string {
   // .mjs: an extensionless ESM script runs only on Node 22.7 and later.
   const file = at('fake-codex.mjs')
   writeFileSync(
@@ -238,6 +292,7 @@ import { appendFileSync, writeFileSync } from 'node:fs'
 if (process.env.FAKE_PID_OUT) writeFileSync(process.env.FAKE_PID_OUT, String(process.pid))
 if (process.env.FAKE_ARGV_OUT) appendFileSync(process.env.FAKE_ARGV_OUT, JSON.stringify({ args: process.argv.slice(2), cwd: process.cwd() }) + '\\n')
 const HANG = ${opts.hang ? 'true' : 'false'}
+const HANG_MCP = ${opts.hangMcp ? 'true' : 'false'}
 if (HANG) setInterval(() => {}, 1000)
 let buf = ''
 let skillCalls = 0
@@ -250,6 +305,7 @@ process.stdin.setEncoding('utf8').on('data', (c) => {
     if (m.id === undefined || HANG) continue
     if (m.method === 'initialize') reply(m.id, { userAgent: 'zumibot/0.164.0 (Test; x86_64) fake', codexHome: '/h', platformFamily: 'unix', platformOs: 'linux' })
     else if (m.method === 'mcpServerStatus/list') {
+      if (HANG_MCP) continue
       const first = !m.params?.cursor
       reply(m.id, first
         ? { data: [{ name: 'codex_apps', runtimeStatus: null, tools: { 'a.b': {} }, authStatus: 'bearerToken' }], nextCursor: 'c1' }
@@ -332,5 +388,42 @@ process.stdin.on('end', () => process.exit(0))
     const r = await run(join(dir, 'no-such-codex'))
     expect(r.errors).toEqual({ mcp: EXT_TEXT.codexMissing, skills: EXT_TEXT.codexMissing, hooks: EXT_TEXT.codexMissing })
     expect(JSON.stringify(r.errors)).not.toContain('Claude Code')
+  })
+})
+
+describe('probeCodexCommands', () => {
+  const run = (bin: string, extra: Record<string, string> = {}, over: Partial<Parameters<typeof probeCodexCommands>[0]> = {}) =>
+    probeCodexCommands({ bin, folder, env: { PATH: process.env.PATH, ...extra }, killGraceMs: 300, pollMs: 20, ...over })
+
+  it('asks the server list before skills/list, then settles skills and resolves the last answer, process gone', async () => {
+    const bin = fakeCodex()
+    const r = (await run(bin, { FAKE_METHODS_OUT: at('methods'), FAKE_PID_OUT: at('pid') })) as any
+    expect(r.data[0].skills.map((s: any) => s.name)).toEqual(['builtin', 'plug:one'])
+    expect(lines(at('methods')).map((l) => JSON.parse(l).method)).toEqual([
+      'initialize',
+      'initialized',
+      // Plugin skills come only once the server list has answered (the loadout probe orders them the same way); its two pages are not used.
+      'mcpServerStatus/list',
+      'mcpServerStatus/list',
+      'skills/list',
+      'skills/list',
+      'skills/list'
+    ])
+    expect(JSON.parse(lines(at('methods'))[4]).params).toEqual({ cwds: [folder] })
+    expect(gone(Number(readFileSync(at('pid'), 'utf8')))).toBe(true)
+  })
+
+  it('still reads skills when the server list never answers, after the short bound on it', async () => {
+    const bin = fakeCodex({ hangMcp: true })
+    const started = Date.now()
+    const r = (await run(bin, { FAKE_METHODS_OUT: at('methods') }, { mcpMs: 100, deadlineMs: 10_000, killGraceMs: 300 })) as any
+    expect(r.data[0].skills.map((s: any) => s.name)).toEqual(['builtin', 'plug:one'])
+    expect(Date.now() - started).toBeLessThan(5000)
+    expect(lines(at('methods')).map((l) => JSON.parse(l).method)).toContain('skills/list')
+  })
+
+  it('resolves null for a hung app-server and a missing binary', async () => {
+    expect(await run(fakeCodex({ hang: true }), {}, { deadlineMs: START_MS ?? 400 })).toBeNull()
+    expect(await run(join(dir, 'no-such-codex'))).toBeNull()
   })
 })

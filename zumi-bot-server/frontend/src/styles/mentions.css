@@ -45,6 +45,12 @@ button.command-chip {
   cursor: pointer;
 }
 /* /todo is built in, not an agent's: the neutral chip color, and no button. */
+/* The engine's label inside an engine command's chip: small and muted next to the name. */
+.command-chip-engine {
+  color: var(--fg-muted);
+  font-size: 10.5px;
+  font-weight: 400;
+}
 .mention.command-chip.todo {
   --mention: var(--fg);
   font-weight: 600;
@@ -168,6 +174,34 @@ button.command-chip:not(.broken):hover {
   font-family: var(--font-mono);
   font-size: 12.5px;
   font-weight: 600;
+  /* Keeps its own width (the hint gives way first); only a name wider than the whole row wraps, never scrolls the menu. */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* The name line: name, its argument hint, and an engine row's label at the end. */
+.command-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+/* One line in the room the name leaves, cut with an ellipsis; the full hint is its tooltip. */
+.command-hint {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.command-engine {
+  flex: none;
+  margin-left: auto;
+  color: var(--fg-muted);
+  font-size: 11px;
 }
 .command-todos {
   margin-left: 6px;
@@ -204,7 +238,13 @@ button.command-chip:not(.broken):hover {
   color: var(--fg-muted);
   white-space: normal;
 }
+/* Two lines at most: a skill's description is written for the model and can run a paragraph; the tooltip has it all. */
 .command-desc {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
   color: var(--fg-muted);
   font-size: 12px;
   line-height: 1.35;

@@ -153,11 +153,21 @@ export function hookConfig(hooks: CodexHook[], trust?: ReadonlyMap<string, strin
   }
 }
 
-export function codexInput(c: UserContent): Array<Record<string, unknown>> {
-  if (typeof c === 'string') return [{ type: 'text', text: c, text_elements: [] }]
-  return c.map((b) =>
-    b.type === 'text'
-      ? { type: 'text', text: b.text, text_elements: [] }
-      : { type: 'image', url: `data:${b.source.media_type};base64,${b.source.data}` }
-  )
+/** A Codex skill a turn runs: its name and the SKILL.md path Codex listed it under. The path never leaves the server. */
+export interface CodexSkillRef {
+  name: string
+  path: string
+}
+
+/** The `turn/start` input: the content, then one skill item per ref (Codex runs a skill from its item, not from its name in the text). */
+export function codexInput(c: UserContent, skills: readonly CodexSkillRef[] = []): Array<Record<string, unknown>> {
+  const content: Array<Record<string, unknown>> =
+    typeof c === 'string'
+      ? [{ type: 'text', text: c, text_elements: [] }]
+      : c.map((b) =>
+          b.type === 'text'
+            ? { type: 'text', text: b.text, text_elements: [] }
+            : { type: 'image', url: `data:${b.source.media_type};base64,${b.source.data}` }
+        )
+  return [...content, ...skills.map((s) => ({ type: 'skill', name: s.name, path: s.path }))]
 }

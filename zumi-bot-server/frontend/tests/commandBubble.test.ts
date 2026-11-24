@@ -41,6 +41,11 @@ describe('chipBroken', () => {
     expect(chipBroken(agent({ commands: undefined }), 'check')).toBe(true)
     expect(chipBroken(agent(), 'other')).toBe(true)
   })
+  it('judges an engine command by the agent alone', () => {
+    expect(chipBroken(agent({ commands: [] }), 'superpowers:brainstorming', true)).toBe(false)
+    expect(chipBroken(undefined, 'superpowers:brainstorming', true)).toBe(true)
+    expect(chipBroken(agent({ error: 'bad' }), 'superpowers:brainstorming', true)).toBe(true)
+  })
 })
 
 describe('toggled', () => {

@@ -1,14 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import { CommandResolver } from '../../src/core/chat/commandResolver'
 import type { AgentCommand } from '@zumibot/shared/commands'
+import type { CommandEngine } from '@zumibot/shared/engineCommands'
 import type { ChatItem, ChatMeta } from '@zumibot/shared/types'
 
 const check: AgentCommand = { name: 'check', description: 'c', prompt: 'Use check on $ARGUMENTS' }
 const fix: AgentCommand = { name: 'fix', description: 'f', prompt: 'Fix $ARGUMENTS' }
 
-function setup(map: Record<string, AgentCommand[]> = { wk: [check, fix], rv: [check] }, items: ChatItem[] = []) {
+// What the resolver asked the engine list, per call: a hand-typed name asks cache-only, a pick does not.
+let asked: Array<{ agent: string; cachedOnly: boolean }> = []
+
+type EngineAnswer = { engine: CommandEngine; rows: { name: string }[] } | null
+
+function setup(
+  map: Record<string, AgentCommand[]> = { wk: [check, fix], rv: [check] },
+  items: ChatItem[] = [],
+  engineOf: (agent: string, folder: string) => EngineAnswer = () => null
+) {
+  asked = []
   const metas: Record<string, unknown> = {
-    single: { id: 'single', agentName: 'wk' },
+    single: { id: 'single', agentName: 'wk', cwd: '/proj' },
     room: { id: 'room', agentName: '', group: { members: ['wk', 'rv'] } }
   }
   return new CommandResolver({
@@ -19,11 +30,15 @@ function setup(map: Record<string, AgentCommand[]> = { wk: [check, fix], rv: [ch
     commandsOf: async (agent) => {
       if (!(agent in map)) throw new Error('gone')
       return map[agent]
+    },
+    engineCommandsOf: async (agent, folder, o) => {
+      asked.push({ agent, cachedOnly: o?.cachedOnly === true })
+      return engineOf(agent, folder)
     }
   })
 }
 
-const userItem = (id: string, text: string, command?: { agent: string; name: string; prompt: string }) =>
+const userItem = (id: string, text: string, command?: { agent: string; name: string; prompt: string; engine?: CommandEngine }) =>
   ({ type: 'user', id, text, ts: 1, command }) as ChatItem
 
 describe('CommandResolver', () => {
@@ -209,6 +224,128 @@ describe('CommandResolver', () => {
         agent: 'wk',
         name: 'check'
       })
+    })
+  })
+
+  describe('engine commands', () => {
+    const claude = (...names: string[]): EngineAnswer => ({ engine: 'claude', rows: names.map((name) => ({ name })) })
+    const codex = (...names: string[]): EngineAnswer => ({ engine: 'codex', rows: names.map((name) => ({ name })) })
+    const goal: AgentCommand = { name: 'goal', description: 'g', prompt: 'Own goal $ARGUMENTS' }
+
+    it('a Claude pick sends the text as given, even over an agent command of the same name', async () => {
+      const calls: [string, string][] = []
+      const r = setup({ wk: [goal] }, [], (a, f) => (calls.push([a, f]), claude('goal')))
+      expect(await r.forSend('single', '/goal ship it', { agent: 'wk', name: 'goal', engine: 'claude' })).toEqual({
+        agent: 'wk',
+        name: 'goal',
+        prompt: '/goal ship it',
+        engine: 'claude'
+      })
+      expect(calls).toEqual([]) // the CLI decides; no list check
+    })
+
+    it('a Codex pick sends $name args when the skill is listed, and is refused when it is gone', async () => {
+      const pick = { agent: 'wk', name: 'pdf', engine: 'codex' as const }
+      expect(await setup(undefined, [], () => codex('pdf')).forSend('single', '/pdf read a.pdf', pick)).toEqual({
+        agent: 'wk',
+        name: 'pdf',
+        prompt: '$pdf read a.pdf',
+        engine: 'codex'
+      })
+      expect(await setup(undefined, [], () => codex('pdf')).forSend('single', '/pdf', pick)).toMatchObject({ prompt: '$pdf' })
+      await expect(setup(undefined, [], () => codex('other')).forSend('single', '/pdf read a.pdf', pick)).rejects.toThrow(
+        'Codex has no $pdf skill any more'
+      )
+      await expect(setup(undefined, [], () => null).forSend('single', '/pdf read a.pdf', pick)).rejects.toThrow(
+        'Codex has no $pdf skill any more'
+      )
+    })
+
+    it('an engine pick is refused in a room, and for an agent outside the chat', async () => {
+      const r = setup(undefined, [], () => claude('goal'))
+      await expect(r.forSend('room', '/goal x', { agent: 'wk', name: 'goal', engine: 'claude' })).rejects.toThrow(
+        'Engine commands run only in a single chat'
+      )
+      await expect(r.forSend('single', '/goal x', { agent: 'rv', name: 'goal', engine: 'claude' })).rejects.toThrow('Rv is not in this chat')
+    })
+
+    it('an engine pick for another name than the text is ignored', async () => {
+      const r = setup(undefined, [], () => null)
+      expect(await r.forSend('single', '/check L', { agent: 'wk', name: 'goal', engine: 'claude' })).toEqual({
+        agent: 'wk',
+        name: 'check',
+        prompt: 'Use check on L'
+      })
+      expect(await r.forSend('single', 'plain', { agent: 'wk', name: 'goal', engine: 'claude' })).toBeUndefined()
+    })
+
+    it('a hand-typed engine command resolves only when the list has it', async () => {
+      const calls: [string, string][] = []
+      const r = setup(undefined, [], (a, f) => (calls.push([a, f]), claude('superpowers:brainstorming')))
+      expect(await r.forSend('single', '/superpowers:brainstorming x')).toEqual({
+        agent: 'wk',
+        name: 'superpowers:brainstorming',
+        prompt: '/superpowers:brainstorming x',
+        engine: 'claude'
+      })
+      expect(calls).toEqual([['wk', '/proj']])
+      expect(await r.forSend('single', '/superpowers:other x')).toBeUndefined()
+      expect(await setup(undefined, [], () => null).forSend('single', '/superpowers:brainstorming x')).toBeUndefined()
+    })
+
+    it('a hand-typed name asks the list cache-only; a Codex pick does not', async () => {
+      await setup(undefined, [], () => claude('goal')).forSend('single', '/goal x')
+      expect(asked).toEqual([{ agent: 'wk', cachedOnly: true }])
+      const r = setup(undefined, [], () => codex('pdf'))
+      await r.forSend('single', '/pdf a', { agent: 'wk', name: 'pdf', engine: 'codex' })
+      expect(asked).toEqual([{ agent: 'wk', cachedOnly: false }])
+    })
+
+    it('a hand-typed Codex skill becomes $name', async () => {
+      expect(await setup(undefined, [], () => codex('pdf')).forSend('single', '/pdf a.pdf')).toEqual({
+        agent: 'wk',
+        name: 'pdf',
+        prompt: '$pdf a.pdf',
+        engine: 'codex'
+      })
+    })
+
+    it("the agent's own command wins over an engine row when nothing was picked", async () => {
+      const r = setup({ wk: [check] }, [], () => claude('check', 'review'))
+      expect(await r.forSend('single', '/check L')).toEqual({ agent: 'wk', name: 'check', prompt: 'Use check on L' })
+      expect(await r.forSend('single', '/review')).toMatchObject({ engine: 'claude' })
+    })
+
+    it('a room never gets an engine command from typing', async () => {
+      expect(await setup(undefined, [], () => claude('goal')).forSend('room', '/goal x')).toBeUndefined()
+    })
+
+    it('a failing engine list leaves the text plain', async () => {
+      const r = new CommandResolver({
+        store: { get: async () => ({ id: 's', agentName: 'wk', cwd: '/p' }) as ChatMeta, loadItems: async () => [] },
+        commandsOf: async () => [],
+        engineCommandsOf: async () => null
+      })
+      expect(await r.forSend('s', '/goal x')).toBeUndefined()
+    })
+
+    it('resend keeps engine: codex, re-checked against the list, and falls back to the stored command', async () => {
+      const saved = { agent: 'wk', name: 'pdf', prompt: '$pdf a', engine: 'codex' as const }
+      const items = [userItem('u1', '/pdf a', saved)]
+      expect(await setup(undefined, items, () => codex('pdf')).forRerun('single', 'u1', null)).toEqual(saved)
+      expect(await setup(undefined, items, () => codex('other')).forRerun('single', 'u1', null)).toEqual(saved)
+    })
+
+    it('edit of an engine command re-resolves it with the stored engine', async () => {
+      const saved = { agent: 'wk', name: 'pdf', prompt: '$pdf a', engine: 'codex' as const }
+      const r = setup(undefined, [userItem('u1', '/pdf a', saved)], () => codex('pdf'))
+      expect(await r.forRerun('single', 'u1', '/pdf b')).toEqual({ agent: 'wk', name: 'pdf', prompt: '$pdf b', engine: 'codex' })
+    })
+
+    it('resend of a namespaced Claude command keeps its name', async () => {
+      const saved = { agent: 'wk', name: 'superpowers:brainstorming', prompt: '/superpowers:brainstorming a', engine: 'claude' as const }
+      const r = setup(undefined, [userItem('u1', '/superpowers:brainstorming a', saved)], () => null)
+      expect(await r.forRerun('single', 'u1', null)).toEqual(saved)
     })
   })
 })

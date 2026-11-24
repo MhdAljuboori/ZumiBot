@@ -640,6 +640,8 @@ export interface ZumiBotApi {
     testAgui(agentName: string): Promise<import('./agui').AguiTestResult>
     /** The remote agent's launch Save confirmed on this machine (launch trust), or null. */
     aguiLaunch(agentName: string): Promise<import('./agui').AguiLaunch | null>
+    /** The engine's own `/` commands (Claude Code commands, Codex skills) for the agent in a folder (null = home); null for an ACP or remote agent. A Codex skill's path stays on the server. */
+    engineCommands(agent: string, folder: string | null): Promise<import('./engineCommands').EngineCommands | null>
   }
   chats: {
     list(): Promise<ChatMeta[]>

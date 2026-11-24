@@ -24,6 +24,7 @@ import {
 import { folderName } from '../state/sidebarTree'
 import { useNarrow } from '../media'
 import { useFitRow } from '../useFitRow'
+import { useEngineCommands } from '../net/useEngineCommands'
 import { useDismiss } from '../useDismiss'
 import { useFitInViewport } from '../useFitInViewport'
 import { AgentIntro } from './AgentIntro'
@@ -112,6 +113,8 @@ export function NewChatView({
   const members = useMemo(() => (group ? memberAgents(draftMembers, agents) : []), [group, draftMembers, agents])
   const loadable = useMemo(() => members.filter((a) => a.error === null), [members])
   const singleAgents = useMemo(() => (agent ? [agent] : undefined), [agent])
+  // The picked agent's own engine rows; a null folder is the scratch one, which the server maps to home.
+  const engineCommands = useEngineCommands(agent ? agent.name : null, draft.cwd)
   // A single chat's `@` asks another agent, from its first message on; Zumi Bot has no ask tool, so no menu there.
   const agentName = agent?.name
   const agentBuiltIn = agent?.builtIn === true
@@ -201,6 +204,7 @@ export function NewChatView({
         mentionMembers={group ? loadable : askable}
         everyone={group}
         commandAgents={group ? loadable : singleAgents}
+        engineCommands={engineCommands}
         btw={engineCaps(engine).btw}
         runWorkflow={false}
         noRunWorkflow={NEW_CHAT_RUN_WORKFLOW_NOTICE}
