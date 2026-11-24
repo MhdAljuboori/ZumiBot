@@ -9,6 +9,7 @@ let pushes: ChatPush[]
 let on: boolean
 let read: ReturnType<typeof vi.fn<(chatId: string, input: ReplyOptionsInput, signal: AbortSignal) => Promise<ReplyOptionsAnswer | null>>>
 let failGet: boolean
+let running: boolean
 
 const ans = (options: string[], question = '', summary = ''): ReplyOptionsAnswer => ({ options, question, summary })
 
@@ -21,6 +22,7 @@ beforeEach(() => {
   pushes = []
   on = true
   failGet = false
+  running = false
   read = vi.fn(async () => ans(['Native', 'Subagent-driven'], 'Which way should I build it?', 'Wrote the plan.'))
 })
 
@@ -40,7 +42,7 @@ function service(): ReplyOptions {
       return meta
     }
   }
-  return new ReplyOptions({ store, push: (p) => pushes.push(p), enabled: async () => on, read })
+  return new ReplyOptions({ store, push: (p) => pushes.push(p), enabled: async () => on, running: () => running, read })
 }
 
 test('stores the options for the reply and pushes the meta', async () => {
@@ -91,6 +93,48 @@ test('no read when the chat does not end on a reply that asks', async () => {
   items = [items[0], { type: 'assistant', id: 'a2', text: 'All done.', ts: 0 }]
   await service().idle('c1')
   expect(read).not.toHaveBeenCalled()
+})
+
+test('no read while a queued message is about to start: its run would refuse the write', async () => {
+  meta = { ...meta, tasks: [{} as never] }
+  await service().idle('c1')
+  expect(read).not.toHaveBeenCalled()
+})
+
+test('a held queue still gets options: its messages wait for the user', async () => {
+  meta = { ...meta, tasks: [{} as never], held: true }
+  await service().idle('c1')
+  expect(read).toHaveBeenCalledTimes(1)
+})
+
+test('no read while a run has claimed the chat but not yet stored it as running', async () => {
+  running = true
+  await service().idle('c1')
+  expect(read).not.toHaveBeenCalled()
+})
+
+test('no write when a run claimed the chat during the read', async () => {
+  read.mockImplementation(async () => {
+    running = true
+    return ans(['Native'])
+  })
+  await service().idle('c1')
+  expect(meta.suggested).toBeUndefined()
+  expect(pushes).toEqual([])
+})
+
+test('a new idle aborts the earlier read even when it reads nothing itself', async () => {
+  const signals: AbortSignal[] = []
+  read.mockImplementationOnce(async (_c, _i, signal) => {
+    signals.push(signal)
+    return new Promise<ReplyOptionsAnswer>(() => {})
+  })
+  const s = service()
+  void s.idle('c1')
+  await vi.waitFor(() => expect(signals).toHaveLength(1))
+  on = false
+  await s.idle('c1')
+  expect(signals[0].aborted).toBe(true)
 })
 
 test('no read when the last item was already read', async () => {

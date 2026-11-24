@@ -803,6 +803,8 @@ export async function startServer(
       store: chats,
       push,
       enabled: async () => (await settings.get()).suggestedReplies,
+      // Built later; only ever called once a chat goes idle, by which time it exists.
+      running: (chatId) => chatService.isRunning(chatId),
       read: async (chatId, input, signal) => {
         const bin = await claude.locate()
         if (!bin) return null

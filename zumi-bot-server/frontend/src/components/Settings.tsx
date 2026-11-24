@@ -24,6 +24,7 @@ import { Markdown } from './Markdown'
 import { aboutLine, canCheck, canOfferRollBack, checkedLine, resultLine } from '../state/update'
 import { dismissMessage, startUpdate, updateCall, useUpdate } from '../useUpdate'
 import { useConnected } from '../useConnected'
+import { useSuggestedReplies } from '../useSuggestedReplies'
 
 const ICONS: Record<SettingsSection, MenuIconName> = {
   general: 'sliders',
@@ -129,13 +130,17 @@ function GeneralSettings(p: {
     setHouseStyle(on)
     api.app.setHouseStyle(on).then(setHouseStyle, () => setHouseStyle(!on))
   }
-  const [suggested, setSuggested] = useState<boolean | null>(null)
-  useEffect(() => {
-    if (connected) api.app.getSuggestedReplies().then(setSuggested, () => {})
-  }, [connected])
+  // From the page's one watcher, so a change made in another tab shows here too; `pending` holds a click until it lands.
+  const stored = useSuggestedReplies()
+  const [pending, setPending] = useState<boolean | null>(null)
+  const suggested = pending ?? stored
   const toggleSuggested = (on: boolean) => {
-    setSuggested(on)
-    api.app.setSuggestedReplies(on).then(setSuggested, () => setSuggested(!on))
+    setPending(on)
+    // The server's broadcast reaches this tab's watcher before the call settles; a failure falls back to the stored value.
+    api.app.setSuggestedReplies(on).then(
+      () => setPending(null),
+      () => setPending(null)
+    )
   }
   const [keepWarm, setKeepWarm] = useState<KeepWarmSettings | null>(null)
   useEffect(() => {

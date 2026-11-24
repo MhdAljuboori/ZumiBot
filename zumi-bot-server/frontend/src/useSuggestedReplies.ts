@@ -43,3 +43,8 @@ const subscribe = (cb: () => void): (() => void) => {
 export function useSuggestedRepliesOn(): boolean {
   return useSyncExternalStore(subscribe, () => on === true)
 }
+
+/** The switch as the server last said it, null until it has: Settings follows a change made in any tab. */
+export function useSuggestedReplies(): boolean | null {
+  return useSyncExternalStore(subscribe, () => on)
+}
