@@ -460,7 +460,8 @@ describe('ProcessService user runs', () => {
     expect(r.got[0].output).toContain('hi')
   })
 
-  it('run end on a signal that is not a stop', async () => {
+  // POSIX signal: on Windows Git Bash's `kill -9 $$` ends with exit code 2304, and Node sees no signal.
+  it.skipIf(process.platform === 'win32')('run end on a signal that is not a stop', async () => {
     const r = runs()
     const s = make({ onRunEnd: r.onRunEnd })
     await s.load()
@@ -504,6 +505,9 @@ describe('ProcessService user runs', () => {
     await s.restart('c1', p.id)
     expect(r.got).toHaveLength(1)
     expect(r.got[0]).toMatchObject({ id: p.id, end: null, outcome: 'interrupted', error: 'restarted', output: '', cut: false })
+    // The second run's own echo first (the restart appends to the same log): where a start is slower (macOS), an
+    // immediate stop lands before it.
+    await until(async () => (await logs(s, 'c1', p.id)).match(/old/g)?.length === 2)
     await s.stop('c1', p.id, 'user')
     expect(r.got).toHaveLength(2)
     expect(r.got[1]).toMatchObject({ id: p.id, end: { kind: 'stopped', by: 'user' }, error: 'stopped by the user' })

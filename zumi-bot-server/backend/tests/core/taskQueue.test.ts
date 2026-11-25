@@ -1862,7 +1862,6 @@ describe('TaskQueue with a real ChatService', () => {
     cost: null
   }
   const pong: RunEvent[] = [{ kind: 'init', sessionId: 's1' }, { kind: 'assistantText', text: 'pong' }, okResult]
-  const tick = () => new Promise((r) => setTimeout(r, 20))
 
   interface Script {
     events: RunEvent[]
@@ -1941,8 +1940,8 @@ describe('TaskQueue with a real ChatService', () => {
       ]
     })
     const first = real.submit(c.id, 'go', [])
-    await tick()
-    expect(svc.pendingCount(c.id)).toBe(1)
+    // Waited for, not slept on: the submit writes to disk first, which takes longer on Windows.
+    await vi.waitFor(() => expect(svc.pendingCount(c.id)).toBe(1))
     const userId = (await store.loadItems(c.id))[0].id
     await real.rerun(c.id, userId, 'go, edited')
     await first
@@ -1960,8 +1959,7 @@ describe('TaskQueue with a real ChatService', () => {
     const userId = (await store.loadItems(c.id))[0].id
     scripts.push({ hang: true, events: [{ kind: 'init', sessionId: 's2' }] })
     const first = real.rerun(c.id, userId, 'two')
-    await tick()
-    expect(svc.isRunning(c.id)).toBe(true)
+    await vi.waitFor(() => expect(svc.isRunning(c.id)).toBe(true))
     const shownId = (await store.loadItems(c.id))[0].id // what the client shows after the first click
     scripts.push({ events: pong })
     const second = real.rerun(c.id, shownId, null) // a second click: waits on the lock, stops the first
