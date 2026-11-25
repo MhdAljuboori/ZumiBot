@@ -82,7 +82,8 @@ export const DECISION_KIND_LABELS: Record<AuditDecisionKind, string> = {
   deniedByHook: 'Denied by a hook',
   deniedByZumiBot: 'Refused by ZumiBot',
   unanswered: 'Unanswered',
-  ranRemotely: 'Ran on a remote server'
+  ranRemotely: 'Ran on a remote server',
+  runByUser: 'Run by you'
 }
 
 export const DECISION_OPTIONS: { value: AuditDecisionKind; label: string }[] = AUDIT_DECISION_KINDS.map((k) => ({
@@ -152,6 +153,8 @@ export function decisionWhy(d: AuditDecision, mode: string): string {
                   : 'ZumiBot does not handle this request.'
     case 'unanswered':
       return 'Its card was never answered (the run stopped first).'
+    case 'runByUser':
+      return 'You pressed Run on a shell block in the reply: it ran on this machine with no approval card, because the click was the approval.'
     case 'ranRemotely':
       return "The remote (AG-UI) agent's own server ran it: no approval reached ZumiBot, which could neither see it before it ran nor stop it."
   }

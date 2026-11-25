@@ -123,7 +123,10 @@ describe('the Codex hooks', () => {
     const hook = codexPauseHook(rt, () => true)!
     expect(hook).toMatchObject({ event: 'preToolUse', matcher: null, timeoutSec: 30 })
     expect(hook.command).toMatch(/^\[ -e "\$ZUMIBOT_PAUSE_FILE" \] \|\| exit 0; /)
-    expect(hook.command).not.toContain('exec')
+    // `exec` as a shell word, outside the quoted paths: a checkout whose folder name holds "exec" (bash-execution) is fine.
+    const words = (command: string): string => command.replace(/'[^']*'/g, "''")
+    expect(words("[ -e x ] || exit 0; exec '/n/node' '/a/exec/hook.mjs'")).toMatch(/\bexec\b/)
+    expect(words(hook.command)).not.toMatch(/\bexec\b/)
     expect(hook.command).toMatch(/; \[ \$\? -eq 0 \] && exit 0; exit 2$/)
     expect(codexPauseHook({ ...rt, electronNode: true }, () => true)!.command).toContain(`ELECTRON_RUN_AS_NODE=1 '${process.execPath}'`)
     expect(codexPauseHook(rt, () => true)!.command).not.toContain('ELECTRON_RUN_AS_NODE')

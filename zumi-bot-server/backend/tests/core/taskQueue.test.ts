@@ -9,13 +9,17 @@ import {
   type ChatMeta,
   type ChatPush,
   type NoticeKind,
+  type QueuedTask,
   type WorkflowSent
 } from '@zumibot/shared/types'
 import { RESUME_TEXT } from '@zumibot/shared/pause'
 import type { CapPause } from '@zumibot/shared/spendCaps'
+import type { CardAsk } from '@zumibot/shared/todos'
+import { RUN_ITEM_FIXED, type RunMark } from '@zumibot/shared/runBlocks'
 import { ChatStore } from '../../src/core/store/chatStore'
 import { AttachmentStore } from '../../src/core/attachments/attachmentStore'
 import { ChatService } from '../../src/core/chat/chatService'
+import { LimitResumes } from '../../src/core/chat/limitResumes'
 import type { RunHandle, RunOptions, RunOutcome } from '../../src/core/chat/claudeRunner'
 import type { RunEvent } from '../../src/core/chat/streamParser'
 import type { SentCommand } from '@zumibot/shared/commands'
@@ -86,7 +90,9 @@ const fakes = () => ({
         _command?: SentCommand,
         _todo?: true,
         _auto?: true,
-        _sent?: WorkflowSent
+        _sent?: WorkflowSent,
+        _cardAsk?: CardAsk,
+        _run?: RunMark
       ) => claim(chatId)
     ),
     rerun: vi.fn((chatId: string, _userId: string, _text: string | null) => {
@@ -133,7 +139,9 @@ const fakes = () => ({
         _messageId?: string,
         _command?: SentCommand,
         _todo?: true,
-        _sent?: WorkflowSent
+        _sent?: WorkflowSent,
+        _auto?: true,
+        _run?: RunMark
       ) => {
         const p = deferred()
         posts.push(p)
@@ -1269,6 +1277,68 @@ describe('pause and resume', () => {
       })
     })
 
+    describe('run messages', () => {
+      const run = { processId: 'p_0000000001' }
+      const runSubmit = (id: string, text: string, messageId: string) =>
+        q.submit(id, text, [], undefined, messageId, undefined, undefined, 'run', undefined, { run })
+
+      it('run message launches with its mark and no auto', async () => {
+        const c = await single()
+        const p = runSubmit(c.id, 'result', 'm1')
+        await flush()
+        expect(f.chats.send.mock.calls[0]).toEqual([c.id, 'result', [], undefined, 'm1', undefined, undefined, undefined, undefined, undefined, run])
+        turns[0].resolve()
+        await p
+      })
+
+      it('run message queues while busy and keeps its mark', async () => {
+        const c = await single()
+        const first = q.submit(c.id, 'go', [], undefined, 'm1')
+        await flush()
+        await expect(runSubmit(c.id, 'result', 'm2')).resolves.toBe('queued')
+        const task = (await store.get(c.id))?.tasks?.[0]
+        expect(task).toMatchObject({ id: 'm2', run })
+        expect(task).not.toHaveProperty('auto')
+        turns[0].resolve()
+        await first
+        q.idle(c.id)
+        await flush()
+        expect(f.chats.send.mock.calls[1]).toEqual([c.id, 'result', [], undefined, 'm2', undefined, undefined, undefined, undefined, undefined, run])
+      })
+
+      it('run message waits in a paused chat', async () => {
+        const c = await single()
+        await setPause(c.id, 'paused')
+        await expect(runSubmit(c.id, 'result', 'm1')).resolves.toBe('queued')
+        await flush()
+        expect(f.chats.send).not.toHaveBeenCalled()
+        expect(await meta(c.id)).toMatchObject({ pause: 'paused', held: true, tasks: [{ id: 'm1', run }] })
+      })
+
+      it('a room gets the mark after auto', async () => {
+        const g = await group()
+        const p = runSubmit(g.id, '@ui result', 'm1')
+        await flush()
+        expect(f.groups.send.mock.calls[0]).toEqual([g.id, '@ui result', [], undefined, 'm1', undefined, undefined, undefined, undefined, run])
+        posts[0].resolve()
+        await p
+      })
+
+      it('routine and process stay auto', async () => {
+        const c = await single()
+        const first = q.submit(c.id, 'go', [], undefined, 'm1')
+        await flush()
+        await q.submit(c.id, 'tick', [], undefined, 'r1', undefined, undefined, 'routine')
+        await q.submit(c.id, 'wake', [], undefined, 'r2', undefined, undefined, 'process')
+        expect((await store.get(c.id))?.tasks).toMatchObject([
+          { id: 'r1', auto: true },
+          { id: 'r2', auto: true }
+        ])
+        turns[0].resolve()
+        await first
+      })
+    })
+
     describe('workflowSent', () => {
       const sent = { workflowId: 'w1', runId: 'r1', stepId: 's1', name: 'WF', step: 'Chat' }
 
@@ -2178,6 +2248,39 @@ describe('a usage limit wait holds the tasks', () => {
     expect(await taskIds(c.id)).toEqual(['m2'])
   })
 
+  it("a process wake-up queues behind the wait, never ends it, and goes after the continue's turn", async () => {
+    const c = await single()
+    await setWait(c.id)
+    const wake = 'Background process update'
+    await expect(q.submit(c.id, wake, [], undefined, 'w1', undefined, undefined, 'process')).resolves.toBe('queued')
+    await flush()
+    expect(f.chats.send).not.toHaveBeenCalled()
+    expect(calls).not.toContain(`new:${c.id}`)
+    expect((await store.get(c.id))?.resume).toEqual(wait)
+    expect((await store.get(c.id))?.tasks?.find((x) => x.id === 'w1')).toMatchObject({ text: wake, auto: true })
+    // The wait's continue goes first and ends it; the wake-up follows that turn, still auto.
+    await expect(q.continueLimit(c.id, 'continue', 'k1', 'u1', 'routine')).resolves.toBe('started')
+    await flush()
+    expect(f.chats.send).toHaveBeenCalledTimes(1)
+    expect(f.chats.send).toHaveBeenCalledWith(c.id, 'continue', [], undefined, 'k1', undefined, undefined, true)
+    turns[0]!.resolve()
+    await flush()
+    expect(f.chats.send).toHaveBeenCalledTimes(2)
+    expect(f.chats.send).toHaveBeenLastCalledWith(c.id, wake, [], undefined, 'w1', undefined, undefined, true)
+    expect(await taskIds(c.id)).toEqual([])
+  })
+
+  it("a room's process wake-up queues behind the wait too, and the wait stands", async () => {
+    const g = await group()
+    await setWait(g.id)
+    await expect(q.submit(g.id, '@ui build failed', [], undefined, 'w1', undefined, undefined, 'process')).resolves.toBe('queued')
+    await flush()
+    expect(f.groups.send).not.toHaveBeenCalled()
+    expect(calls).not.toContain(`new:${g.id}`)
+    expect((await store.get(g.id))?.resume).toEqual(wait)
+    expect(await taskIds(g.id)).toEqual(['w1'])
+  })
+
   it("continueLimit from the user's Continue now is not auto, and a room's goes through GroupService", async () => {
     const c = await single()
     await setWait(c.id)
@@ -2277,5 +2380,293 @@ describe('TaskQueue spend caps (a cap pauses, the user goes on past it)', () => 
     expect(overrides).toEqual([])
     turns[0]!.resolve()
     await resumed
+  })
+})
+
+// A Run result is the user's click on a block, but the user never sees its task: only a pause and a usage limit wait stop
+// it, never `held`, which only the tray's Send now, drop or Resume would release.
+describe('Run results are never held', () => {
+  const run = { processId: 'p_0000000001' }
+  const wait = { at: 9000, after: 'u1', waits: 1 }
+  const cap: CapPause = {
+    scope: { kind: 'routine', routineId: 'r1', runId: 'run1' },
+    label: 'Daily',
+    spentUsd: 2.1,
+    limitUsd: 2,
+    capUsd: 2
+  }
+  let calls: string[]
+  let limits: LimitResumes
+  const runSubmit = (id: string, messageId: string) =>
+    q.submit(id, 'result', [], undefined, messageId, undefined, undefined, 'run', undefined, { run })
+  const sent = () => f.chats.send.mock.calls.map((c) => c[1])
+  const meta = async (id: string) => (await store.get(id))!
+  const runTask = (id: string): QueuedTask => ({ id, text: 'result', run, ts: 1 })
+  // The tray as an older build or a pause left it.
+  const tray = async (id: string, patch: Partial<ChatMeta>, ...tasks: QueuedTask[]) => {
+    for (const t of tasks) await store.addTask(id, t)
+    await store.update(id, patch)
+  }
+
+  beforeEach(() => {
+    calls = []
+    // The real usage limit waits, wired as app.ts does, with a timer that never fires by itself.
+    limits = new LimitResumes({
+      store: tracked(store),
+      tasks: { continueLimit: (...a) => q.continueLimit(...a), idle: (id) => q.idle(id) },
+      isRunning: (id) => running.has(id),
+      push: (p) => {
+        pushes.push(p)
+      },
+      now: () => 5000,
+      newId: () => `id-${++n}`,
+      setTimer: () => ({ clear: () => {} }),
+      log: () => {}
+    })
+    q = new TaskQueue({
+      store: tracked(store),
+      chats: f.chats,
+      groups: f.groups,
+      files: f.files,
+      push: (p) => {
+        pushes.push(p)
+      },
+      now: () => 5000,
+      newId: () => `id-${++n}`,
+      onNewTurn: async (id) => {
+        calls.push(`new:${id}`)
+        await track(limits.cancel(id))
+      },
+      limitChecked: (id) => limits.settled(id),
+      capOverride: async (id) => {
+        calls.push(`cap:${id}`)
+      }
+    })
+  })
+
+  it('a paused chat the user types into: the pause ends, nothing stays held, and the result goes after the reply', async () => {
+    const c = await single()
+    await store.update(c.id, { pause: 'paused', held: true })
+    await expect(runSubmit(c.id, 'r1')).resolves.toBe('queued')
+    const typed = q.submit(c.id, 'hello', [], undefined, 'u1')
+    await flush()
+    expect(await meta(c.id)).toMatchObject({ tasks: [{ id: 'r1', run }] })
+    expect((await meta(c.id)).held).toBeUndefined()
+    turns[0].resolve()
+    await typed
+    q.idle(c.id)
+    await flush()
+    expect(sent()).toEqual(['hello', 'result'])
+    expect(f.chats.send.mock.calls[1]![10]).toEqual(run)
+    turns[1].resolve()
+    await flush()
+    const m = await meta(c.id)
+    expect(m.tasks).toBeUndefined()
+    expect(m.held).toBeUndefined()
+  })
+
+  it('a paused chat with a visible task too: that one stays held, the result still goes', async () => {
+    const c = await single()
+    await tray(c.id, { pause: 'paused', held: true }, { id: 't1', text: 't1', ts: 1 }, runTask('r1'))
+    const typed = q.submit(c.id, 'hello', [], undefined, 'u1')
+    await flush()
+    expect((await meta(c.id)).held).toBe(true)
+    turns[0].resolve()
+    await typed
+    q.idle(c.id)
+    await flush()
+    expect(sent()).toEqual(['hello', 'result'])
+    turns[1].resolve()
+    q.idle(c.id)
+    await flush()
+    expect(sent()).toEqual(['hello', 'result'])
+    expect(await meta(c.id)).toMatchObject({ held: true, tasks: [{ id: 't1' }] })
+  })
+
+  it('an edit while a reply runs holds no tray of run results alone, and the result goes after the new version', async () => {
+    const c = await single()
+    await store.saveItems(c.id, [said('u1')])
+    void q.submit(c.id, 'go', [], undefined, 'u2')
+    await flush()
+    await expect(runSubmit(c.id, 'r1')).resolves.toBe('queued')
+    const redo = q.rerun(c.id, 'u1', 'edited')
+    await flush()
+    expect(f.chats.rerun).toHaveBeenCalledTimes(1)
+    expect((await meta(c.id)).held).toBeUndefined()
+    turns[1].resolve()
+    await redo
+    await flush()
+    expect(sent()).toEqual(['go', 'result'])
+    turns[2].resolve()
+    await flush()
+    expect((await meta(c.id)).tasks).toBeUndefined()
+  })
+
+  it('a Resend while a reply runs holds the visible tasks, and the result still goes after it', async () => {
+    const c = await single()
+    await store.saveItems(c.id, [said('u1')])
+    void q.submit(c.id, 'go', [], undefined, 'u2')
+    await flush()
+    await q.submit(c.id, 'later', [], undefined, 't1')
+    await runSubmit(c.id, 'r1')
+    const redo = q.rerun(c.id, 'u1', null)
+    await flush()
+    expect((await meta(c.id)).held).toBe(true)
+    turns[1].resolve()
+    await redo
+    await flush()
+    expect(sent()).toEqual(['go', 'result'])
+    turns[2].resolve()
+    q.idle(c.id)
+    await flush()
+    expect(sent()).toEqual(['go', 'result'])
+    expect(await meta(c.id)).toMatchObject({ held: true, tasks: [{ id: 't1' }] })
+  })
+
+  it("Don't continue on a usage limit wait holds no run result: it goes at once", async () => {
+    const c = await single()
+    await store.patchInPlace(c.id, () => ({ resume: wait }))
+    await expect(runSubmit(c.id, 'r1')).resolves.toBe('queued')
+    await flush()
+    expect(sent()).toEqual([])
+    await limits.dontContinue(c.id)
+    await flush()
+    expect(sent()).toEqual(['result'])
+    turns[0].resolve()
+    await flush()
+    const m = await meta(c.id)
+    expect(m.resume).toBeUndefined()
+    expect(m.held).toBeUndefined()
+    expect(m.tasks).toBeUndefined()
+  })
+
+  it("Don't continue with a visible task: that one is held for the user, the result goes", async () => {
+    const c = await single()
+    await tray(c.id, { resume: wait }, { id: 't1', text: 't1', ts: 1 }, runTask('r1'))
+    await limits.dontContinue(c.id)
+    await flush()
+    expect(sent()).toEqual(['result'])
+    turns[0].resolve()
+    q.idle(c.id)
+    await flush()
+    expect(sent()).toEqual(['result'])
+    expect(await meta(c.id)).toMatchObject({ held: true, tasks: [{ id: 't1' }] })
+  })
+
+  it('typing into a chat a spend cap paused: the cap is passed, nothing stays held, the result goes after the reply', async () => {
+    const c = await single()
+    await store.update(c.id, { pause: 'paused', held: true, pauseCap: cap })
+    await runSubmit(c.id, 'r1')
+    const typed = q.submit(c.id, 'keep going', [], undefined, 'u1')
+    await flush()
+    expect(calls).toContain(`cap:${c.id}`)
+    expect((await meta(c.id)).held).toBeUndefined()
+    turns[0].resolve()
+    await typed
+    q.idle(c.id)
+    await flush()
+    expect(sent()).toEqual(['keep going', 'result'])
+    turns[1].resolve()
+    await flush()
+    const m = await meta(c.id)
+    expect(m.held).toBeUndefined()
+    expect(m.tasks).toBeUndefined()
+  })
+
+  it('a usage limit wait keeps a run result queued and is not ended by it; the result follows the continue', async () => {
+    const c = await single()
+    await store.patchInPlace(c.id, () => ({ resume: wait }))
+    await expect(runSubmit(c.id, 'r1')).resolves.toBe('queued')
+    await flush()
+    expect(sent()).toEqual([])
+    expect(calls).toEqual([])
+    expect((await meta(c.id)).resume).toEqual(wait)
+    await expect(q.continueLimit(c.id, 'continue', 'k1', 'u1', 'routine')).resolves.toBe('started')
+    await flush()
+    expect(sent()).toEqual(['continue'])
+    turns[0].resolve() // the continue's turn ends; its pump sends the result
+    await flush()
+    expect(sent()).toEqual(['continue', 'result'])
+    expect(f.chats.send.mock.calls[1]![10]).toEqual(run)
+    turns[1].resolve()
+  })
+
+  it('a run result queued behind a busy turn never ends a usage limit wait either', async () => {
+    const c = await single()
+    void q.submit(c.id, 'go', [], undefined, 'u1')
+    await flush()
+    await store.patchInPlace(c.id, () => ({ resume: wait }))
+    calls = []
+    await runSubmit(c.id, 'r1')
+    expect(calls).toEqual([])
+    expect((await meta(c.id)).resume).toEqual(wait)
+    turns[0].resolve()
+  })
+
+  it('a held tray lets its run result go, but never past a pause or a usage limit wait', async () => {
+    const free = await single()
+    const paused = await single()
+    const waiting = await single()
+    await tray(free.id, { held: true }, { id: 't1', text: 't1', ts: 1 }, runTask('r1'))
+    await tray(paused.id, { held: true, pause: 'paused' }, runTask('r2'))
+    await tray(waiting.id, { held: true, resume: wait }, { id: 't3', text: 't3', ts: 1 }, runTask('r3'))
+    for (const id of [free.id, paused.id, waiting.id]) q.idle(id)
+    await flush()
+    expect(f.chats.send.mock.calls.map((c) => [c[0], c[4]])).toEqual([[free.id, 'r1']])
+    expect(await meta(free.id)).toMatchObject({ held: true, tasks: [{ id: 't1' }] })
+    expect(await taskIds(paused.id)).toEqual(['r2'])
+    expect(await taskIds(waiting.id)).toEqual(['t3', 'r3'])
+    turns[0].resolve()
+  })
+
+  it('a room the hop cap paused lets its run result go, as a message the user writes would (submit lets one in too)', async () => {
+    const room = await group()
+    await store.saveItems(room.id, [said('u1'), notice('paused')])
+    await tray(room.id, {}, { id: 't1', text: 't1', ts: 1 }, runTask('r1'))
+    q.idle(room.id)
+    await flush()
+    expect(f.groups.send.mock.calls.map((c) => c[4])).toEqual(['r1'])
+    expect(f.groups.send.mock.calls[0]![9]).toEqual(run)
+    expect(await taskIds(room.id)).toEqual(['t1'])
+    posts[0].resolve()
+  })
+
+  it('a restart strands no run result: a held tray (an older build held run results too) lets them go', async () => {
+    const mixed = await single()
+    const alone = await single()
+    await tray(mixed.id, { held: true }, { id: 't1', text: 't1', ts: 1 }, runTask('r1'))
+    await tray(alone.id, { held: true }, runTask('r2'))
+    await q.resume()
+    await flush()
+    expect(f.chats.send.mock.calls.map((c) => c[4]).sort()).toEqual(['r1', 'r2'])
+    expect(await meta(mixed.id)).toMatchObject({ held: true, tasks: [{ id: 't1' }] })
+    const left = await meta(alone.id)
+    expect(left.tasks).toBeUndefined()
+    expect(left.held).toBeUndefined()
+    turns[0].resolve()
+    turns[1].resolve()
+  })
+
+  it('a version switch that ends a pause lets a waiting run result go', async () => {
+    const c = await single()
+    await tray(c.id, { pause: 'paused', held: true }, { id: 't1', text: 't1', ts: 1 }, runTask('r1'))
+    await q.switchVersion(c.id, 'u1', 0)
+    await flush()
+    expect(sent()).toEqual(['result'])
+    expect(await meta(c.id)).toMatchObject({ held: true, tasks: [{ id: 't1' }] })
+    expect((await meta(c.id)).pause).toBeUndefined()
+    turns[0].resolve()
+  })
+
+  it('a run item is never edited or sent again, and a running reply is not stopped for it', async () => {
+    const c = await single()
+    await store.saveItems(c.id, [said('u1'), { type: 'user', id: 'r1', text: 'result', ts: 1, run }])
+    void q.submit(c.id, 'go', [], undefined, 'u2')
+    await flush()
+    await expect(q.rerun(c.id, 'r1', 'edited')).rejects.toThrow(RUN_ITEM_FIXED)
+    await expect(q.rerun(c.id, 'r1', null)).rejects.toThrow(RUN_ITEM_FIXED)
+    expect(f.chats.stop).not.toHaveBeenCalled()
+    expect(f.chats.rerun).not.toHaveBeenCalled()
+    turns[0].resolve()
   })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { auditRowOf, auditSummary, decisionLabel, isDenied, matchesAudit, parseAuditFilter, type AuditRecord } from '../src/audit'
+import { AUDIT_DECISION_KINDS, auditRowOf, auditSummary, decisionLabel, isDenied, matchesAudit, parseAuditFilter, type AuditRecord } from '../src/audit'
 
 const rec = (o: Partial<AuditRecord> = {}): AuditRecord => ({
   v: 1,
@@ -66,6 +66,9 @@ describe('audit rows and words', () => {
   it('labels decisions and tells denied ones apart', () => {
     expect(decisionLabel({ kind: 'approvedByUser', scope: 'agent' })).toBe('Approved by you always for this agent')
     expect(decisionLabel({ kind: 'deniedByHook', hook: 'vaultGuard' })).toBe('Denied by the vault guard')
+    expect(decisionLabel({ kind: 'runByUser' })).toBe('Run by you')
+    expect(AUDIT_DECISION_KINDS).toContain('runByUser')
+    expect(isDenied({ kind: 'runByUser' })).toBe(false)
     expect(isDenied({ kind: 'deniedByRule' })).toBe(true)
     expect(isDenied({ kind: 'unanswered' })).toBe(true)
     expect(isDenied({ kind: 'allowedByMode' })).toBe(false)

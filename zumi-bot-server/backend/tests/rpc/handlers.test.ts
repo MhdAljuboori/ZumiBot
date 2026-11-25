@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import { join } from 'node:path'
+import { RUN_REFUSALS } from '@zumibot/shared/runBlocks'
 import { createHandlers, type HandlerDeps, type Handlers } from '../../src/rpc/handlers'
 import { HistoryStore } from '../../src/core/history/historyStore'
 import type { RoutineDef, VersionSummary, WorkflowDef } from '@zumibot/shared/definitionHistory'
@@ -565,6 +566,7 @@ const KEPT = [
   'processes:stop',
   'processes:restart',
   'processes:forget',
+  'processes:run',
   'processes:counts',
   'routines:list',
   'routines:save',
@@ -1840,6 +1842,21 @@ describe('createHandlers', () => {
     expect(failure).toBeNull()
     svc.stop(c.id)
     await p
+  })
+
+  it('processes:run checks its arguments, then runs only a block of that stored message as its author', async () => {
+    const c = await store.create('helper', dir)
+    await store.saveItems(c.id, [{ type: 'assistant', id: 'a1', text: '```bash\nls\n```', ts: 5 }] as ChatItem[])
+    const run = vi.fn(async () => ({ id: 'p_0000000001' }))
+    const hp = createHandlers({ ...handlerDeps, processes: { run } as unknown as HandlerDeps['processes'] })
+    await expect(hp['processes:run'](c.id, 'a1', 7)).rejects.toThrow(TypeError)
+    await expect(hp['processes:run'](c.id, 'bad id!', 'ls')).rejects.toThrow(/messageId/)
+    await expect(hp['processes:run'](c.id, null, 'ls')).rejects.toThrow(/messageId/)
+    await expect(hp['processes:run'](9, 'a1', 'ls')).rejects.toThrow(TypeError)
+    await expect(hp['processes:run'](c.id, 'a1', 'rm -rf /')).rejects.toThrow(RUN_REFUSALS.notBlock)
+    expect(run).not.toHaveBeenCalled()
+    await hp['processes:run'](c.id, 'a1', 'ls')
+    expect(run).toHaveBeenCalledWith(c.id, 'helper', 'a1', 'ls')
   })
 
   it('chats:send stores the message under the id the client picked; a malformed id is refused before anything runs', async () => {

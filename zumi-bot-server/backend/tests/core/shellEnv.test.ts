@@ -1,3 +1,6 @@
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { expect, test, vi } from 'vitest'
 import { createRunEnv, loginShell, resolveRunPath, spawnCapture } from '../../src/core/chat/shellEnv'
 
@@ -96,6 +99,44 @@ test('spawnCapture does not wait for stdin', async () => {
     maxBytes: 100
   })
   expect(out).toBe('eof')
+})
+
+// The session id in /proc/<pid>/stat: the fourth field after the command name's closing parenthesis.
+const sessionOf = (stat: string): number => Number(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[3])
+
+test.skipIf(process.platform !== 'linux')(
+  'spawnCapture starts the command in a session of its own, so an interactive login shell cannot take the terminal',
+  async () => {
+    const stat = await spawnCapture(process.execPath, ['-e', 'process.stdout.write(require("fs").readFileSync("/proc/self/stat","utf8"))'], {
+      timeoutMs: 5000,
+      maxBytes: 4096
+    })
+    expect(sessionOf(stat)).toBe(Number(stat.split(' ')[0]))
+    expect(sessionOf(stat)).not.toBe(sessionOf(readFileSync('/proc/self/stat', 'utf8')))
+  }
+)
+
+test.skipIf(process.platform !== 'linux')('a spawnCapture timeout also ends what the command started', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'zb-capture-'))
+  const pidFile = join(dir, 'pid')
+  try {
+    await expect(spawnCapture('sh', ['-c', `sleep 30 & echo $! > ${pidFile}; wait`], { timeoutMs: 300, maxBytes: 1024 })).rejects.toThrow(
+      'timed out'
+    )
+    const pid = Number(readFileSync(pidFile, 'utf8'))
+    const alive = (): boolean => {
+      try {
+        process.kill(pid, 0)
+        return true
+      } catch {
+        return false
+      }
+    }
+    for (let i = 0; i < 40 && alive(); i++) await new Promise((r) => setTimeout(r, 50))
+    expect(alive()).toBe(false)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 test('the run env never carries the local secret or ELECTRON_RUN_AS_NODE', async () => {

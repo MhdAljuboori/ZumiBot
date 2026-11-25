@@ -36,7 +36,8 @@ const VERIFY_MAX = 2000
 const COMPACT_MIN = 5000
 
 function metaOf(it: ChatItem): Meta | null {
-  if (it.type === 'user') return it.text.trim() === '' ? null : { role: 'user', agent: it.from ?? null, ts: it.ts, text: it.text }
+  // A Run's result sent to the agent: the user never sees it, so nobody can search for it.
+  if (it.type === 'user') return it.run || it.text.trim() === '' ? null : { role: 'user', agent: it.from ?? null, ts: it.ts, text: it.text }
   if (it.type === 'assistant')
     return it.text.trim() === '' ? null : { role: 'assistant', agent: it.agent ?? null, ts: it.ts, text: it.text }
   return null

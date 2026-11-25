@@ -8,9 +8,10 @@ import { worktreePath, worktreeSlug } from '@zumibot/shared/worktree'
 import { ChatStore } from '../../../src/core/store/chatStore'
 import { GitError, makeGit, type Git } from '../../../src/core/git/git'
 import { WorktreeService, type WorktreeDeps } from '../../../src/core/git/worktrees'
+import { isolatedGitEnv } from '../../support/gitEnv'
 
 // The user's own git config must never leak into these repos.
-const env = (): NodeJS.ProcessEnv => ({ ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' })
+const env = isolatedGitEnv
 const sh = (cwd: string, ...args: string[]): string => execFileSync('git', args, { cwd, env: env(), encoding: 'utf8' })
 
 const tmps: string[] = []

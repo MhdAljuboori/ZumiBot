@@ -108,7 +108,9 @@ function answerText(v: string | string[] | undefined): string {
  * and errors only with `steps`. Notices, approval cards, handoffs and vault cards never. Null when `item` names no agent
  * message of the chat.
  */
-export function buildExport(meta: ChatMeta, items: readonly ChatItem[], o: BuildOptions): ExportDoc | null {
+export function buildExport(meta: ChatMeta, allItems: readonly ChatItem[], o: BuildOptions): ExportDoc | null {
+  // A Run's result sent to the agent is hidden from the user. Filtered first, so replyRange does not stop at it.
+  const items = allItems.filter((x) => !(x.type === 'user' && x.run))
   let list = items
   if (o.item !== null) {
     const range = replyRange(items, o.item, meta.agentName)

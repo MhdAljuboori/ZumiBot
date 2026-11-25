@@ -359,6 +359,7 @@ export function createApi(
       stop: (chatId, id) => call('processes:stop', chatId, id),
       restart: (chatId, id) => call('processes:restart', chatId, id),
       forget: (chatId, id) => call('processes:forget', chatId, id),
+      run: (chatId, messageId, command) => call('processes:run', chatId, messageId, command),
       counts: () => call('processes:counts'),
       onChanged: (cb) => rpc.on('processes:changed', (p: { chatId: string; running: number }) => cb(p)),
       onOutput: (cb) => rpc.on('processes:output', (p: { chatId: string; id: string; to: number }) => cb(p))

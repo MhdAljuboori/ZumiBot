@@ -403,7 +403,8 @@ html.typing-hold .tab-bar,
   .task-actions {
     opacity: 1;
   }
-  .code-copy {
+  .code-copy,
+  .code-run {
     opacity: 1;
   }
   .agent-turn:has(> .agent-turn-body > .msg:last-child) .agent-turn-avatar {
@@ -482,9 +483,20 @@ html.typing-hold .tab-bar,
     width: 32px;
     height: 32px;
   }
+  .code-run {
+    width: 32px;
+    height: 32px;
+  }
+  .code-run-status {
+    height: 32px;
+  }
   .code-tools {
     top: 2px;
     right: 2px;
+  }
+  /* 2 + 32 + 2: the bigger buttons still fit a one-line block's height. */
+  .code-block.runnable > .code-tools {
+    padding: 2px;
   }
   .send-btn,
   .attach-btn,

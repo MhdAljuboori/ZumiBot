@@ -56,6 +56,7 @@ Decisions as built:
 | `deniedByZumiBot {why}` | `writeRefused`, `questionsDenied`, `sideGuard`, `unknownRequest`, `connectorOff` (a connector off for the agent), `connectorUnattended` (a connector write in an unattended run), `remoteTools` (a remote agent asked ZumiBot to run a tool, answered with `AGUI_TEXT.noTools`) |
 | `unanswered` | a card cancelled or left open when the run ended |
 | `ranRemotely` | a remote (AG-UI) agent's row: its own server ran it, and no approval reached ZumiBot (a muted chip) |
+| `runByUser` | a shell block the user ran with its Run button (tool `Run`, input `{command, cwd}`): no agent call and no card, so the click was the approval. One record per Run, written when it ends by `runAudit.ts` (see [Run button](run-blocks.md)) through `AuditService.record` (a muted chip). `ts` is the start, `itemId` the message, `agent` the block's author; the outcome is `ok`, `error` or `interrupted`, with a code as the error |
 
 Phase 2 adds `allowedByAllowlist {host}` and `deniedBySandbox {host?, path?}`.
 

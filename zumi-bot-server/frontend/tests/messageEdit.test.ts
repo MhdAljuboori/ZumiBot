@@ -22,6 +22,13 @@ describe('resendTarget', () => {
   })
 })
 
+describe('resendTarget and run messages', () => {
+  it('no resend target behind a run message', () => {
+    const run: ChatItem = { type: 'user', id: 'r', text: 'result', ts: 1, run: { processId: 'p' } }
+    expect(resendTarget([user('u1'), agent('a1'), run, agent('a2')], 'a2')).toBeNull()
+  })
+})
+
 describe('versions', () => {
   const v = (index: number, count: number): VersionInfo => ({ root: 'r', index, count })
   it('versionLabel and canStep at the ends', () => {

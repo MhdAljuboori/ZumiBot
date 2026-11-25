@@ -4,7 +4,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { PROCESS_REFUSALS } from '@zumibot/shared/processes'
-import { ProcessService, processEnv, type ProcessEvent, type ProcessServiceDeps } from '../../src/core/processes/processService'
+import { RUN_OUTPUT_MAX } from '@zumibot/shared/runBlocks'
+import {
+  ProcessService,
+  processEnv,
+  type ProcessEvent,
+  type ProcessServiceDeps,
+  type RunEndEvent
+} from '../../src/core/processes/processService'
 
 // A zombie (an orphan a non-reaping PID 1 holds) is dead.
 const alive = (pid: number) => {
@@ -386,5 +393,329 @@ describe('ProcessService notify rules', () => {
     const b = make()
     await b.load()
     expect(b.list('c1')[0].wake).toMatchObject({ on: 'fail', times: 3, fired: 0 })
+  })
+})
+
+describe('ProcessService user runs', () => {
+  const runs = () => {
+    const got: RunEndEvent[] = []
+    return { got, onRunEnd: (e: RunEndEvent) => got.push(e) }
+  }
+
+  it('run records its mark and survives a reload', async () => {
+    const r = runs()
+    const s = make({ onRunEnd: r.onRunEnd })
+    await s.load()
+    const p = await s.run('c1', 'dev', 'm1', 'echo hi')
+    expect(p.run).toEqual({ messageId: 'm1' })
+    expect(p.startedBy).toBe('dev')
+    const agent = await s.start('c1', 'dev', { command: 'echo x' })
+    expect(agent.run).toBeNull()
+    await until(() => s.list('c1').every((x) => x.state !== 'running'))
+    const b = make()
+    await b.load()
+    expect(b.list('c1').find((x) => x.id === p.id)?.run).toEqual({ messageId: 'm1' })
+    expect(b.list('c1').find((x) => x.id === agent.id)?.run).toBeNull()
+  })
+
+  it('run skips no limit', async () => {
+    const s = make()
+    await s.load()
+    for (let i = 0; i < 5; i++) await s.start('c1', 'dev', { command: 'sleep 300' })
+    await expect(s.run('c1', 'dev', 'm1', 'echo hi')).rejects.toThrow(PROCESS_REFUSALS.perChat)
+    chats.set('c2', { cwd: folder, archived: true })
+    await expect(s.run('c2', 'dev', 'm1', 'echo hi')).rejects.toThrow(PROCESS_REFUSALS.closed)
+  })
+
+  it('run end on exit 0', async () => {
+    const r = runs()
+    const s = make({ onRunEnd: r.onRunEnd })
+    await s.load()
+    const p = await s.run('c1', 'dev', 'm1', 'echo fine')
+    await until(() => r.got.length === 1)
+    expect(r.got[0]).toMatchObject({
+      chatId: 'c1',
+      id: p.id,
+      messageId: 'm1',
+      command: 'echo fine',
+      cwd: await fs.realpath(folder),
+      agent: 'dev',
+      end: { kind: 'exit', code: 0 },
+      outcome: 'ok',
+      error: null,
+      output: 'fine\n',
+      cut: false
+    })
+    expect(r.got[0].startedAt).toBe(p.startedAt)
+    expect(r.got[0].endedAt).toBeGreaterThanOrEqual(r.got[0].startedAt)
+  })
+
+  it('run end on exit N', async () => {
+    const r = runs()
+    const s = make({ onRunEnd: r.onRunEnd })
+    await s.load()
+    await s.run('c1', 'dev', 'm1', 'echo hi; exit 3')
+    await until(() => r.got.length === 1)
+    expect(r.got[0]).toMatchObject({ end: { kind: 'exit', code: 3 }, outcome: 'error', error: 'exit code 3', cut: false })
+    expect(r.got[0].output).toContain('hi')
+  })
+
+  it('run end on a signal that is not a stop', async () => {
+    const r = runs()
+    const s = make({ onRunEnd: r.onRunEnd })
+    await s.load()
+    await s.run('c1', 'dev', 'm1', 'kill -9 $$')
+    await until(() => r.got.length === 1)
+    expect(r.got[0]).toMatchObject({ end: { kind: 'signal', signal: 'SIGKILL' }, outcome: 'error', error: 'SIGKILL' })
+  })
+
+  it('run end on user stop', async () => {
+    const r = runs()
+    const s = make({ onRunEnd: r.onRunEnd })
+    await s.load()
+    const p = await s.run('c1', 'dev', 'm1', 'echo up; sleep 30')
+    await until(async () => (await logs(s, 'c1', p.id)).includes('up'))
+    await s.stop('c1', p.id, 'user')
+    expect(r.got).toHaveLength(1)
+    expect(r.got[0]).toMatchObject({
+      end: { kind: 'stopped', by: 'user' },
+      outcome: 'interrupted',
+      error: 'stopped by the user',
+      output: 'up\n'
+    })
+  })
+
+  it('run end at its lifetime', async () => {
+    const r = runs()
+    let calls = 0
+    const s = make({ onRunEnd: r.onRunEnd, now: () => (calls++ === 0 ? Date.now() - 59_800 : Date.now()) })
+    await s.load()
+    await s.start('c1', 'dev', { command: 'sleep 300', timeoutMinutes: 1 }, { run: { messageId: 'm1' } })
+    await until(() => r.got.length === 1)
+    expect(r.got[0]).toMatchObject({ end: { kind: 'stopped', by: 'lifetime' }, outcome: 'interrupted', error: 'stopped at its time limit' })
+  })
+
+  it('restart sends nothing for the old run', async () => {
+    const r = runs()
+    const s = make({ onRunEnd: r.onRunEnd })
+    await s.load()
+    const p = await s.run('c1', 'dev', 'm1', 'echo old; sleep 30')
+    await until(async () => (await logs(s, 'c1', p.id)).includes('old'))
+    await s.restart('c1', p.id)
+    expect(r.got).toHaveLength(1)
+    expect(r.got[0]).toMatchObject({ id: p.id, end: null, outcome: 'interrupted', error: 'restarted', output: '', cut: false })
+    await s.stop('c1', p.id, 'user')
+    expect(r.got).toHaveLength(2)
+    expect(r.got[1]).toMatchObject({ id: p.id, end: { kind: 'stopped', by: 'user' }, error: 'stopped by the user' })
+    // The second run's tail holds its own output, not the first run's.
+    expect(r.got[1].startedAt).toBeGreaterThanOrEqual(r.got[0].endedAt)
+    expect(r.got[1].output).toBe('old\n')
+  })
+
+  it('agent stop sends no message', async () => {
+    const r = runs()
+    const s = make({ onRunEnd: r.onRunEnd })
+    await s.load()
+    const p = await s.run('c1', 'dev', 'm1', 'sleep 30')
+    await s.stop('c1', p.id, 'agent')
+    expect(r.got).toHaveLength(1)
+    expect(r.got[0]).toMatchObject({ end: null, outcome: 'interrupted', error: 'stopped by the agent', output: '' })
+  })
+
+  it('archive ends run with no message', async () => {
+    const r = runs()
+    const s = make({ onRunEnd: r.onRunEnd })
+    await s.load()
+    await s.run('c1', 'dev', 'm1', 'sleep 30')
+    await s.endChat('c1', 'archive')
+    expect(r.got).toHaveLength(1)
+    expect(r.got[0]).toMatchObject({ end: null, outcome: 'interrupted', error: 'stopped at archive' })
+  })
+
+  it('remove and shutdown end a run with no message', async () => {
+    const r = runs()
+    const s = make({ onRunEnd: r.onRunEnd })
+    await s.load()
+    await s.run('c1', 'dev', 'm1', 'sleep 30')
+    await s.run('c2', 'dev', 'm2', 'sleep 30')
+    await s.removeChat('c1')
+    await s.shutdown()
+    expect(r.got.map((e) => [e.messageId, e.end, e.error])).toEqual([
+      ['m1', null, 'stopped at remove'],
+      ['m2', null, 'stopped with the server']
+    ])
+  })
+
+  it('spawn failure sends no message', async () => {
+    const r = runs()
+    const s = make({ onRunEnd: r.onRunEnd, shell: join(tmp, 'no-such-shell') })
+    await s.load()
+    await s.run('c1', 'dev', 'm1', 'echo hi')
+    await until(() => r.got.length === 1)
+    expect(r.got[0]).toMatchObject({ end: null, outcome: 'error', error: 'ENOENT', output: '' })
+  })
+
+  it('lost run raises end with no message', async () => {
+    await fs.mkdir(join(data, 'processes'), { recursive: true })
+    await fs.writeFile(
+      join(data, 'processes', 'index.json'),
+      JSON.stringify({
+        v: 1,
+        items: [
+          {
+            id: 'p_00000000bb',
+            chatId: 'c1',
+            name: 'x',
+            command: 'sleep 300',
+            cwd: folder,
+            startedBy: 'dev',
+            startedAt: 1,
+            endedAt: null,
+            state: 'running',
+            pid: null,
+            logBase: 0,
+            run: { messageId: 'm9' }
+          },
+          {
+            id: 'p_00000000cc',
+            chatId: 'c1',
+            name: 'y',
+            command: 'sleep 300',
+            cwd: folder,
+            startedBy: 'dev',
+            startedAt: 1,
+            endedAt: null,
+            state: 'running',
+            pid: null,
+            logBase: 0,
+            run: 'junk'
+          }
+        ]
+      })
+    )
+    const r = runs()
+    const s = make({ onRunEnd: r.onRunEnd })
+    await s.load()
+    expect(r.got).toHaveLength(1)
+    expect(r.got[0]).toMatchObject({
+      id: 'p_00000000bb',
+      messageId: 'm9',
+      agent: 'dev',
+      startedAt: 1,
+      end: null,
+      outcome: 'interrupted',
+      error: 'lost at restart',
+      output: '',
+      cut: false
+    })
+    expect(s.list('c1').find((x) => x.id === 'p_00000000cc')?.run).toBeNull()
+  })
+
+  it('run tail is scrubbed', async () => {
+    const r = runs()
+    const s = make({ onRunEnd: r.onRunEnd, scrubOf: (a) => new Map(a === 'dev' ? [['s3cr3t', '[vault]']] : []) })
+    await s.load()
+    await s.run('c1', 'dev', 'm1', 'echo s3cr3t')
+    await until(() => r.got.length === 1)
+    expect(r.got[0].output).toContain('[vault]')
+    expect(r.got[0].output).not.toContain('s3cr3t')
+    expect(r.got[0].command).not.toContain('s3cr3t')
+  })
+
+  it('run tail is scrubbed before its long lines are cut, so a secret across the cut leaves no prefix', async () => {
+    const r = runs()
+    const s = make({ onRunEnd: r.onRunEnd, scrubOf: (a) => new Map(a === 'dev' ? [['S3CRETVALUE', '[vault]']] : []) })
+    await s.load()
+    // The secret starts at column 1995 of a line cut at 2000.
+    await s.run('c1', 'dev', 'm1', `printf '%*s' 1995 '' | tr ' ' x; echo S3CRETVALUE`)
+    await until(() => r.got.length === 1)
+    expect(r.got[0].output.startsWith('x'.repeat(1995))).toBe(true)
+    expect(r.got[0].output).not.toContain('S3CRE')
+  })
+
+  it('a Restart that lands while the end is being saved changes nothing the ended run reports', async () => {
+    const r = runs()
+    let open!: () => void
+    const gate = new Promise<void>((res) => {
+      open = res
+    })
+    let restarted: Promise<unknown> | null = null
+    const s: ProcessService = make({
+      onRunEnd: r.onRunEnd,
+      push: (e) => {
+        events.push(e)
+        // The end's own output event comes right before its save (the record already ended): that save is held, by
+        // holding the service's write queue, and the Restart lands meanwhile.
+        if (restarted || e.kind !== 'output' || s.list('c1')[0]?.state !== 'exited') return
+        const inner = s as unknown as { writeQueue: Promise<void> }
+        inner.writeQueue = inner.writeQueue.then(() => gate)
+        restarted = s.restart('c1', e.id)
+      }
+    })
+    await s.load()
+    // The first run ends only once its start has settled (the held save would hold that start too) and exits 3; the
+    // restarted one prints its own number and runs on until told.
+    const command =
+      'while [ ! -e go ]; do sleep 0.02; done; n=$(($(cat n 2>/dev/null || echo 0)+1)); echo $n > n; echo run$n; ' +
+      '[ $n = 1 ] && exit 3; while [ ! -e go2 ]; do sleep 0.02; done; exit 0'
+    const p = await s.run('c1', 'dev', 'm1', command)
+    await fs.writeFile(join(folder, 'go'), '')
+    await until(async () => restarted !== null && (await logs(s, 'c1', p.id)).includes('run2'))
+    open()
+    await restarted
+    await until(() => r.got.length === 1)
+    expect(r.got[0]).toMatchObject({ end: { kind: 'exit', code: 3 }, outcome: 'error', error: 'exit code 3', output: 'run1\n' })
+    expect(r.got[0].startedAt).toBe(p.startedAt)
+    expect(r.got[0].endedAt).toBeGreaterThanOrEqual(p.startedAt)
+    await fs.writeFile(join(folder, 'go2'), '')
+    await until(() => r.got.length === 2)
+    expect(r.got[1]).toMatchObject({ end: { kind: 'exit', code: 0 }, outcome: 'ok', output: 'run2\n' })
+    expect(r.got[1].startedAt).toBeGreaterThanOrEqual(r.got[0].endedAt)
+  })
+
+  it('run tail is cut', async () => {
+    const r = runs()
+    const s = make({ onRunEnd: r.onRunEnd })
+    await s.load()
+    await s.run('c1', 'dev', 'm1', `seq -f 'line %05g xxxxxxxxxxxxxxxxxxxxxxxxx' 1 1500`)
+    await until(() => r.got.length === 1)
+    const e = r.got[0]
+    expect(e.cut).toBe(true)
+    expect(Buffer.byteLength(e.output)).toBeLessThanOrEqual(RUN_OUTPUT_MAX)
+    expect(e.output).toMatch(/^line \d{5} x{25}\n/)
+    expect(e.output.endsWith('line 01500 xxxxxxxxxxxxxxxxxxxxxxxxx\n')).toBe(true)
+  })
+
+  it('agent processes raise no run end', async () => {
+    const r = runs()
+    const s = make({ onRunEnd: r.onRunEnd })
+    await s.load()
+    await s.start('c1', 'dev', { command: 'exit 1' })
+    await until(() => s.list('c1')[0].state === 'exited')
+    await new Promise((res) => setTimeout(res, 100))
+    expect(r.got).toEqual([])
+  })
+
+  it('a run ignores notify, and a throwing onRunEnd does not break the end', async () => {
+    const s = make({
+      onWake: () => {
+        throw new Error('no wake for a run')
+      },
+      onRunEnd: () => {
+        throw new Error('boom')
+      }
+    })
+    await s.load()
+    const p = await s.start('c1', 'dev', { command: 'exit 1', notify: { on: 'exit' } }, { run: { messageId: 'm1' } })
+    expect(p.wake).toBeNull()
+    await until(() => s.list('c1')[0].state === 'exited')
+    expect(s.list('c1')[0]).toMatchObject({ state: 'exited', exitCode: 1 })
+  })
+
+  it('tells the agent a process was run by the user', async () => {
+    const s = make()
+    await s.load()
+    await s.run('c1', 'dev', 'm1', 'sleep 30')
+    expect(s.agentList('c1')).toContain('(run by the user from a block)')
   })
 })

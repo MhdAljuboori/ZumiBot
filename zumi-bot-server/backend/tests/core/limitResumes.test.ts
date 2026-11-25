@@ -298,6 +298,26 @@ describe('LimitResumes', () => {
     expect((await chats.get(chat.id))?.resume).toBeUndefined()
   })
 
+  it('dontContinue holds no Run result: a tray of those alone stays unheld, and the queue is woken for them', async () => {
+    const run = { processId: 'p_0000000001' }
+    const alone = await limitedChat()
+    const mixed = await limitedChat()
+    const plain = await limitedChat()
+    await chats.addTask(alone.id, { id: 'r1', text: 'result', run, ts: 3 })
+    await chats.addTask(mixed.id, { id: 't1', text: 'next', ts: 3 })
+    await chats.addTask(mixed.id, { id: 'r2', text: 'result', run, ts: 3 })
+    await chats.addTask(plain.id, { id: 't2', text: 'next', ts: 3 })
+    for (const c of [alone, mixed, plain]) resumes.idle(c.id)
+    await waitArmed(3)
+    for (const c of [alone, mixed, plain]) await resumes.dontContinue(c.id)
+    expect((await chats.get(alone.id))?.held).toBeUndefined()
+    expect((await chats.get(alone.id))?.resume).toBeUndefined()
+    expect((await chats.get(mixed.id))?.held).toBe(true)
+    expect((await chats.get(plain.id))?.held).toBe(true)
+    // Only a tray with a Run result needs the queue now; a held one of visible tasks alone waits for the user.
+    expect(idled).toEqual([alone.id, mixed.id])
+  })
+
   it('dontContinue ends the wait and holds the queued tasks for the user; a chat with none stays unheld', async () => {
     const chat = await limitedChat()
     await chats.addTask(chat.id, { id: 't1', text: 'next', ts: 3 })

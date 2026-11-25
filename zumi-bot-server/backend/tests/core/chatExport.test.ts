@@ -85,6 +85,22 @@ describe('buildExport', () => {
     expect(doc.blocks[3]).toMatchObject({ kind: 'message', text: 'Done.', more: true })
   })
 
+  it('leaves out run items, and the replies around one stay', () => {
+    const items: ChatItem[] = [
+      user('u1', 'Run it'),
+      reply('a1', 'Here is a command.'),
+      user('r1', '<bash-input>ls</bash-input><bash-stdout>secret', { run: { processId: 'p1' } }),
+      reply('a2', 'It listed files.')
+    ]
+    const doc = buildExport(meta(), items, opts())!
+    expect(JSON.stringify(doc)).not.toContain('bash-input')
+    expect(doc.blocks.map((b) => (b.kind === 'message' ? b.text : ''))).toEqual(['Run it', 'Here is a command.\n\nIt listed files.'])
+    // One reply for the copy of a single message, even though the run item sits between its parts.
+    const one = buildExport(meta(), items, opts({ item: 'a2' }))!
+    expect(JSON.stringify(one)).not.toContain('bash-input')
+    expect(one.blocks.map((b) => (b.kind === 'message' ? b.text : ''))).toEqual(['Here is a command.\n\nIt listed files.'])
+  })
+
   it('names room members, an asking agent and attachments', () => {
     const room = meta({ agentName: '', group: { members: ['a-one', 'b-two', 'c'], role: '' } as never })
     expect(buildExport(room, [], opts())!.subtitle).toBe('Room with A One, B Two and C')

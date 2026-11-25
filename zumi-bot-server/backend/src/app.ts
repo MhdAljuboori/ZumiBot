@@ -139,9 +139,11 @@ import { DispatchService } from './core/dispatch/dispatchService'
 import { migrateToBoard } from './core/todos/boardMigration'
 import { SearchIndex } from './core/search/searchIndex'
 import { serveTodoIpc } from './core/todos/todoIpc'
-import { ProcessService } from './core/processes/processService'
+import { ProcessService, type RunEndEvent } from './core/processes/processService'
 import { serveProcessIpc } from './core/processes/processIpc'
 import { ProcessWakes } from './core/processes/processWakes'
+import { RunResults } from './core/processes/runResults'
+import { runAuditRecord } from './core/audit/runAudit'
 import { serveVaultIpc } from './core/vault/vaultIpc'
 import { VaultApprovals } from './core/vault/vaultApprovals'
 import { UpdateService, detectAvailability } from './core/update/updateService'
@@ -174,6 +176,7 @@ import { keyVarInUse } from './core/claudeStatus'
 import { CONNECTOR_IDS } from '@zumibot/shared/connectors'
 import { NO_EXTENSIONS } from '@zumibot/shared/extensions'
 import { TODO_SYSTEM } from './core/todos/todoPrompt'
+import { RUN_SYSTEM } from './core/processes/processPrompt'
 import { askRoster, askSystem, askedSystem } from './core/asks/askPrompt'
 import { trashPath } from './core/trash'
 import { restoreFile } from './core/files/restoreFile'
@@ -770,9 +773,43 @@ export async function startServer(
       now: () => Date.now(),
       newId: () => randomUUID()
     })
+    // Above the process service: its load() can raise a Run's end (a lost run) before the chat service below exists.
+    const permissionMode = devEnv('ZUMIBOT_PERMISSION_MODE') === 'manual' ? 'manual' : 'auto'
+    // Per turn, so a provider change applies from a chat's next message. Zumi Bot stays on Claude whatever its file says: its
+    // deny rules and automations exist only on Claude runs.
+    const engineOf = async (agent: string): Promise<Engine> =>
+      agent === ZUMI_BOT_NAME ? 'claude' : engineOfAgent((await agents.list()).find((a) => a.name === agent))
+    // One audit record per Run when it ends, whichever way it ends. Never throws or blocks the process service; codes only.
+    const auditRun = (e: RunEndEvent): void => {
+      void (async () => {
+        const meta = await chats.get(e.chatId).catch(() => null)
+        const runKind = meta?.workflow ? 'workflow' : meta?.group ? 'room' : 'chat'
+        await audit.record(
+          runAuditRecord(e, {
+            engine: await engineOf(e.agent),
+            isolation: isolation.levelOf(e.agent),
+            mode: permissionMode,
+            runKind,
+            scrub: scrubOf(e.agent)
+          })
+        )
+      })().catch((err) => console.error('run audit record not written:', (err as { code?: unknown } | null)?.code ?? 'error'))
+    }
+    // A Run's end goes to the block's author the same way, as a hidden message; a server restart ends the run and sends nothing.
+    const runResults = new RunResults({
+      submit: (chatId, text, run) => tasks.submit(chatId, text, [], undefined, undefined, undefined, undefined, 'run', undefined, { run }),
+      chat: async (id) => {
+        const m = await chats.get(id)
+        return m ? { archived: isArchived(m), room: m.group !== undefined } : null
+      }
+    })
     const processes = new ProcessService({
       dataDir,
       onWake: (e) => wakes.event(e),
+      onRunEnd: (e) => {
+        runResults.ended(e)
+        auditRun(e)
+      },
       env: async () => {
         await runEnv.ready()
         return runEnv.env()
@@ -928,17 +965,12 @@ export async function startServer(
       env: { ...runEnv.env(), ...o.env },
       ...(o.hookTrustEnv ? { hookTrustEnv: { ...runEnv.env(), ...o.hookTrustEnv } } : {})
     })
-    const permissionMode = devEnv('ZUMIBOT_PERMISSION_MODE') === 'manual' ? 'manual' : 'auto'
     const memoryNote = async (agent: string): Promise<string> => {
       const summary = (await agents.list()).find((a) => a.name === agent)
       if (summary?.memory !== 'user' || (await autoMemoryOff())) return ''
       return capNote(await memoryStore.count(agent), effectiveLimit(summary.memoryLimit))
     }
     const askRosterOf = async (agent: string): Promise<{ name: string; description: string }[]> => askRoster(await agents.list(), agent)
-    // Per turn, so a provider change applies from a chat's next message. Zumi Bot stays on Claude whatever its file says: its
-    // deny rules and automations exist only on Claude runs.
-    const engineOf = async (agent: string): Promise<Engine> =>
-      agent === ZUMI_BOT_NAME ? 'claude' : engineOfAgent((await agents.list()).find((a) => a.name === agent))
     // The second Claude adapter, behind its dev hook: its own chunk, imported only when the hook is on, so neither the
     // packaged build nor a normal server loads the SDK. It is given this service's caps and locate, the run env and the same
     // usage interception `run` below does, so only the spawn differs (see docs/architecture/engines.md).
@@ -1228,6 +1260,7 @@ export async function startServer(
         (await settings.get()).houseStyle ? HOUSE_STYLE : '',
         TODO_SYSTEM,
         VAULT_SYSTEM,
+        RUN_SYSTEM,
         askable ? await sideRoster(agent) : ''
       ]
         .filter(Boolean)
@@ -1371,6 +1404,7 @@ export async function startServer(
               note,
               TODO_SYSTEM,
               VAULT_SYSTEM,
+              RUN_SYSTEM,
               asks
             ]
               .filter(Boolean)

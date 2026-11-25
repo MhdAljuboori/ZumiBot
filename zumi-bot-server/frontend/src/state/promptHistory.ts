@@ -1,8 +1,9 @@
 import type { ChatItem, QueuedTask } from '@zumibot/shared/types'
+import { isRunItem, visibleTasks } from './runBlocks'
 
 /** The messages the user sent in a chat, oldest first, then the queued ones; a repeated text is kept once, where it was sent last. */
 export function sentTexts(items: readonly ChatItem[], tasks: readonly QueuedTask[] = []): string[] {
-  const texts = [...items.flatMap((i) => (i.type === 'user' ? [i.text] : [])), ...tasks.map((t) => t.text)]
+  const texts = [...items.flatMap((i) => (i.type === 'user' && !isRunItem(i) ? [i.text] : [])), ...visibleTasks(tasks).map((t) => t.text)]
   const seen = new Set<string>()
   const kept: string[] = []
   for (let i = texts.length - 1; i >= 0; i--) {

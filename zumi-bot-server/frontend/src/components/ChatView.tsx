@@ -23,6 +23,7 @@ import { chatEngine, type CodexInfo } from '@zumibot/shared/engine'
 import { isChatMode, isEffort, type ChatMode, type Effort } from '@zumibot/shared/chatRun'
 import { pauseControl } from '../state/pause'
 import { TRAYS_KEY, tasksHeld, type TrayName } from '../state/tasks'
+import { visibleTasks } from '../state/runBlocks'
 import { newLineItem, sinceOnChange, sinceOnOpen } from '../state/unread'
 import { useDismiss } from '../useDismiss'
 import { useFitInViewport } from '../useFitInViewport'
@@ -581,9 +582,11 @@ export function ChatView({
   // The page's box has no top bar, nor pickers under its composer (below): the page's own head names the chat.
   const shownTop = compact ? null : top
   // Send now only where the queue holds its tasks (a paused group, or a chat an edit or resend held); everywhere else it sends them itself.
-  const tasksTray = (chat.tasks?.length ?? 0) > 0 && (
+  // A Run's result waiting to go is the agent's, never a row of the user's. Memoized: the tray re-checks focus on a new list.
+  const shownTasks = useMemo(() => visibleTasks(chat.tasks), [chat.tasks])
+  const tasksTray = shownTasks.length > 0 && (
     <TasksTray
-      tasks={chat.tasks ?? []}
+      tasks={shownTasks}
       open={!collapsed.has('tasks')}
       onToggle={() => toggleTray('tasks')}
       onDrop={onDropTask}

@@ -7,12 +7,13 @@ import type { ChatMeta, ChatWorktree } from '@zumibot/shared/types'
 import { GitChangesService, GIT_TEXT_MAX, NO_BASE_CHANGE, NO_CHANGE } from '../../../src/core/git/changes'
 import { makeGit } from '../../../src/core/git/git'
 import { symlinksWork } from '../../support/platform'
+import { isolatedGitEnv } from '../../support/gitEnv'
 
 // A folder link as ZumiBot makes one: a junction on Windows, where a symlink needs a privilege.
 const DIR_LINK = process.platform === 'win32' ? 'junction' : undefined
 
 // The user's own git config must never leak into these repos.
-const env = (): NodeJS.ProcessEnv => ({ ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' })
+const env = isolatedGitEnv
 const sh = (cwd: string, ...args: string[]): string => execFileSync('git', args, { cwd, env: env(), encoding: 'utf8' })
 
 const tmps: string[] = []

@@ -433,8 +433,9 @@ async function main() {
     "A's system prompt has no roster with B, or lists A"
   )
   assert(runB && systemOf(runB).includes(ASKED_LINE), "B's system prompt has no asked paragraph")
+  // Agent runs only: the ack line's one-shot call beside each turn has no agent and no tools, so no bridge.
   assert(
-    runs.every((a) => a.join(' ').includes('${ZUMIBOT_ASKS_CAPABILITY}')),
+    runs.filter((a) => a.includes('--agent')).every((a) => a.join(' ').includes('${ZUMIBOT_ASKS_CAPABILITY}')),
     'a run has no ask bridge, or its capability is not a placeholder'
   )
   const bMeta = await metaOf(bId)

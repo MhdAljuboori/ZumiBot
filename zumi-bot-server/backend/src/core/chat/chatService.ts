@@ -15,6 +15,7 @@ import type {
 } from '@zumibot/shared/types'
 import { isGroup, NOTICE_TEXT } from '@zumibot/shared/types'
 import type { SentCommand } from '@zumibot/shared/commands'
+import { RUN_ITEM_FIXED, type RunMark } from '@zumibot/shared/runBlocks'
 import { withoutComment, type CardAsk } from '@zumibot/shared/todos'
 import type { ApprovalRisk } from '@zumibot/shared/jev'
 import type { TurnEnd } from '@zumibot/shared/notify'
@@ -129,7 +130,7 @@ import { stepRuleOf, stepRulesAllow } from '../workflows/stepRules'
 import type { AutomationTurn } from '../automations/automationIpc'
 import type { AutomationOwner } from '../automations/automationService'
 import type { ProcessOwner, ProcessTurn } from '../processes/processIpc'
-import { PROCESS_SYSTEM } from '../processes/processPrompt'
+import { PROCESS_SYSTEM, RUN_SYSTEM } from '../processes/processPrompt'
 import { PROCESS_START_TOOL, PROCESS_TOOL_PREFIX } from '../processes/processTools'
 import { PROCESS_REFUSALS } from '@zumibot/shared/processes'
 import { askedSystem, askSystem, QUESTIONS_DENIED } from '../asks/askPrompt'
@@ -1254,11 +1255,12 @@ export class ChatService {
     todo?: true,
     auto?: true,
     workflowSent?: WorkflowSent,
-    cardAsk?: CardAsk
+    cardAsk?: CardAsk,
+    run?: RunMark
   ): Promise<void> {
     try {
       const r = this.claim(chatId)
-      r.done = this.sendTurn(chatId, text, attachments, replyTo, messageId, command, todo, auto, workflowSent, cardAsk, r).finally(() =>
+      r.done = this.sendTurn(chatId, text, attachments, replyTo, messageId, command, todo, auto, workflowSent, cardAsk, run, r).finally(() =>
         this.endSingle(chatId, r)
       )
       return r.done
@@ -1578,6 +1580,7 @@ export class ChatService {
     auto: true | undefined,
     workflowSent: WorkflowSent | undefined,
     cardAsk: CardAsk | undefined,
+    run: RunMark | undefined,
     r: Running
   ): Promise<void> {
     const { store, now, newId } = this.d
@@ -1595,9 +1598,11 @@ export class ChatService {
       ...(command ? { command } : {}),
       ...(todo ? { todo } : {}),
       ...(workflowSent ? { workflowSent } : {}),
-      ...(cardAsk ? { cardAsk } : {})
+      ...(cardAsk ? { cardAsk } : {}),
+      ...(run ? { run } : {})
     }
-    const title = meta.title === '' ? { title: makeTitle(text.trim() ? text : (attachments[0]?.name ?? '')) } : {}
+    // A Run's result never titles the chat: the user did not write it.
+    const title = meta.title === '' && !run ? { title: makeTitle(text.trim() ? text : (attachments[0]?.name ?? '')) } : {}
     await this.runTurn(chatId, r, meta, {
       history,
       base: history,
@@ -1623,6 +1628,7 @@ export class ChatService {
     const stored = [...(await store.loadItems(chatId))]
     const old = stored.find((i): i is UserItem => i.type === 'user' && i.id === userId)
     if (!old) throw new Error('Message not found')
+    if (old.run) throw new Error(RUN_ITEM_FIXED)
     const body = text ?? old.text
     if (body.trim() === '' && !old.attachments?.length) throw new Error('Message is empty')
     const user: UserItem = {
@@ -1806,7 +1812,7 @@ export class ChatService {
       pushItems(false)
       // Only for a message the user typed (an edit and a resend too), never a routine's, a workflow's or another agent's ask.
       const acknowledge = this.d.acknowledge
-      if (acknowledge && !t.extra?.auto && user.from === undefined) {
+      if (acknowledge && !t.extra?.auto && user.from === undefined && !user.run) {
         const userId = user.id
         acknowledge({ chatId, agent: meta.agentName, user, todos: asksTodos(user) && bridges, signal: ackStop.signal })
           .then(async (ack) => {
@@ -3668,6 +3674,7 @@ export class ChatService {
           this.d.todoTurns && caps.bridges ? TODO_SYSTEM : '',
           this.d.vaultTurns && caps.bridges ? VAULT_SYSTEM : '',
           this.d.processTurns && caps.processes && caps.bridges && isolationOf() === 'off' ? PROCESS_SYSTEM : '',
+          !caps.remote ? RUN_SYSTEM : '',
           asks
         ]
           .filter(Boolean)

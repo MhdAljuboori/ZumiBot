@@ -123,6 +123,15 @@ describe('SearchIndex', () => {
     expect(idx.size()).toBe(1)
   })
 
+  it('run items are not indexed', () => {
+    const idx = index()
+    const run: ChatItem = { ...user('r1', '<bash-input>secretword ls</bash-input><bash-stdout>ok', 2), run: { processId: 'p1' } } as ChatItem
+    idx.note('c', [user('1', 'plain words', 1), run])
+    idx.flush()
+    expect(idx.size()).toBe(1)
+    expect(ids(idx, 'secretword')).toEqual([])
+  })
+
   it('follows a rename without reindexing the text', () => {
     const idx = index()
     idx.note('c', [reply('1', 'from the room', 1, 'old-name'), user('2', 'asked', 2, 'old-name')])

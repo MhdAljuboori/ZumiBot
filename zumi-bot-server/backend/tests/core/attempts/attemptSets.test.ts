@@ -13,9 +13,10 @@ import { AttemptSets, attemptTurnEnded } from '../../../src/core/attempts/attemp
 import { attemptMessage } from '../../../src/core/attempts/attemptPrompt'
 import { WorktreeService } from '../../../src/core/git/worktrees'
 import { makeGit } from '../../../src/core/git/git'
+import { isolatedGitEnv } from '../../support/gitEnv'
 
 // The user's own git config must never leak into these repos.
-const env = (): NodeJS.ProcessEnv => ({ ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' })
+const env = isolatedGitEnv
 const sh = (cwd: string, ...args: string[]): string => execFileSync('git', args, { cwd, env: env(), encoding: 'utf8' })
 const exists = (p: string): Promise<boolean> =>
   fs.stat(p).then(

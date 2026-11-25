@@ -35,7 +35,7 @@ describe('audit page rules', () => {
   })
 
   it('words for decisions, durations, sizes and who made the call', () => {
-    expect(DECISION_OPTIONS).toHaveLength(14)
+    expect(DECISION_OPTIONS).toHaveLength(15)
     expect(decisionTone({ kind: 'deniedBySandbox', target: 'api.github.com' })).toBe('bad')
     expect(decisionTone({ kind: 'allowedByAllowlist', host: 'example.com' })).toBe('ok')
     expect(decisionWhy({ kind: 'deniedBySandbox', target: 'api.github.com' }, 'auto')).toContain('api.github.com')
@@ -58,5 +58,11 @@ describe('audit page rules', () => {
     expect(decisionWhy({ kind: 'ranRemotely' }, 'auto')).toMatch(/remote/)
     expect(decisionTone({ kind: 'deniedByZumiBot', why: 'remoteTools' })).toBe('bad')
     expect(decisionWhy({ kind: 'deniedByZumiBot', why: 'remoteTools' }, 'auto')).toMatch(/runs no tools for a remote agent/)
+  })
+
+  it('a Run button press: your own action, shown as such and never green or red', () => {
+    expect(decisionTone({ kind: 'runByUser' })).toBe('muted')
+    expect(DECISION_OPTIONS.find((o) => o.value === 'runByUser')?.label).toBe('Run by you')
+    expect(decisionWhy({ kind: 'runByUser' }, 'auto')).toMatch(/pressed Run/)
   })
 })

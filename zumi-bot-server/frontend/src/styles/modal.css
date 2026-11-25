@@ -203,6 +203,21 @@
   color: var(--fg-muted);
   overflow-wrap: anywhere;
 }
+/* Text the dialog asks about exactly (a command with its hidden characters spelled out): monospace and whole. */
+.confirm-detail {
+  max-height: 40vh;
+  margin: 0 0 16px;
+  padding: 8px 10px;
+  overflow: auto;
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .modal-buttons {
   display: flex;
   justify-content: flex-end;

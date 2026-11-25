@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 
 const MARKER = '__CB__'
 const SHELL_TIMEOUT_MS = 5000
@@ -14,10 +14,25 @@ export interface ShellEnvDeps {
   fallback: string
 }
 
+// Off Windows the command gets a session of its own (`detached`: setsid), so it has no controlling terminal. An interactive
+// shell (`-ilc`) takes over the terminal it starts from, so a server run from a terminal, or a test that starts one, was
+// left in the background and stopped by the terminal. On Windows `detached` opens a console window instead.
+export const OWN_SESSION = process.platform !== 'win32'
+
+/** Ends the command and, in its own session, everything it started (a profile's background job). */
+export function killCapture(child: ChildProcess): void {
+  try {
+    if (OWN_SESSION && child.pid !== undefined) process.kill(-child.pid, 'SIGKILL')
+    else child.kill('SIGKILL')
+  } catch {
+    child.kill('SIGKILL')
+  }
+}
+
 /** Runs a command with stdin closed and returns its stdout; rejects on failure, timeout or oversize output. */
 export function spawnCapture(file: string, args: string[], o: CaptureOptions): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(file, args, { stdio: ['ignore', 'pipe', 'ignore'] })
+    const child = spawn(file, args, { stdio: ['ignore', 'pipe', 'ignore'], detached: OWN_SESSION })
     let out = ''
     let settled = false
     const finish = (fn: () => void): void => {
@@ -27,14 +42,14 @@ export function spawnCapture(file: string, args: string[], o: CaptureOptions): P
       fn()
     }
     const timer = setTimeout(() => {
-      child.kill('SIGKILL')
+      killCapture(child)
       finish(() => reject(new Error('timed out')))
     }, o.timeoutMs)
     child.stdout.setEncoding('utf8')
     child.stdout.on('data', (c: string) => {
       out += c
       if (out.length > o.maxBytes) {
-        child.kill('SIGKILL')
+        killCapture(child)
         finish(() => reject(new Error('output too large')))
       }
     })

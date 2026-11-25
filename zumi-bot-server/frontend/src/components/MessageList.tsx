@@ -14,7 +14,8 @@ import type { SideQuestion } from '@zumibot/shared/btw'
 import { displayName } from '@zumibot/shared/frontmatter'
 import { PLAN_TOOL } from '@zumibot/shared/plans'
 import { QUESTION_TOOL } from '@zumibot/shared/questions'
-import type { EngineCaps } from '@zumibot/shared/engine'
+import { isArchived } from '@zumibot/shared/archive'
+import { isRemoteAgent, type EngineCaps } from '@zumibot/shared/engine'
 import { cardAskComment, cardAskPrompt } from '@zumibot/shared/todos'
 import type { AgentSummary, ChatItem, ChatMeta } from '@zumibot/shared/types'
 import { agentColor, agentInk } from '../state/bot'
@@ -58,6 +59,7 @@ import { findReplied, replySnippet } from '../state/reply'
 import { lineScroll } from '../state/unread'
 import { limitNoticeText, waitingErrors } from '../state/limitNotice'
 import { senderText, workflowMessages } from '../state/workflowMessage'
+import { withoutRunItems } from '../state/runBlocks'
 import { AgentIntro } from './AgentIntro'
 import { BrowserActionCard } from './BrowserActionCard'
 import { ItemBoundary } from './ErrorBoundary'
@@ -89,6 +91,7 @@ import { AppLink } from './AppLink'
 import { WorkflowGlyph } from './WorkflowIcons'
 import { WorkflowPrompt } from './WorkflowPrompt'
 import { clearSearchHighlight, highlightSearch } from '../searchHighlight'
+import { RunBlockScope } from './runLink'
 
 const AT_BOTTOM_PX = 40
 // This close to the top, the page before the loaded items is asked for.
@@ -154,9 +157,17 @@ export interface GroupProps {
   /** Opens the To-dos panel on the reply with this item id; absent: the chip is plain text. */
   onOpenTodos?: (itemId: string) => void
   allow?: AllowEnv
+  /** The chat whose replies' shell blocks may run; null or absent: no Run buttons. */
+  runChat?: string | null
 }
 
 type PlainItem = Extract<AgentBlock, { kind: 'item' }>['item']
+
+/** Lets the shell blocks of one reply's text run. Memoized: a new value would redraw every block on each streaming delta. */
+function RunScope({ chatId, messageId, children }: { chatId: string | null; messageId: string; children: ReactNode }) {
+  const value = useMemo(() => (chatId === null ? null : { chatId, messageId }), [chatId, messageId])
+  return <RunBlockScope.Provider value={value}>{children}</RunBlockScope.Provider>
+}
 
 function AgentItemView({
   item,
@@ -164,7 +175,8 @@ function AgentItemView({
   stepChoice,
   onAnswer,
   handlers,
-  inside
+  inside,
+  runChat
 }: {
   item: PlainItem
   chatRunning: boolean
@@ -172,12 +184,16 @@ function AgentItemView({
   onAnswer: GroupProps['onAnswer']
   handlers?: MessageHandlers
   inside?: ReactNode
+  runChat: string | null
 }) {
   switch (item.type) {
     case 'assistant': {
+      // Only the reply's own text: the to-do lines inside the bubble and the cards hold no runnable blocks.
       const bubble = (
         <div className="bubble assistant">
-          <Markdown text={item.text} />
+          <RunScope chatId={runChat} messageId={item.id}>
+            <Markdown text={item.text} />
+          </RunScope>
           {inside}
         </div>
       )
@@ -259,7 +275,8 @@ export function AgentGroup({
   room = false,
   onViewMemory,
   onOpenTodos,
-  allow
+  allow,
+  runChat = null
 }: GroupProps) {
   // Waiting on the user's approval is not the agent working.
   const waiting = items.some(
@@ -355,6 +372,8 @@ export function AgentGroup({
                     onAnswer={onAnswer}
                     handlers={handlers}
                     {...(inBubble ? { inside: todoNode } : {})}
+                    // A remote (AG-UI) agent's commands are its server's: running them here is ruled out.
+                    runChat={isRemoteAgent(agent) ? null : runChat}
                   />
                 )}
               </ItemBoundary>
@@ -909,8 +928,9 @@ export function MessageList({
   const canTail = group === null
   const streaming = canTail ? liveText : ''
   const liveThought = canTail ? liveThoughtText : ''
-  // A room's running turns leave the rows, but their loaded anchors still place side chips in the thread.
-  const grouped = groupItems(allItems, sides, !hasOlder).flatMap((row): MessageRow[] => {
+  // A room's running turns leave the rows, but their loaded anchors still place side chips in the thread. A Run's result
+  // is the agent's and never drawn; the turn rules (Resend, Allow, asks, the limit wait) still read the full list.
+  const grouped = groupItems(withoutRunItems(allItems), sides, !hasOlder).flatMap((row): MessageRow[] => {
     if (!group || row.kind === 'side') return [row]
     if (row.kind !== 'agent') return isLive(row.item) ? [] : [row]
     const shown = row.items.filter((i) => !isLive(i))
@@ -941,6 +961,8 @@ export function MessageList({
     ...(readOnly ? { readOnly: true } : {})
   }
   const dimmed = dimmedAfter(allItems, editingId)
+  // An archived chat's or an asked one's blocks never run: nothing may start in them.
+  const runChat = !isArchived(chat) && !readOnly ? chat.id : null
   const submitEdit = (item: UserMessageItem, draft: string, pick?: CommandPick): void => {
     const outcome = editOutcome(item.text, draft, (item.attachments?.length ?? 0) > 0, pick !== undefined)
     if (outcome.kind === 'empty') return
@@ -1055,6 +1077,7 @@ export function MessageList({
           room
           {...(onViewMemory ? { onViewMemory } : {})}
           {...(onOpenTodos ? { onOpenTodos } : {})}
+          runChat={runChat}
         />
       </div>
     )
@@ -1277,6 +1300,7 @@ export function MessageList({
                     {...(onViewMemory ? { onViewMemory } : {})}
                     {...(onOpenTodos ? { onOpenTodos } : {})}
                     allow={allowEnv}
+                    runChat={runChat}
                   />
                 )}
               </Fragment>

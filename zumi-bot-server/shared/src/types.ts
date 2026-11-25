@@ -11,6 +11,7 @@ import type { AgentCapStatus, CapPause } from './spendCaps'
 import type { TodoBoard, TodoEditPatch, TodoItem, TodoStatus, TodoTaskLink, TodoTouch } from './todos'
 import type { DispatchEntry, DispatchSummary } from './dispatch'
 import type { ProcessInfo, ProcessLogRead } from './processes'
+import type { RunMark } from './runBlocks'
 import type { NotifyChannel, NotifyPayload, NotifyState, NotifyStatus, NotifyToggles, SubscriptionInput } from './notify'
 import type { RoutineDef, SaveMeta, VersionSummary, WorkflowDef } from './definitionHistory'
 import type { Routine, RoutineInput, RoutineRun, RoutinesSnapshot, WebhookCall } from './routines'
@@ -156,6 +157,7 @@ export interface QueuedTask {
   cardAsk?: import('./todos').CardAsk // a card comment that @mentioned the agent: the bubble shows the comment, the agent reads it inside the card's context (cardAskPrompt)
   auto?: true // a routine's or workflow's message, not typed by the user
   workflowSent?: WorkflowSent
+  run?: RunMark // hidden from the user: the agent's result of a Run
   ts: number
 }
 
@@ -461,6 +463,7 @@ export type ChatItem = (
       versions?: VersionInfo
       from?: string
       workflowSent?: WorkflowSent
+      run?: RunMark // hidden from the user: the agent's result of a Run
       engine?: 'ag-ui'
       ack?: string // ZumiBot's line on what the agent is about to do (acknowledge.ts), drawn as the reply's first bubble; no agent reads it
     } // attachments absent = none; replyTo = the agent message's id; from = the asking agent's name when another agent asked this one; engine = a remote agent's turn ran on it, saved before its first request so a turn a crash cut short still reads as AG-UI's (foreignHistory); no other engine writes it
@@ -815,6 +818,7 @@ export interface ZumiBotApi {
     stop(chatId: string, id: string): Promise<ProcessInfo> // ends the whole tree
     restart(chatId: string, id: string): Promise<ProcessInfo> // the stored command again, same id; the user's click is its approval
     forget(chatId: string, id: string): Promise<void> // an ended record and its log
+    run(chatId: string, messageId: string, command: string): Promise<ProcessInfo> // the user's Run of a block of that agent message; no card, its result reaches the author
     counts(): Promise<Record<string, number>> // running processes per chat
     onChanged(cb: (e: { chatId: string; running: number }) => void): () => void // any start, end, restart or forget; never dedupe
     onOutput(cb: (e: { chatId: string; id: string; to: number }) => void): () => void // a cursor only, never the text

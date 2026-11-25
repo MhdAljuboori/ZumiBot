@@ -31,6 +31,7 @@ const p = (over: Partial<ProcessInfo>): ProcessInfo => ({
   until: 0,
   out: 0,
   wake: null,
+  run: null,
   ...over
 })
 

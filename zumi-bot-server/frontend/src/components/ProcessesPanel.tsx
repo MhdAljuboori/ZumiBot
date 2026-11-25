@@ -13,6 +13,9 @@ interface Props {
   failed: boolean
   onRetry: () => void
   connected: boolean
+  /** Opens the panel on one process's log (a shell block's run status); a new `focusRequest` makes a repeat a new request. */
+  focusId: string | null
+  focusRequest: number
   onBack: () => void
   onClose: () => void
 }
@@ -49,8 +52,11 @@ function WakeLine({ p }: { p: ProcessInfo | undefined }) {
 const Dot = ({ tone }: { tone: ProcessTone }) => <span className={`process-dot ${tone}`} aria-hidden="true" />
 
 /** The chat's background processes; a row opens its live log. */
-export function ProcessesPanel({ chat, list, failed, onRetry, connected, onBack, onClose }: Props) {
-  const [openId, setOpenId] = useState<string | null>(null)
+export function ProcessesPanel({ chat, list, failed, onRetry, connected, focusId, focusRequest, onBack, onClose }: Props) {
+  const [openId, setOpenId] = useState<string | null>(focusId)
+  useEffect(() => {
+    if (focusId !== null) setOpenId(focusId)
+  }, [focusId, focusRequest])
   const running = (list ?? []).some((p) => p.state === 'running')
   const now = useNow(running)
   const rows = useMemo(() => processRows(list ?? [], now), [list, now])

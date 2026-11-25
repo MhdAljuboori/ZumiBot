@@ -10,6 +10,7 @@ import { dirname, join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { StringDecoder } from 'node:string_decoder'
+import { createInterface } from 'node:readline'
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 // The app's --thinking-display check (thinkingDisplay.ts): given no prompt it stops as claude does, before any FAKE_* output
@@ -26,6 +27,33 @@ if (process.env.FAKE_LEAK_STDOUT === '1') {
   if (process.env.FAKE_PID_FILE) writeFileSync(process.env.FAKE_PID_FILE, String(gc.pid))
 }
 if (process.env.FAKE_READY_FILE) writeFileSync(process.env.FAKE_READY_FILE, 'ready')
+// The slash menu's commands probe (`commandsProbeArgs`, the only call whose --settings turns every hook off): it asks
+// `initialize` and the skills dialog, never sends a message, and ends by closing stdin. Answered as a CLI with no commands or
+// skills, and kept out of every FAKE_*_OUT file: it is not a run, and a script taking its first request for the message
+// would log `engine commands probe failed` and show in the call log as a run of its agent.
+function isCommandsProbe(argv) {
+  const at = argv.indexOf('--settings')
+  try { return at >= 0 && argv.includes('--strict-mcp-config') && JSON.parse(argv[at + 1]).disableAllHooks === true } catch { return false }
+}
+if (isCommandsProbe(process.argv.slice(2))) {
+  const lines = createInterface({ input: process.stdin })
+  lines.on('line', (l) => {
+    let m
+    try { m = JSON.parse(l) } catch { return }
+    if (m?.type !== 'control_request') return
+    const subtype = m.request?.subtype
+    const response =
+      subtype === 'initialize' ? { commands: [], agents: [], claude_code_version: '0.0.0-fake', models: [], pid: process.pid }
+      : subtype === 'get_skills_dialog' ? { skills: [] }
+      : null
+    const answer = response
+      ? { subtype: 'success', request_id: m.request_id, response }
+      : { subtype: 'error', request_id: m.request_id, error: 'Unsupported control request' }
+    process.stdout.write(JSON.stringify({ type: 'control_response', response: answer }) + '\n')
+  })
+  lines.on('close', () => process.exit(0))
+  await new Promise(() => {}) // ended by the close above
+}
 // A run's env and argv only (it speaks stream-json): a one-shot call (the ack line, a moderator, the side picker, a summary)
 // starts beside a run, and whichever wrote last would win. FAKE_INVOCATIONS_OUT logs every call.
 const streams = process.argv.slice(2).join(' ').includes('--input-format stream-json')
@@ -37,6 +65,15 @@ if (process.env.FAKE_INVOCATIONS_OUT) appendFileSync(process.env.FAKE_INVOCATION
 if (process.argv[2] === 'plugin' && process.argv[3] === 'list') {
   process.stdout.write('[]\n')
   process.exit(0)
+}
+// The ack line's one-shot call (acknowledge.ts, known by its system prompt) starts beside every turn. It is not the agent: it
+// never runs the script, whose #PRE_TOOL, #WRITE_FILE and #MCP_CALL lines would act a second time, and it answers nothing, so
+// no ack line shows. A room's moderator call still runs the script: group.e2e counts on that.
+const ackAt = process.argv.indexOf('--system-prompt')
+if (ackAt >= 0 && process.argv[ackAt + 1]?.startsWith("You write the one short line an assistant says right after the user's message")) {
+  process.stdin.resume()
+  process.stdin.on('end', () => process.exit(0))
+  await new Promise(() => {}) // ended with stdin
 }
 
 const chunks = []

@@ -67,6 +67,7 @@ import type { PrWatcher } from '../core/github/prWatcher'
 import { GH_MISSING, PR_BODY_MAX, PR_TITLE_MAX } from '@zumibot/shared/pullRequest'
 import type { DispatchService } from '../core/dispatch/dispatchService'
 import type { ProcessService } from '../core/processes/processService'
+import { runBlock } from '../core/processes/runBlock'
 import { isProcessId } from '@zumibot/shared/processes'
 import type { SearchIndex } from '../core/search/searchIndex'
 import { SEARCH_OFFSET_MAX, SEARCH_QUERY_MAX } from '@zumibot/shared/search'
@@ -271,7 +272,7 @@ export interface HandlerDeps {
   /** The chats' dispatched agents; the service tells every tab (`dispatch:changed`) about once a second while a turn runs. */
   dispatch: Pick<DispatchService, 'list' | 'get'>
   /** Background processes; the service tells every tab (`processes:changed`, `processes:output`) itself. */
-  processes?: Pick<ProcessService, 'list' | 'read' | 'stop' | 'restart' | 'forget' | 'counts' | 'endChat' | 'removeChat'>
+  processes?: Pick<ProcessService, 'list' | 'read' | 'stop' | 'restart' | 'forget' | 'counts' | 'endChat' | 'removeChat' | 'run'>
   /** The full-text index over every chat's messages, kept up to date by the store's items and removal listeners. */
   search: Pick<SearchIndex, 'search'>
   /** Tells every tab the sidebar layout changed. */
@@ -1676,6 +1677,25 @@ export function createHandlers(d: HandlerDeps): Handlers {
     'processes:stop': (chatId, id) => needProcesses().stop(str(chatId, 'chatId'), processId(id), 'user'),
     'processes:restart': (chatId, id) => needProcesses().restart(str(chatId, 'chatId'), processId(id)),
     'processes:forget': (chatId, id) => needProcesses().forget(str(chatId, 'chatId'), processId(id)),
+    // The user's Run of a block of an agent's reply. `messageId()` lets null through as "none", but here the id is required.
+    'processes:run': async (chatId, messageIdArg, command) => {
+      const id = str(chatId, 'chatId')
+      const mid = messageId(str(messageIdArg, 'messageId'))!
+      const cmd = str(command, 'command')
+      const p = needProcesses()
+      return runBlock(
+        {
+          meta: (c) => chats.get(c),
+          items: (c) => chats.loadItems(c),
+          engineOf: async (agent) =>
+            agent === ZUMI_BOT_NAME ? 'claude' : engineOfAgent((await d.agents.list()).find((a) => a.name === agent)),
+          run: (c, agent, m, command2) => p.run(c, agent, m, command2)
+        },
+        id,
+        mid,
+        cmd
+      )
+    },
     'processes:counts': async () => (d.processes ? d.processes.counts() : {}),
     'files:list': async (chatId) => {
       const id = str(chatId, 'chatId')
