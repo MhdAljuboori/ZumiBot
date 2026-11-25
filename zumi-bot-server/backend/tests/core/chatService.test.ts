@@ -4,7 +4,7 @@ import os from 'node:os'
 import { join, resolve } from 'node:path'
 import { ChatStore } from '../../src/core/store/chatStore'
 import { ApprovalStore } from '../../src/core/store/approvalStore'
-import { checkFolder, checkPrefix, continueText } from '@zumibot/shared/allowRules'
+import { checkFolder, checkPrefix, continueText, homeAsFolder } from '@zumibot/shared/allowRules'
 import { cardAskPrompt } from '@zumibot/shared/todos'
 import { AttachmentStore } from '../../src/core/attachments/attachmentStore'
 import { SnapshotStore } from '../../src/core/files/snapshotStore'
@@ -6892,7 +6892,9 @@ describe('allowBlocked', () => {
   })
 
   describe('folders', () => {
-    const CD = `cd /work/repo && gh pr merge 1 --merge; cd ${os.homedir()} && ls`
+    // As a rule names it: on Windows C:\Users\me is /c/Users/me.
+    const HOME = homeAsFolder(os.homedir())!
+    const CD = `cd /work/repo && gh pr merge 1 --merge; cd ${HOME} && ls`
     const FOLDER_RULE = 'Read(//work/repo/**)'
     const cdTool = (): ChatItem => blockedTool({ input: { command: CD } })
 
@@ -6913,7 +6915,7 @@ describe('allowBlocked', () => {
     it('refuses a folder the command does not enter, the home folder, and a bad shape, storing nothing', async () => {
       const c = await setup([cdTool()])
       await refused(c, checkFolder('/work/other', CD)!, ['gh pr merge'], 'chat', ['/work/repo', '/work/other'])
-      await refused(c, 'home folder', [], 'agent', [os.homedir()])
+      await refused(c, 'home folder', [], 'agent', [HOME])
       await refused(c, checkFolder('/work/repo/', CD)!, [], 'chat', ['/work/repo/'])
     })
     it('counts prefixes and folders together', async () => {

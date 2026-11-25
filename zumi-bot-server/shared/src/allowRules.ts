@@ -524,12 +524,23 @@ export function folderCoveredBy(folder: string, rules: readonly string[]): strin
   return null
 }
 
+/** The home folder as a folder rule names it, or null when it cannot be read (a UNC path). A Windows drive path takes the
+ *  form Git Bash's `cd` and the CLI's rule matching both use: `C:\Users\me` is `/c/Users/me`. */
+export function homeAsFolder(home: string): string | null {
+  if (home.startsWith('/')) return normaliseFolder(home)
+  const m = /^([A-Za-z]):(?:[\\/](.*))?$/.exec(home)
+  return m ? normaliseFolder(`/${m[1].toLowerCase()}/${(m[2] ?? '').replace(/\\/g, '/')}`) : null
+}
+
 /** An error message when `folder` may not become a rule at all, or null. `home`, when known, may not be the folder or inside
  *  it: such a rule would let the agent read ~/.ssh and every other secret there. Agent Studio's Add checks only this. */
 export function folderRuleError(folder: string, home?: string): string | null {
   const bad = folderShapeError(folder)
   if (bad) return bad
-  if (home && home.startsWith('/') && inside(normaliseFolder(home), folder)) {
+  const h = home ? homeAsFolder(home) : null
+  // Windows paths ignore case, so /c/users/ME still holds C:\Users\me.
+  const fold = (s: string) => (home && !home.startsWith('/') ? s.toLowerCase() : s)
+  if (h !== null && inside(fold(h), fold(folder))) {
     return 'The folder is your home folder or holds it: allow a folder inside it instead.'
   }
   return null

@@ -11,6 +11,7 @@ import {
   folderCoveredBy,
   folderOfRule,
   folderRuleError,
+  homeAsFolder,
   isAllowRule,
   isGitPart,
   isSafePart,
@@ -508,5 +509,22 @@ describe('rule errors with no refused command (Agent Studio)', () => {
     expect(folderRuleError('/home', '/home/u')).toMatch(/narrower/)
     expect(folderRuleError('work/repo')).toMatch(/absolute/)
     expect(folderRuleError('/work/repo/')).toMatch(/plainly/)
+  })
+  // Git Bash's cd and the CLI's rule matching both spell C:\Users\me as /c/Users/me, so that is the folder to refuse.
+  it('folderRuleError refuses a Windows home folder in the form a rule names it, whatever the case', () => {
+    const home = 'C:\\Users\\me'
+    expect(folderRuleError('/c/Users/me', home)).toMatch(/home folder/)
+    expect(folderRuleError('/c/Users', home)).toMatch(/home folder/)
+    expect(folderRuleError('/C/users/ME', home)).toMatch(/home folder/)
+    expect(folderRuleError('/c/Users/me/repo', home)).toBeNull()
+    expect(folderRuleError('/d/Users/me', home)).toBeNull()
+    expect(folderRuleError('/c/Users/me', 'C:/Users/me/')).toMatch(/home folder/)
+  })
+  it('homeAsFolder spells a home folder as a folder rule does, or null when it cannot', () => {
+    expect(homeAsFolder('/home/u/')).toBe('/home/u')
+    expect(homeAsFolder('C:\\Users\\me')).toBe('/c/Users/me')
+    expect(homeAsFolder('d:/Users/me')).toBe('/d/Users/me')
+    expect(homeAsFolder('\\\\server\\share\\me')).toBeNull()
+    expect(homeAsFolder('me')).toBeNull()
   })
 })

@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import { join } from 'node:path'
 import { RUN_REFUSALS } from '@zumibot/shared/runBlocks'
+import { homeAsFolder } from '@zumibot/shared/allowRules'
 import { createHandlers, type HandlerDeps, type Handlers } from '../../src/rpc/handlers'
 import { HistoryStore } from '../../src/core/history/historyStore'
 import type { RoutineDef, VersionSummary, WorkflowDef } from '@zumibot/shared/definitionHistory'
@@ -1028,7 +1029,8 @@ describe('createHandlers', () => {
     await expect(h['approvals:addCli']('a', 'any', 'x')).rejects.toThrow(/kind must be/)
     await expect(h['approvals:addCli']('a', 'prefix', 5)).rejects.toThrow(/value must be a string/)
     await expect(h['approvals:addCli']('a', 'prefix', 'bash -c')).rejects.toThrow(/Auto ignores/)
-    await expect(h['approvals:addCli']('a', 'folder', os.homedir())).rejects.toThrow(/home folder/)
+    // As a rule names it: on Windows C:\Users\me is /c/Users/me.
+    await expect(h['approvals:addCli']('a', 'folder', homeAsFolder(os.homedir()))).rejects.toThrow(/home folder/)
     await expect(h['approvals:addCli']('a', 'folder', '/etc')).rejects.toThrow(/narrower/)
     await expect(h['approvals:addCli']('zumi-bot', 'prefix', 'gh pr view')).rejects.toThrow(/Zumi Bot/)
     expect(approvals.cliRules('a')).toHaveLength(2)
