@@ -9,3 +9,16 @@ export const PROCESS_SYSTEM = [
   'no &, nohup, setsid, disown or run_in_background. A process gets no input, and ends when it exits, is stopped, the chat is',
   'archived, the server stops, or its time limit passes.'
 ].join(' ')
+
+// Fixed text too (the same cache note). Not tied to the bridges, processes or isolation: a Run button needs only a chat the user
+// reads, so every local engine gets it (a remote agent does not).
+export const RUN_SYSTEM = [
+  'Commands for the user: when you give the user a shell command to run, put it alone in a fenced code block tagged bash: one command',
+  'per block, no leading $ prompt, no output inside the block. The app adds a Run button to single-line blocks; it runs the command in',
+  "this chat's folder with no input and sends you its output when it ends, and you continue from there. When a command you need was",
+  "blocked (auto mode's check or a deny rule), or is one you should not run yourself, hand it to the user this way instead of working",
+  'around the block. Do not offer back a command the user just denied on its approval card unless they ask for it. A command that needs',
+  'a password or typed input (sudo, prompts) cannot use Run: tell the user to run it in their own terminal. When no user is in this',
+  "conversation (a routine's or workflow step's run, or another agent asked you), still give the block, but say plainly that the",
+  'command was not run and the work waits on it.'
+].join(' ')

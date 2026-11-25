@@ -36,6 +36,12 @@ describe('createApi', () => {
     await api.app.setTimeZone('Europe/Istanbul')
     expect(rpc.call).toHaveBeenCalledWith('app:setTimeZone', ['Europe/Istanbul'])
   })
+  it('processes.run maps to processes:run with the chat, the message and the command', async () => {
+    const { rpc } = fakeRpc(),
+      api = make(rpc)
+    await api.processes.run('c1', 'm1', 'ls -la')
+    expect(rpc.call).toHaveBeenCalledWith('processes:run', ['c1', 'm1', 'ls -la'])
+  })
   it('btw maps calls and forwards changed entries with unsubscribe', async () => {
     const { rpc, subs } = fakeRpc(),
       api = make(rpc)

@@ -24,6 +24,7 @@ import { Markdown } from './Markdown'
 import { aboutLine, canCheck, canOfferRollBack, checkedLine, resultLine } from '../state/update'
 import { dismissMessage, startUpdate, updateCall, useUpdate } from '../useUpdate'
 import { useConnected } from '../useConnected'
+import { useSuggestedReplies } from '../useSuggestedReplies'
 
 const ICONS: Record<SettingsSection, MenuIconName> = {
   general: 'sliders',
@@ -129,6 +130,18 @@ function GeneralSettings(p: {
     setHouseStyle(on)
     api.app.setHouseStyle(on).then(setHouseStyle, () => setHouseStyle(!on))
   }
+  // From the page's one watcher, so a change made in another tab shows here too; `pending` holds a click until it lands.
+  const stored = useSuggestedReplies()
+  const [pending, setPending] = useState<boolean | null>(null)
+  const suggested = pending ?? stored
+  const toggleSuggested = (on: boolean) => {
+    setPending(on)
+    // The server's broadcast reaches this tab's watcher before the call settles; a failure falls back to the stored value.
+    api.app.setSuggestedReplies(on).then(
+      () => setPending(null),
+      () => setPending(null)
+    )
+  }
   const [keepWarm, setKeepWarm] = useState<KeepWarmSettings | null>(null)
   useEffect(() => {
     if (connected) api.app.getKeepWarm().then(setKeepWarm, () => {})
@@ -166,6 +179,23 @@ function GeneralSettings(p: {
             checked={houseStyle === true}
             disabled={houseStyle === null}
             onChange={(e) => toggleHouseStyle(e.target.checked)}
+          />
+        </label>
+        <label className="set-row">
+          <span className="set-text">
+            <span className="set-label">Suggested replies</span>
+            <span className="set-hint">
+              After a reply that asks you something, offer what you might send next. Uses a small Haiku call per reply.
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            role="switch"
+            className="switch"
+            data-testid="suggested-replies"
+            checked={suggested === true}
+            disabled={suggested === null}
+            onChange={(e) => toggleSuggested(e.target.checked)}
           />
         </label>
       </div>

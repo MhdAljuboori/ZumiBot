@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatMeta } from '@zumibot/shared/types'
 import {
+  addRuleCheck,
   agentHasPending,
   applyApprovalCount,
   approvalChoices,
@@ -113,6 +114,10 @@ describe('ruleLabel', () => {
   })
   it('shows only the tool name otherwise', () => {
     expect(ruleLabel({ key: 'k', toolName: 'mcp__mail__send', command: null })).toBe('mcp__mail__send')
+  })
+  it('shows a CLI rule by its prefix or folder', () => {
+    expect(ruleLabel({ key: 'k', toolName: 'Bash', command: null, cli: 'Bash(gh pr view:*)' })).toBe('Bash: commands starting with gh pr view')
+    expect(ruleLabel({ key: 'k', toolName: 'Read', command: null, cli: 'Read(//work/repo/**)' })).toBe('Read: files in /work/repo')
   })
 })
 
@@ -237,5 +242,17 @@ describe('ruleLabel for a CLI rule', () => {
   })
   it('keeps a CLI rule of another shape readable', () => {
     expect(ruleLabel({ key: 'k', toolName: 'Bash', command: null, cli: 'Bash(npm test)' })).toBe('Bash: Bash(npm test)')
+  })
+})
+
+describe('addRuleCheck', () => {
+  it('gives the rule for a good prefix or folder, trimmed', () => {
+    expect(addRuleCheck('prefix', '  gh pr merge ')).toEqual({ rule: 'Bash(gh pr merge:*)', error: null })
+    expect(addRuleCheck('folder', ' /work/repo ')).toEqual({ rule: 'Read(//work/repo/**)', error: null })
+  })
+  it('gives the reason for a bad one, and nothing for an empty field', () => {
+    expect(addRuleCheck('prefix', 'sh -c x').error).toMatch(/Auto ignores/)
+    expect(addRuleCheck('folder', '~/repo').error).toMatch(/absolute/)
+    expect(addRuleCheck('folder', '   ')).toEqual({ rule: null, error: null })
   })
 })

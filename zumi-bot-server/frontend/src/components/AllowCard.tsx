@@ -1,10 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ruleOfPrefix } from '@zumibot/shared/allowRules'
+import { ruleOfFolder, ruleOfPrefix } from '@zumibot/shared/allowRules'
 import { displayName } from '@zumibot/shared/frontmatter'
 import type { ChatItem, ChatMeta } from '@zumibot/shared/types'
 import { api } from '../api'
 import { errorMessage } from '../errors'
-import { allHeld, chosenPrefixes, commandOf, rowAgent, sheetRows, type AllowCardState } from '../state/allowBlocked'
+import {
+  allHeld,
+  chosenFolders,
+  chosenPrefixes,
+  commandOf,
+  gitAfterFolder,
+  rowAgent,
+  sheetRows,
+  unallowableParts,
+  type AllowCardState
+} from '../state/allowBlocked'
 
 type ToolItem = Extract<ChatItem, { type: 'tool' }>
 type Scope = 'chat' | 'agent'
@@ -99,25 +109,29 @@ function AllowForm({
     }
   }, [agent])
   const held = useMemo(() => [...(chat.allowRules ?? []), ...agentRules], [chat.allowRules, agentRules])
-  const initial = useMemo(() => sheetRows(command, held), [command, held])
+  const initial = useMemo(() => sheetRows(command, held, chat.cwd), [command, held, chat.cwd])
 
   // What the user typed or ticked, by row; a row not touched follows the held rules as they load.
   const [edits, setEdits] = useState<Record<number, { prefix?: string; ticked?: boolean }>>({})
   const rows = initial.map((r, i) => ({ ...r, ...(r.heldBy === null && r.refused === null ? edits[i] : {}) }))
   const { prefixes, errors } = chosenPrefixes(rows, command)
+  const folders = chosenFolders(rows)
+  const newRules = [...prefixes.map(ruleOfPrefix), ...folders.map(ruleOfFolder)]
   const [scope, setScope] = useState<Scope>('chat')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const stuck = allHeld(initial)
+  const blockers = unallowableParts(initial)
   const locked = busy || running
-  const canSubmit = !locked && prefixes.length > 0 && errors.every((e) => e === null)
+  const canSubmit = !locked && newRules.length > 0 && errors.every((e) => e === null)
   const heldRules = [...new Set(initial.flatMap((r) => (r.heldBy === null ? [] : [r.heldBy])))]
+  const gitFolder = gitAfterFolder(initial)
 
   const submit = (): void => {
     if (!canSubmit) return
     setBusy(true)
     setError(null)
-    api.chats.allowBlocked(chat.id, item.id, prefixes, scope).then(
+    api.chats.allowBlocked(chat.id, item.id, prefixes, scope, folders).then(
       (r) => onAllowed(r.text),
       (e) => {
         setError(errorMessage(e))
@@ -135,7 +149,37 @@ function AllowForm({
         <div className="question-head">Auto mode refused a command</div>
       </div>
       <pre className="approval-command allow-command">{command}</pre>
-      {stuck ? (
+      {gitFolder !== null && (
+        <p className="hint" data-testid="allow-git-note">
+          Claude Code asks about a command that changes into another folder and then runs git there, whatever is allowed. Ask the
+          agent to use <code>git -C {gitFolder}</code> instead.
+        </p>
+      )}
+      {stuck && blockers.length > 0 ? (
+        // The held rules are not the problem: the CLI sent the whole command to the classifier for this part.
+        <>
+          <p className="hint" data-testid="allow-unallowable">
+            Nothing here can allow {blockers.length === 1 ? 'this part' : 'these parts'}, so Claude Code refused the whole command:
+          </p>
+          <ul className="allow-parts">
+            {blockers.map((b) => (
+              <li key={b.part} className="allow-part" data-testid="allow-unallowable-part" data-part={b.part}>
+                <code className="allow-part-off">{b.part}</code>
+                <div className="hint allow-part-reason">{b.reason}</div>
+              </li>
+            ))}
+          </ul>
+          <p className="hint">Ask the agent to do it another way, without {blockers.length === 1 ? 'this part' : 'these parts'}.</p>
+          <div className="allow-group-label">Already allowed:</div>
+          <ul className="allow-rules">
+            {heldRules.map((r) => (
+              <li key={r}>
+                <code>{r}</code>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : stuck ? (
         <>
           <p className="hint">Claude Code still refused this although these rules are allowed:</p>
           <ul className="allow-rules">
@@ -148,16 +192,22 @@ function AllowForm({
         </>
       ) : (
         <>
-          <div className="allow-group-label">Commands starting with:</div>
+          <div className="allow-group-label">{rows.some((r) => r.folder) ? 'Commands and folders:' : 'Commands starting with:'}</div>
           <ul className="allow-parts">
             {rows.map((r, i) => (
-              <li key={`${i}:${r.part}`} className="allow-part" data-testid="allow-blocked-part" data-part={r.part}>
+              <li
+                key={`${i}:${r.part}`}
+                className="allow-part"
+                data-testid="allow-blocked-part"
+                data-part={r.part}
+                data-folder={r.folder ?? undefined}
+              >
                 <label className="allow-part-tick">
                   <input
                     type="checkbox"
                     checked={r.ticked}
                     disabled={r.heldBy !== null || r.refused !== null || locked}
-                    aria-label={`Allow commands starting with ${r.prefix || r.part}`}
+                    aria-label={r.folder ? `Allow folder ${r.folder}` : `Allow commands starting with ${r.prefix || r.part}`}
                     onChange={(e) => setEdits((p) => ({ ...p, [i]: { ...p[i], ticked: e.target.checked } }))}
                   />
                 </label>
@@ -169,6 +219,11 @@ function AllowForm({
                 ) : r.heldBy !== null ? (
                   <span className="allow-part-held">
                     <code>{r.part}</code> <span className="hint">already allowed</span>
+                  </span>
+                ) : r.folder ? (
+                  // The CLI checks a cd outside the chat's folder before any Bash rule, so this one is a folder grant.
+                  <span className="allow-part-held allow-part-folder">
+                    Folder <code>{r.folder}</code> <span className="hint">read its files and cd into it</span>
                   </span>
                 ) : r.ticked ? (
                   <input
@@ -192,13 +247,13 @@ function AllowForm({
               </li>
             ))}
           </ul>
-          {prefixes.length > 0 && (
+          {newRules.length > 0 && (
             <div className="allow-rules-box">
               <div className="allow-group-label">Rules:</div>
               <ul className="allow-rules">
-                {prefixes.map((p) => (
-                  <li key={p}>
-                    <code>{ruleOfPrefix(p)}</code>
+                {newRules.map((rule) => (
+                  <li key={rule}>
+                    <code>{rule}</code>
                   </li>
                 ))}
               </ul>

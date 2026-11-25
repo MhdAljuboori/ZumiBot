@@ -1,4 +1,5 @@
 import { isCommandModel, type CommandModel } from './chatModel'
+import type { CommandEngine } from './engineCommands'
 import { TODO_NAME } from './todos'
 
 /** A saved prompt an agent offers as `/name` in the composer; stored in the agent file's frontmatter. */
@@ -17,6 +18,7 @@ export type CommandSummary = Pick<AgentCommand, 'name' | 'description' | 'todos'
 export interface CommandPick {
   agent: string
   name: string
+  engine?: CommandEngine // set for a Claude command or Codex skill row; absent for an agent command
 }
 
 /** Stored on the user item; `prompt` is already filled, so later edits to the agent file never change history. */
@@ -26,6 +28,7 @@ export interface SentCommand {
   prompt: string
   todos?: true
   model?: CommandModel
+  engine?: CommandEngine
 }
 
 export const ARGUMENTS = '$ARGUMENTS'

@@ -1,8 +1,7 @@
-import { execFile } from 'node:child_process'
 import { access, constants, readFile, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { posix, win32 } from 'node:path'
-import { loginShell } from './shellEnv'
+import { loginShell, spawnCapture } from './shellEnv'
 
 export interface LocateDeps {
   override: string | null
@@ -102,16 +101,17 @@ export function defaultLocateDeps(override: string | null, name = 'claude'): Loc
 }
 
 /** `command -v <name>` in the user's login shell (zsh on a Mac, see loginShell); null on Windows or a miss. */
-export function loginShellWhich(name: string): Promise<string | null> {
-  return new Promise((resolve) => {
-    if (process.platform === 'win32') return resolve(null)
-    const shell = loginShell()
-    // zsh: nvm and the like are set up in .zshrc, which only an interactive shell reads.
-    execFile(shell, [shell === 'zsh' ? '-ilc' : '-lc', `command -v ${name}`], { timeout: 5000 }, (err, stdout) => {
-      const p = err ? '' : (stdout.trim().split('\n').pop()?.trim() ?? '')
-      resolve(p.startsWith('/') ? p : null)
-    })
-  })
+export async function loginShellWhich(name: string): Promise<string | null> {
+  if (process.platform === 'win32') return null
+  const shell = loginShell()
+  // zsh: nvm and the like are set up in .zshrc, which only an interactive shell reads. spawnCapture gives it a session of its
+  // own, so it cannot take the terminal the server was started from.
+  const stdout = await spawnCapture(shell, [shell === 'zsh' ? '-ilc' : '-lc', `command -v ${name}`], {
+    timeoutMs: 5000,
+    maxBytes: 64 * 1024
+  }).catch(() => '')
+  const p = stdout.trim().split('\n').pop()?.trim() ?? ''
+  return p.startsWith('/') ? p : null
 }
 
 /** Locates lazily and caches until the override changes; a miss is not cached so installing claude later works. */

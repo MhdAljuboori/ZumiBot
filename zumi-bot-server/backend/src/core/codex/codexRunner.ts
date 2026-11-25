@@ -8,7 +8,7 @@ import { LineSplitter, type RunEvent } from '../chat/streamParser'
 import { codexAnswer, type CodexAnswer, type CodexRequestKind } from './codexAnswers'
 import { CodexEventMapper } from './codexEvents'
 import { codexVersion, dropHookTrust, HOOKS_TIMEOUT_MS, hooksTrusted, hookTrustFor, type HookTrust } from './codexHookTrust'
-import { CODEX_QUESTION_FEATURE, codexInput, hookConfig, threadParams, type CodexThreadInput } from './codexParams'
+import { CODEX_QUESTION_FEATURE, codexInput, hookConfig, threadParams, type CodexSkillRef, type CodexThreadInput } from './codexParams'
 import { CodexRpc, RpcError, type RpcId } from './codexRpc'
 import { killTree } from '../procKill'
 
@@ -25,6 +25,8 @@ export interface CodexRunOptions {
   start: CodexStart
   action: CodexAction
   thread: CodexThreadInput
+  /** Skills this turn runs, sent as skill items on `turn/start`; never on a compaction, which takes no input. */
+  skills?: CodexSkillRef[]
   /** Features turned on for this process, each passed as `--enable <name>`. Never `multi_agent` or the question feature (FIXED). */
   enable?: string[]
   /**
@@ -463,7 +465,7 @@ export function runCodex(o: CodexRunOptions): RunHandle {
           turnSent = true
           const turn = await rpc.request<{ turn?: { id?: unknown } } | null>('turn/start', {
             threadId: id,
-            input: codexInput(o.action.prompt)
+            input: codexInput(o.action.prompt, o.skills)
           })
           if (settled) return
           turnId = typeof turn?.turn?.id === 'string' ? turn.turn.id : null

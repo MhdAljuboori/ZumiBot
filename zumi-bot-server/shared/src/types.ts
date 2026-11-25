@@ -11,6 +11,7 @@ import type { AgentCapStatus, CapPause } from './spendCaps'
 import type { TodoBoard, TodoEditPatch, TodoItem, TodoStatus, TodoTaskLink, TodoTouch } from './todos'
 import type { DispatchEntry, DispatchSummary } from './dispatch'
 import type { ProcessInfo, ProcessLogRead } from './processes'
+import type { RunMark } from './runBlocks'
 import type { NotifyChannel, NotifyPayload, NotifyState, NotifyStatus, NotifyToggles, SubscriptionInput } from './notify'
 import type { RoutineDef, SaveMeta, VersionSummary, WorkflowDef } from './definitionHistory'
 import type { Routine, RoutineInput, RoutineRun, RoutinesSnapshot, WebhookCall } from './routines'
@@ -156,6 +157,7 @@ export interface QueuedTask {
   cardAsk?: import('./todos').CardAsk // a card comment that @mentioned the agent: the bubble shows the comment, the agent reads it inside the card's context (cardAskPrompt)
   auto?: true // a routine's or workflow's message, not typed by the user
   workflowSent?: WorkflowSent
+  run?: RunMark // hidden from the user: the agent's result of a Run
   ts: number
 }
 
@@ -202,7 +204,16 @@ export interface ChatMeta {
   cardComments?: TodoTaskLink // where an agent answers the comments that mention it on that card (one per card and agent)
   attempt?: ChatAttempt // one of a card's parallel attempts (see review-loop.md); absent = not an attempt
   pr?: ChatPr // the GitHub pull request opened from this chat's worktree branch (see review-loop.md); absent = none
-  allowRules?: string[] // `Bash(<prefix>:*)` rules the user granted for this chat, passed to its turns outside Plan; absent = none
+  allowRules?: string[] // `Bash(<prefix>:*)` and `Read(//<folder>/**)` rules the user granted for this chat, passed to its turns outside Plan; absent = none
+  suggested?: SuggestedReplies // the next messages offered for the reply ending at item `after` (replyOptions.ts); absent = none read yet
+}
+
+/** What the reply reader offered: 1 option is the composer's placeholder, 2 or 3 are buttons; empty = asked, nothing to offer. */
+export interface SuggestedReplies {
+  after: string // the chat's last item id when the read began; shown only while it is still the last
+  options: string[]
+  question?: string // the decision the buttons answer, shown above them; absent = none usable
+  summary?: string // one or two sentences on what the reply did, shown first; absent = none usable
 }
 
 export type PrState = 'open' | 'merged' | 'closed'
@@ -407,7 +418,7 @@ export interface AgentRule {
   key: string
   toolName: string
   command: string | null
-  cli?: string // a `Bash(<prefix>:*)` rule given to every turn of the agent (not matched against requests); its key never equals a request's
+  cli?: string // a `Bash(<prefix>:*)` or `Read(//<folder>/**)` rule given to every turn of the agent (not matched against requests); its key never equals a request's
 }
 
 /** A card edit from the UI; files come as staged ids, never as attachments the client describes. */
@@ -452,6 +463,7 @@ export type ChatItem = (
       versions?: VersionInfo
       from?: string
       workflowSent?: WorkflowSent
+      run?: RunMark // hidden from the user: the agent's result of a Run
       engine?: 'ag-ui'
       ack?: string // ZumiBot's line on what the agent is about to do (acknowledge.ts), drawn as the reply's first bubble; no agent reads it
     } // attachments absent = none; replyTo = the agent message's id; from = the asking agent's name when another agent asked this one; engine = a remote agent's turn ran on it, saved before its first request so a turn a crash cut short still reads as AG-UI's (foreignHistory); no other engine writes it
@@ -519,6 +531,7 @@ export interface AppSettings {
   accent: Accent
   lastGroupFolder: string | null
   houseStyle: boolean // append the shared reply style to every agent's system prompt
+  suggestedReplies: boolean // after a reply that asks the user something, offer their next message (replyOptions.ts)
   keepWarm: KeepWarmSettings // hours a big idle context's prompt cache is kept alive (keepWarm.ts)
   timeZone?: string // the user's IANA zone, as the page last reported it (setTimeZone)
   worktreeFolders: string[] // top folders of the repos where "Isolate in worktree" is on; keyed by top folder so a subfolder pick reads the same setting
@@ -640,6 +653,8 @@ export interface ZumiBotApi {
     testAgui(agentName: string): Promise<import('./agui').AguiTestResult>
     /** The remote agent's launch Save confirmed on this machine (launch trust), or null. */
     aguiLaunch(agentName: string): Promise<import('./agui').AguiLaunch | null>
+    /** The engine's own `/` commands (Claude Code commands, Codex skills) for the agent in a folder (null = home); null for an ACP or remote agent. A Codex skill's path stays on the server. */
+    engineCommands(agent: string, folder: string | null): Promise<import('./engineCommands').EngineCommands | null>
   }
   chats: {
     list(): Promise<ChatMeta[]>
@@ -674,7 +689,7 @@ export interface ZumiBotApi {
     compact(chatId: string, note: string, agent?: string): Promise<void> // /compact on the agent's session; agent = the room member
     setModel(chatId: string, model: string | null): Promise<void> // a single chat's model picked by hand (one its engine runs, modelFits); null = back to the agent's own, commands may set it again
     setPermissionMode(chatId: string, mode: ChatMode | null): Promise<void> // a single chat's mode from its next turn (one its engine runs, modeFits); null = the server's
-    allowBlocked(chatId: string, toolUseId: string, prefixes: string[], scope: 'chat' | 'agent'): Promise<{ rules: string[]; text: string }> // Allow on a row Auto mode's classifier refused: stores a Bash(<prefix>:*) rule for the chat or the agent; the text is what the client then sends as a message
+    allowBlocked(chatId: string, toolUseId: string, prefixes: string[], scope: 'chat' | 'agent', folders?: string[]): Promise<{ rules: string[]; text: string }> // Allow on a row Auto mode's classifier refused: stores a Bash(<prefix>:*) rule per prefix and a Read(//<folder>/**) rule per folder the command cd's into, for the chat or the agent; the text is what the client then sends as a message
     setEffort(chatId: string, effort: Effort | null): Promise<void> // a single Claude chat's --effort from its next turn; null = Medium (DEFAULT_EFFORT)
     cancelResume(chatId: string): Promise<void> // Don't continue: the chat the usage limit stopped no longer continues by itself at the reset, and its queued tasks wait for the user
     continueNow(chatId: string): Promise<void> // Continue now: the usage limit wait's continue goes in at once, ahead of the queued tasks
@@ -717,6 +732,9 @@ export interface ZumiBotApi {
     setAccent(accent: Accent): Promise<Accent> // resolves to the applied value
     getHouseStyle(): Promise<boolean>
     setHouseStyle(on: boolean): Promise<boolean> // applies from each chat's next turn
+    getSuggestedReplies(): Promise<boolean>
+    setSuggestedReplies(on: boolean): Promise<boolean> // every tab hears it (onSuggestedRepliesChanged)
+    onSuggestedRepliesChanged(cb: (on: boolean) => void): () => void
     getKeepWarm(): Promise<KeepWarmSettings>
     setKeepWarm(v: KeepWarmSettings): Promise<KeepWarmSettings> // applies to the next ping each context is due
     setTimeZone(tz: string): Promise<void> // the page's zone, sent on every connect; a bad or unchanged one is ignored
@@ -732,6 +750,7 @@ export interface ZumiBotApi {
   approvals: {
     list(agentName: string): Promise<AgentRule[]>
     remove(agentName: string, key: string): Promise<AgentRule[]> // resolves to the agent's remaining rules
+    addCli(agentName: string, kind: 'prefix' | 'folder', value: string): Promise<AgentRule[]> // Agent Studio's Add: a Bash(<prefix>:*) or Read(//<folder>/**) rule given to the agent's turns; resolves to its rules
     onChanged(cb: (agentName: string) => void): () => void
   }
   memory: {
@@ -799,6 +818,7 @@ export interface ZumiBotApi {
     stop(chatId: string, id: string): Promise<ProcessInfo> // ends the whole tree
     restart(chatId: string, id: string): Promise<ProcessInfo> // the stored command again, same id; the user's click is its approval
     forget(chatId: string, id: string): Promise<void> // an ended record and its log
+    run(chatId: string, messageId: string, command: string): Promise<ProcessInfo> // the user's Run of a block of that agent message; no card, its result reaches the author
     counts(): Promise<Record<string, number>> // running processes per chat
     onChanged(cb: (e: { chatId: string; running: number }) => void): () => void // any start, end, restart or forget; never dedupe
     onOutput(cb: (e: { chatId: string; id: string; to: number }) => void): () => void // a cursor only, never the text

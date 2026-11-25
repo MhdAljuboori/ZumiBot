@@ -23,9 +23,13 @@ export function leadChips(text: string, command: string | null, todo: boolean): 
   return chips
 }
 
-/** The chip goes grey when the agent is gone or broken, or no longer offers the command; the stored prompt still opens. */
-export function chipBroken(agent: AgentSummary | undefined, name: string): boolean {
-  return !agent || agent.error !== null || !(agent.commands ?? []).some((c) => c.name === name)
+/**
+ * The chip goes grey when the agent is gone or broken, or no longer offers the command; the stored prompt still opens.
+ * An engine command (Claude command, Codex skill) is not in the agent's own list, so only the agent itself can break it.
+ */
+export function chipBroken(agent: AgentSummary | undefined, name: string, engine = false): boolean {
+  if (!agent || agent.error !== null) return true
+  return !engine && !(agent.commands ?? []).some((c) => c.name === name)
 }
 
 /** `set` with `id` added, or taken out when it is there: which sent commands show their full prompt. */

@@ -7,6 +7,7 @@ import type { AuditLog } from '../core/audit/auditLog'
 import { AUDIT_CAPS, AUDIT_PAGE_MAX, parseAuditFilter } from '@zumibot/shared/audit'
 import { mkdir, stat } from 'node:fs/promises'
 import { basename, isAbsolute, resolve } from 'node:path'
+import { homedir } from 'node:os'
 import type { AgentStore } from '../core/agents/agentStore'
 import type { AttachmentStore } from '../core/attachments/attachmentStore'
 import type { SideQuestions } from '../core/btw/sideQuestions'
@@ -66,6 +67,7 @@ import type { PrWatcher } from '../core/github/prWatcher'
 import { GH_MISSING, PR_BODY_MAX, PR_TITLE_MAX } from '@zumibot/shared/pullRequest'
 import type { DispatchService } from '../core/dispatch/dispatchService'
 import type { ProcessService } from '../core/processes/processService'
+import { runBlock } from '../core/processes/runBlock'
 import { isProcessId } from '@zumibot/shared/processes'
 import type { SearchIndex } from '../core/search/searchIndex'
 import { SEARCH_OFFSET_MAX, SEARCH_QUERY_MAX } from '@zumibot/shared/search'
@@ -159,6 +161,7 @@ import type { VoiceStore } from '../core/voice/voiceStore'
 import { JEV_KEY_MAX, SUGGEST_MIN_CHARS, type JevCheck, type JevSwitches } from '@zumibot/shared/jev'
 import { CONTACT_FIELDS, listView, type VaultInput } from '@zumibot/shared/vault'
 import { ZUMI_BOT_NAME } from '@zumibot/shared/zumiBot'
+import { folderRuleError, prefixRuleError, ruleOfFolder, ruleOfPrefix } from '@zumibot/shared/allowRules'
 import {
   EXT_TEXT,
   isReservedServerName,
@@ -169,6 +172,7 @@ import {
   type McpScope,
   type McpServerInput
 } from '@zumibot/shared/extensions'
+import type { EngineCommands } from '@zumibot/shared/engineCommands'
 import { NAME_PATTERN, parseAgent } from '@zumibot/shared/frontmatter'
 import type { ExtensionsService } from '../core/extensions/extensionsService'
 import type { ConnectorsService } from '../core/connectors/connectorsService'
@@ -268,11 +272,12 @@ export interface HandlerDeps {
   /** The chats' dispatched agents; the service tells every tab (`dispatch:changed`) about once a second while a turn runs. */
   dispatch: Pick<DispatchService, 'list' | 'get'>
   /** Background processes; the service tells every tab (`processes:changed`, `processes:output`) itself. */
-  processes?: Pick<ProcessService, 'list' | 'read' | 'stop' | 'restart' | 'forget' | 'counts' | 'endChat' | 'removeChat'>
+  processes?: Pick<ProcessService, 'list' | 'read' | 'stop' | 'restart' | 'forget' | 'counts' | 'endChat' | 'removeChat' | 'run'>
   /** The full-text index over every chat's messages, kept up to date by the store's items and removal listeners. */
   search: Pick<SearchIndex, 'search'>
   /** Tells every tab the sidebar layout changed. */
   sidebarChanged(layout: SidebarLayout): void
+  suggestedRepliesChanged(on: boolean): void
   chatService: ChatService
   groupService: GroupService
   tasks: TaskQueue
@@ -356,6 +361,7 @@ export interface HandlerDeps {
     | 'setSkill'
     | 'saveHook'
     | 'removeHook'
+    | 'engineCommands'
     | 'forget'
   >
   /** The claude.ai connector switches; the service tells every tab itself (`connectors:changed`, wired in app.ts). */
@@ -435,12 +441,13 @@ function messageId(v: unknown): string | undefined {
   return id
 }
 
-/** The `/` menu's pick (composer or message editor); the server looks the prompt up itself, so only the two names are read. */
+/** The `/` menu's pick (composer or message editor); the server looks the prompt up itself, so only the two names and the engine marker are read. */
 function commandPick(v: unknown): CommandPick | undefined {
   if (v === undefined || v === null) return undefined
   const o = v as Record<string, unknown>
   if (typeof v !== 'object' || typeof o.agent !== 'string' || typeof o.name !== 'string') throw new TypeError('Invalid command')
-  return { agent: o.agent, name: o.name }
+  if (o.engine !== undefined && !(o.engine === 'claude' || o.engine === 'codex')) throw new TypeError('Invalid command')
+  return o.engine === undefined ? { agent: o.agent, name: o.name } : { agent: o.agent, name: o.name, engine: o.engine }
 }
 
 /** A version position; the queue checks it against the message's versions. */
@@ -1290,6 +1297,19 @@ export function createHandlers(d: HandlerDeps): Handlers {
         ? { endpoint: confirmed.endpoint, authKey: confirmed.authKey, authHeader: confirmed.authHeader }
         : null
     },
+    // Optional folder arrives as null (the new-chat screen before one is picked): home, as the extensions page uses.
+    'agents:engineCommands': async (agent, folder): Promise<EngineCommands | null> => {
+      const name = str(agent, 'agent')
+      if (!(await agents.list()).some((a) => a.name === name && a.error === null)) throw new Error(EXT_TEXT.notFound)
+      const f = folder === undefined || folder === null ? d.home : await extFolder(folder)
+      const found = await d.extensions.engineCommands(f, name)
+      // `path` is Codex's SKILL.md on this machine: it never leaves the server.
+      if (!found) return null
+      const commands = found.rows.map(({ name, description, hint, kind }) =>
+        hint ? { name, description, hint, kind } : { name, description, kind }
+      )
+      return { engine: found.engine, commands }
+    },
     'agents:save': async (original, raw) => {
       const from = original === null ? null : str(original, 'originalFilePath')
       const text = str(raw, 'raw')
@@ -1568,13 +1588,15 @@ export function createHandlers(d: HandlerDeps): Handlers {
       await writable(id)
       return chatService.setPermissionMode(id, mode)
     },
-    'chats:allowBlocked': async (chatId, toolUseId, prefixes, scope) => {
+    'chats:allowBlocked': async (chatId, toolUseId, prefixes, scope, folders) => {
       const id = str(chatId, 'chatId')
       const toolId = str(toolUseId, 'toolUseId')
       const list = strings(prefixes, 'prefixes')
       if (scope !== 'chat' && scope !== 'agent') throw new TypeError("scope must be 'chat' or 'agent'")
+      // Absent from a page loaded before folder grants.
+      const dirs = folders === undefined ? [] : strings(folders, 'folders')
       await writable(id)
-      const { agent, ...out } = await chatService.allowBlocked(id, toolId, list, scope)
+      const { agent, ...out } = await chatService.allowBlocked(id, toolId, list, scope, dirs)
       if (scope === 'agent') d.approvalsChanged(agent)
       return out
     },
@@ -1655,6 +1677,25 @@ export function createHandlers(d: HandlerDeps): Handlers {
     'processes:stop': (chatId, id) => needProcesses().stop(str(chatId, 'chatId'), processId(id), 'user'),
     'processes:restart': (chatId, id) => needProcesses().restart(str(chatId, 'chatId'), processId(id)),
     'processes:forget': (chatId, id) => needProcesses().forget(str(chatId, 'chatId'), processId(id)),
+    // The user's Run of a block of an agent's reply. `messageId()` lets null through as "none", but here the id is required.
+    'processes:run': async (chatId, messageIdArg, command) => {
+      const id = str(chatId, 'chatId')
+      const mid = messageId(str(messageIdArg, 'messageId'))!
+      const cmd = str(command, 'command')
+      const p = needProcesses()
+      return runBlock(
+        {
+          meta: (c) => chats.get(c),
+          items: (c) => chats.loadItems(c),
+          engineOf: async (agent) =>
+            agent === ZUMI_BOT_NAME ? 'claude' : engineOfAgent((await d.agents.list()).find((a) => a.name === agent)),
+          run: (c, agent, m, command2) => p.run(c, agent, m, command2)
+        },
+        id,
+        mid,
+        cmd
+      )
+    },
     'processes:counts': async () => (d.processes ? d.processes.counts() : {}),
     'files:list': async (chatId) => {
       const id = str(chatId, 'chatId')
@@ -1890,6 +1931,20 @@ export function createHandlers(d: HandlerDeps): Handlers {
     'approvals:remove': async (agentName, key) => {
       const agent = str(agentName, 'agentName')
       await approvals.remove(agent, str(key, 'key'))
+      d.approvalsChanged(agent)
+      return approvals.list(agent)
+    },
+    // Agent Studio's Add: the same CLI rule the Allow card makes for an agent, typed by the user. No refused command to match,
+    // so only the rule's own checks apply; the server's home folder (and any folder holding it) is refused.
+    'approvals:addCli': async (agentName, kind, value) => {
+      const agent = str(agentName, 'agentName')
+      if (kind !== 'prefix' && kind !== 'folder') throw new TypeError("kind must be 'prefix' or 'folder'")
+      const v = str(value, 'value').trim()
+      if (agent === '' || agent === ZUMI_BOT_NAME) throw new Error('Zumi Bot and an unnamed agent take no rules')
+      const bad = kind === 'prefix' ? prefixRuleError(v) : folderRuleError(v, homedir())
+      if (bad) throw new Error(bad)
+      const rule = kind === 'prefix' ? ruleOfPrefix(v) : ruleOfFolder(v)
+      await approvals.add(agent, { key: JSON.stringify(['cli', rule]), toolName: kind === 'prefix' ? 'Bash' : 'Read', command: null, cli: rule })
       d.approvalsChanged(agent)
       return approvals.list(agent)
     },
@@ -2473,6 +2528,14 @@ export function createHandlers(d: HandlerDeps): Handlers {
       const houseStyle = bool(v, 'on')
       await settings.set({ houseStyle })
       return houseStyle
+    },
+    'app:getSuggestedReplies': async () => (await settings.get()).suggestedReplies,
+    'app:setSuggestedReplies': async (v) => {
+      const suggestedReplies = bool(v, 'on')
+      await settings.set({ suggestedReplies })
+      // Every tab, this one too: a switched-off block must vanish everywhere without a reload.
+      d.suggestedRepliesChanged(suggestedReplies)
+      return suggestedReplies
     }
   }
 

@@ -15,6 +15,7 @@ import type {
 } from '@zumibot/shared/types'
 import { isGroup, NOTICE_TEXT } from '@zumibot/shared/types'
 import type { SentCommand } from '@zumibot/shared/commands'
+import { RUN_ITEM_FIXED, type RunMark } from '@zumibot/shared/runBlocks'
 import { withoutComment, type CardAsk } from '@zumibot/shared/todos'
 import type { ApprovalRisk } from '@zumibot/shared/jev'
 import type { TurnEnd } from '@zumibot/shared/notify'
@@ -41,6 +42,7 @@ import { HOUSE_STYLE } from './houseStyle'
 import { randomUUID } from 'node:crypto'
 import { existsSync, promises as fs } from 'node:fs'
 import { dirname, resolve, sep, basename } from 'node:path'
+import { homedir } from 'node:os'
 import { MEMORY_INDEX, type MemoryTouch } from '@zumibot/shared/memory'
 import type { BrowserHandoff, BrowserOwner } from '../browser/types'
 import type { BrowserTurn } from '../browser/browserIpc'
@@ -61,7 +63,7 @@ import {
 } from '@zumibot/shared/engine'
 import { displayName } from '@zumibot/shared/frontmatter'
 import type { CodexRunOptions } from '../codex/codexRunner'
-import { codexCompactLimit, codexModel, isCodexOwnEnv, type CodexHook } from '../codex/codexParams'
+import { codexCompactLimit, codexModel, isCodexOwnEnv, type CodexHook, type CodexSkillRef } from '../codex/codexParams'
 import { turnStart, type EngineAdapter, type EngineTurn, type TurnAction } from '../engines/engine'
 import { claudeEngine, type ClaudeTurnConfig } from '../engines/claudeEngine'
 import { codexEngine, type CodexEngine } from '../engines/codexEngine'
@@ -87,7 +89,7 @@ import { droppedTurn, engineField, enginesAfter, memberStartsBefore, startBefore
 import { branch, switchTo, type UserItem, type Versions } from './versions'
 import { APPROVAL_REQUIRED, isCutRefused, isMissingSession, type RunEvent } from './streamParser'
 import { allowSettingsArgs } from './allowRules'
-import { checkPrefix, continueText, ruleOfPrefix } from '@zumibot/shared/allowRules'
+import { checkFolder, checkPrefix, continueText, ruleOfFolder, ruleOfPrefix } from '@zumibot/shared/allowRules'
 import type { ModelSpends } from '@zumibot/shared/usageReport'
 import { engineChatModel, isCommandModel, modelFits, turnModel } from '@zumibot/shared/chatModel'
 import {
@@ -128,7 +130,7 @@ import { stepRuleOf, stepRulesAllow } from '../workflows/stepRules'
 import type { AutomationTurn } from '../automations/automationIpc'
 import type { AutomationOwner } from '../automations/automationService'
 import type { ProcessOwner, ProcessTurn } from '../processes/processIpc'
-import { PROCESS_SYSTEM } from '../processes/processPrompt'
+import { PROCESS_SYSTEM, RUN_SYSTEM } from '../processes/processPrompt'
 import { PROCESS_START_TOOL, PROCESS_TOOL_PREFIX } from '../processes/processTools'
 import { PROCESS_REFUSALS } from '@zumibot/shared/processes'
 import { askedSystem, askSystem, QUESTIONS_DENIED } from '../asks/askPrompt'
@@ -233,6 +235,8 @@ export interface ChatServiceDeps {
   // Whether a cut may declare the turn it discards on this binary (--resume-drops-turn, `dropsTurnProbe.ts`), asked per attempt
   // like thinkingDisplay. Absent, or false: the cut goes unvalidated, exactly as it did before the flag existed.
   dropsTurn?(bin: string): Promise<boolean>
+  // A Codex agent's skill by name in a folder (with its SKILL.md path), for the turn that runs a skill command; null = it is gone.
+  codexSkill?(folder: string, agent: string, name: string): Promise<CodexSkillRef | null>
   browserTurns?: {
     profileId(agent: string, chatId: string): Promise<string | null>
     create(owner: BrowserOwner, onHandoff: (handoff: BrowserHandoff) => Promise<void>): Promise<BrowserTurn>
@@ -390,7 +394,7 @@ export const NOT_ALLOWABLE = 'This call was not refused by Auto mode, so a rule 
 /** Allow while a reply runs: it would race the running turn's own item list. */
 export const CHAT_BUSY = 'Wait for the reply to finish'
 export const ALREADY_ALLOWED = 'This call was already allowed'
-const ALLOW_COUNT = 'Pick between 1 and 10 commands to allow'
+const ALLOW_COUNT = 'Pick between 1 and 10 commands or folders to allow'
 const MAX_ALLOW = 10
 /** An effort for a Codex chat, which has none (chatRun.ts). */
 export const EFFORT_REFUSED = "This chat's agent has no effort setting"
@@ -614,6 +618,7 @@ export interface TurnSpec {
   lost?: string[] // what the subagents a stop killed in this agent's last turn were doing: told once, by a plain resume
   saveLost?(descriptions: string[] | null): Promise<unknown> // stores what this turn's stop killed; null clears it
   engine?: Engine // absent = Claude; 'codex' runs the turn on codex app-server, with what Codex cannot do left out
+  skills?: CodexSkillRef[] // Codex only: the skills the message runs, sent as skill items beside its prompt
 }
 
 /** text is this turn's assistant text, joined with blank lines. */
@@ -1250,11 +1255,12 @@ export class ChatService {
     todo?: true,
     auto?: true,
     workflowSent?: WorkflowSent,
-    cardAsk?: CardAsk
+    cardAsk?: CardAsk,
+    run?: RunMark
   ): Promise<void> {
     try {
       const r = this.claim(chatId)
-      r.done = this.sendTurn(chatId, text, attachments, replyTo, messageId, command, todo, auto, workflowSent, cardAsk, r).finally(() =>
+      r.done = this.sendTurn(chatId, text, attachments, replyTo, messageId, command, todo, auto, workflowSent, cardAsk, run, r).finally(() =>
         this.endSingle(chatId, r)
       )
       return r.done
@@ -1404,15 +1410,17 @@ export class ChatService {
   }
 
   /**
-   * "Allow and continue" on a row Auto mode's classifier refused: stores a `Bash(<prefix>:*)` rule per prefix, for this chat or
-   * the row's agent, marks the row so it cannot be allowed twice, and returns the text the client sends as a normal message.
-   * Every prefix is checked before any rule is stored. The user's click is the only way a rule gets made.
+   * "Allow and continue" on a row Auto mode's classifier refused: stores a `Bash(<prefix>:*)` rule per prefix and a
+   * `Read(//<folder>/**)` rule per folder the command cd's into, for this chat or the row's agent, marks the row so it cannot be
+   * allowed twice, and returns the text the client sends as a normal message. Every prefix and folder is checked before any rule
+   * is stored. The user's click is the only way a rule gets made.
    */
   async allowBlocked(
     chatId: string,
     toolUseId: string,
     prefixes: string[],
-    scope: 'chat' | 'agent'
+    scope: 'chat' | 'agent',
+    folders: string[] = []
   ): Promise<{ rules: string[]; text: string; agent: string }> {
     const { store, push } = this.d
     const meta = await store.get(chatId)
@@ -1434,14 +1442,21 @@ export class ChatService {
       throw new Error(NOT_ALLOWABLE)
     }
     if (item.allowedAs) throw new Error(ALREADY_ALLOWED)
-    if (!Array.isArray(prefixes) || prefixes.length < 1 || prefixes.length > MAX_ALLOW) throw new Error(ALLOW_COUNT)
+    if (!Array.isArray(prefixes) || !Array.isArray(folders)) throw new Error(ALLOW_COUNT)
+    const count = prefixes.length + folders.length
+    if (count < 1 || count > MAX_ALLOW) throw new Error(ALLOW_COUNT)
     const command = (item.input as { command?: unknown } | null)?.command
     if (typeof command !== 'string') throw new Error(NOT_ALLOWABLE)
     for (const p of prefixes) {
       const bad = checkPrefix(p, command)
       if (bad) throw new Error(bad)
     }
-    const rules = [...new Set(prefixes.map(ruleOfPrefix))]
+    // The server's home: a folder rule on it (or above it) would let the agent read ~/.ssh and the like.
+    for (const f of folders) {
+      const bad = checkFolder(f, command, homedir())
+      if (bad) throw new Error(bad)
+    }
+    const rules = [...new Set([...prefixes.map(ruleOfPrefix), ...folders.map(ruleOfFolder)])]
     let next = meta
     if (scope === 'chat') {
       // Merged in the write, so a second tab's rules are not lost.
@@ -1565,6 +1580,7 @@ export class ChatService {
     auto: true | undefined,
     workflowSent: WorkflowSent | undefined,
     cardAsk: CardAsk | undefined,
+    run: RunMark | undefined,
     r: Running
   ): Promise<void> {
     const { store, now, newId } = this.d
@@ -1582,9 +1598,11 @@ export class ChatService {
       ...(command ? { command } : {}),
       ...(todo ? { todo } : {}),
       ...(workflowSent ? { workflowSent } : {}),
-      ...(cardAsk ? { cardAsk } : {})
+      ...(cardAsk ? { cardAsk } : {}),
+      ...(run ? { run } : {})
     }
-    const title = meta.title === '' ? { title: makeTitle(text.trim() ? text : (attachments[0]?.name ?? '')) } : {}
+    // A Run's result never titles the chat: the user did not write it.
+    const title = meta.title === '' && !run ? { title: makeTitle(text.trim() ? text : (attachments[0]?.name ?? '')) } : {}
     await this.runTurn(chatId, r, meta, {
       history,
       base: history,
@@ -1610,6 +1628,7 @@ export class ChatService {
     const stored = [...(await store.loadItems(chatId))]
     const old = stored.find((i): i is UserItem => i.type === 'user' && i.id === userId)
     if (!old) throw new Error('Message not found')
+    if (old.run) throw new Error(RUN_ITEM_FIXED)
     const body = text ?? old.text
     if (body.trim() === '' && !old.attachments?.length) throw new Error('Message is empty')
     const user: UserItem = {
@@ -1769,7 +1788,18 @@ export class ChatService {
       // The one place every path (send, edit, resend, routine, workflow step) goes through: an agent without ZumiBot's to-do
       // tools is never asked for to-dos. Thrown here, it is this turn's error item and nothing runs.
       if (asksTodos(user) && !bridges) throw new Error(todoRefusal(engine, meta.agentName))
-      const noted = withNote(withReply(readAs(user, meta.agentName, bridges), repliedItem(history, user.replyTo)), refs)
+      // A Codex skill is looked up now: one removed since the menu was built is this turn's error, before anything is stored.
+      let skills: CodexSkillRef[] | undefined
+      if (engine === 'codex' && user.command?.engine === 'codex') {
+        const skill = await this.d.codexSkill?.(meta.cwd, meta.agentName, user.command.name)
+        if (!skill) throw new Error(`Codex has no $${user.command.name} skill any more`)
+        skills = [skill]
+      }
+      // A Claude command reads as one only at the start of the message, so a reply's quote goes after it.
+      const noted = withNote(
+        withReply(readAs(user, meta.agentName, bridges), repliedItem(history, user.replyTo), user.command?.engine === 'claude'),
+        refs
+      )
       const blocks = await imageBlocks(refs)
       // Versions first: a failure or crash between the two writes leaves the old tail stored twice, never lost, and
       // the next edit or switch reads the shown item's index (an unmarked original counts as slot 0) and reuses or drops
@@ -1782,7 +1812,7 @@ export class ChatService {
       pushItems(false)
       // Only for a message the user typed (an edit and a resend too), never a routine's, a workflow's or another agent's ask.
       const acknowledge = this.d.acknowledge
-      if (acknowledge && !t.extra?.auto && user.from === undefined) {
+      if (acknowledge && !t.extra?.auto && user.from === undefined && !user.run) {
         const userId = user.id
         acknowledge({ chatId, agent: meta.agentName, user, todos: asksTodos(user) && bridges, signal: ackStop.signal })
           .then(async (ack) => {
@@ -1844,6 +1874,7 @@ export class ChatService {
         ...(meta.next && 'at' in meta.next && meta.next.drops !== undefined ? { resumeDrops: meta.next.drops } : {}),
         reseed: stale || (meta.next !== undefined && 'seed' in meta.next),
         engine,
+        ...(skills ? { skills } : {}),
         ...(meta.next !== undefined && 'fresh' in meta.next ? { freshStart: true } : {}),
         window: meta.context?.window ?? null,
         saveContext: (context) => updateMeta({ context }),
@@ -3317,6 +3348,8 @@ export class ChatService {
             // Codex numbers each process's requests from 0 and a card's item id is its request id: a fresh tag per attempt keeps a
             // turn's first card from taking an earlier attempt's id and being dropped as a repeat.
             requestTag: randomUUID(),
+            // Skill items go on a real turn only: a compaction takes no input.
+            ...(spec.skills && !spec.compact ? { skills: spec.skills } : {}),
             ...(caps.questions ? {} : { questions: false }),
             // Codex subagents, which the Dispatched agents panel shows and a stop ends with the process; a compaction runs none.
             ...(caps.dispatch && !spec.compact ? { subagents: true } : {}),
@@ -3641,6 +3674,7 @@ export class ChatService {
           this.d.todoTurns && caps.bridges ? TODO_SYSTEM : '',
           this.d.vaultTurns && caps.bridges ? VAULT_SYSTEM : '',
           this.d.processTurns && caps.processes && caps.bridges && isolationOf() === 'off' ? PROCESS_SYSTEM : '',
+          !caps.remote ? RUN_SYSTEM : '',
           asks
         ]
           .filter(Boolean)

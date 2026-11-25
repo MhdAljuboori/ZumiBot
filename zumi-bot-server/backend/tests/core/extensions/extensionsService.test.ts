@@ -7,7 +7,7 @@ import { EXT_TEXT, type AgentExtensions, type Loadout } from '@zumibot/shared/ex
 import type { AgentSummary } from '@zumibot/shared/types'
 import type { VaultItem } from '@zumibot/shared/vault'
 import { buildAgentRunConfig, NO_RUN_CONFIG } from '../../../src/core/extensions/agentRunConfig'
-import { ExtensionsService, type ExtensionsDeps } from '../../../src/core/extensions/extensionsService'
+import { ENGINE_COMMANDS_STALE_MS, ExtensionsService, type ExtensionsDeps } from '../../../src/core/extensions/extensionsService'
 import { probeClaude, type ProbeAnswers } from '../../../src/core/extensions/probe'
 import { stampOf } from '../../../src/core/extensions/settingsFile'
 import { writeFakeBin } from '../../support/fakeBin'
@@ -1090,5 +1090,230 @@ describe('ExtensionsService paths and stop', SLOW, () => {
     await loading.catch(() => {})
     expect(Date.now() - started).toBeLessThan(10_000)
     expect(() => process.kill(pid, 0)).toThrow()
+  })
+})
+
+describe('ExtensionsService.engineCommands', () => {
+  // What probeClaudeCommands resolves: the raw initialize answer and the raw skills listing.
+  const CLAUDE_ANSWER = { commands: { commands: [{ name: 'review', description: 'Review a PR', argumentHint: '[pr]' }] }, skills: null }
+  const CODEX_ANSWER = { data: [{ skills: [{ name: 'pdf', enabled: true, path: '/skills/pdf/SKILL.md', description: 'Pdf things' }] }] }
+  const CODEX_BIN = async () => '/bin/codex'
+
+  // Counts the probes and lets a test hold one open; `answer` is what the next probe resolves.
+  const stubs = () => {
+    const seen: Array<{ folder: string; agent: string | null; args: string[]; env: NodeJS.ProcessEnv }> = []
+    const codexSeen: string[] = []
+    const gates: Array<() => void> = []
+    let answer: unknown = CLAUDE_ANSWER
+    let hold = false
+    const wait = async () => {
+      if (hold) await new Promise<void>((r) => gates.push(r))
+    }
+    return {
+      seen,
+      codexSeen,
+      setAnswer: (a: unknown) => (answer = a),
+      holdProbes: (v: boolean) => (hold = v),
+      releaseAll: () => gates.splice(0).forEach((g) => g()),
+      probe: {
+        claudeCommands: (async (o: { folder: string; agent: string | null; args: string[]; env: NodeJS.ProcessEnv }) => {
+          seen.push({ folder: o.folder, agent: o.agent, args: o.args, env: o.env })
+          await wait()
+          return answer
+        }) as never,
+        codexCommands: (async (o: { folder: string }) => {
+          codexSeen.push(o.folder)
+          await wait()
+          return CODEX_ANSWER
+        }) as never
+      }
+    }
+  }
+  const settle = () => new Promise((r) => setTimeout(r, 20))
+
+  it('probes once for the same folder, agent and file text, and again after the file is edited', async () => {
+    const st = stubs()
+    const s = make({ probe: st.probe })
+    const first = await s.engineCommands(folder, 'helper')
+    expect(first).toEqual({ engine: 'claude', rows: [{ name: 'review', description: 'Review a PR', hint: '[pr]', kind: 'command' }] })
+    await s.engineCommands(folder, 'helper')
+    expect(st.seen).toHaveLength(1)
+    writeFileSync(join(agentsDir, 'helper.md'), '---\nname: helper\ndescription: d\n---\nnew body\n')
+    await s.engineCommands(folder, 'helper')
+    expect(st.seen).toHaveLength(2)
+  })
+
+  it('probes with the run config of switched-off servers and skills, and the agent name', async () => {
+    const st = stubs()
+    const s = make({ probe: st.probe })
+    await s.engineCommands(folder, 'helper')
+    expect(runConfigOpts.at(-1)).toEqual({ serversOff: true, skillsOff: true })
+    expect(st.seen[0]).toMatchObject({ folder, agent: 'helper' })
+  })
+
+  it('probes with no agent keys, no own server values, hooks off, strict MCP and no --mcp-config', async () => {
+    keys = [key('TOKEN', KEY_VALUE)]
+    exts.set(
+      'helper',
+      ext({
+        skillsOff: ['noisy'],
+        plugins: { 'p@m': true },
+        servers: [{ name: 'own', def: { command: 'srv', env: { TOKEN: '${vault:TOKEN}' } } }]
+      })
+    )
+    const st = stubs()
+    await make({ probe: st.probe, agentKeys: async () => ({ TOKEN: KEY_VALUE }) }).engineCommands(folder, 'helper')
+    const { args, env } = st.seen[0]
+    expect(args).not.toContain('--mcp-config')
+    expect(args).toContain('--strict-mcp-config')
+    expect(args).not.toContain('--disallowedTools')
+    const settings = JSON.parse(args[args.indexOf('--settings') + 1])
+    expect(settings).toMatchObject({ disableAllHooks: true, skillOverrides: { noisy: 'off' }, enabledPlugins: { 'p@m': true } })
+    expect(Object.keys(env).filter((k) => k === 'TOKEN' || k.startsWith('ZUMIBOT_MCP_VAULT_'))).toEqual([])
+    expect(JSON.stringify(env)).not.toContain(KEY_VALUE)
+  })
+
+  it('logs one fixed line, naming the engine and code only, for a probe that failed', async () => {
+    const st = stubs()
+    st.setAnswer(null)
+    const s = make({ probe: st.probe })
+    await s.engineCommands(folder, 'helper')
+    const thrown = make({
+      probe: {
+        claudeCommands: (async () => {
+          throw Object.assign(new Error('/secret/path ' + KEY_VALUE), { code: 'ENOENT' })
+        }) as never
+      }
+    })
+    await thrown.engineCommands(folder, 'helper')
+    const lines = logs.filter((l) => l.includes('commands probe'))
+    expect(lines).toEqual(['engine commands probe failed (claude)', 'engine commands probe failed (claude, ENOENT)'])
+    noSecret(...logs)
+    for (const l of lines) expect(l).not.toContain('/secret')
+  })
+
+  it('cachedEngineCommands reads the cache, never probes, and is null on a miss or for an agent with no rows', async () => {
+    const st = stubs()
+    const s = make({ probe: st.probe })
+    expect(await s.cachedEngineCommands(folder, 'helper')).toBeNull()
+    expect(st.seen).toHaveLength(0)
+    await s.engineCommands(folder, 'helper')
+    expect((await s.cachedEngineCommands(folder, 'helper'))?.rows.map((r) => r.name)).toEqual(['review'])
+    expect(await s.cachedEngineCommands(folder, 'ghost')).toBeNull()
+    s.forget()
+    expect(await s.cachedEngineCommands(folder, 'helper')).toBeNull()
+    expect(st.seen).toHaveLength(1)
+  })
+
+  it('treats Zumi Bot as Claude', async () => {
+    const st = stubs()
+    const r = await make({ probe: st.probe }).engineCommands(folder, 'zumi-bot')
+    expect(r?.engine).toBe('claude')
+    expect(st.seen[0].agent).toBe('zumi-bot')
+  })
+
+  it('joins a probe already running for the same key', async () => {
+    const st = stubs()
+    st.holdProbes(true)
+    const s = make({ probe: st.probe })
+    const a = s.engineCommands(folder, 'helper')
+    const b = s.engineCommands(folder, 'helper')
+    await settle()
+    st.releaseAll()
+    expect(await a).toEqual(await b)
+    expect(st.seen).toHaveLength(1)
+  })
+
+  it('probes again after forget(), and a probe begun before forget() never lands in the cache', async () => {
+    const st = stubs()
+    const s = make({ probe: st.probe })
+    await s.engineCommands(folder, 'helper')
+    s.forget()
+    await s.engineCommands(folder, 'helper')
+    expect(st.seen).toHaveLength(2)
+
+    st.holdProbes(true)
+    const slow = s.engineCommands(folder, 'desk')
+    await settle()
+    s.forget()
+    st.releaseAll()
+    await slow
+    st.holdProbes(false)
+    await s.engineCommands(folder, 'desk')
+    expect(st.seen.filter((x) => x.agent === 'desk')).toHaveLength(2)
+  })
+
+  it('returns an old hit at once after five minutes and re-probes once in the background', async () => {
+    const st = stubs()
+    let clock = 1000
+    const s = make({ probe: st.probe, now: () => clock })
+    await s.engineCommands(folder, 'helper')
+    clock += ENGINE_COMMANDS_STALE_MS + 1
+    st.setAnswer({ commands: { commands: [{ name: 'fresh', description: '' }] }, skills: null })
+    st.holdProbes(true)
+    const old = await s.engineCommands(folder, 'helper')
+    expect(old?.rows.map((r) => r.name)).toEqual(['review'])
+    // A second call while the background probe runs does not start another.
+    await s.engineCommands(folder, 'helper')
+    await settle()
+    expect(st.seen).toHaveLength(2)
+    st.releaseAll()
+    await settle()
+    const next = await s.engineCommands(folder, 'helper')
+    expect(next?.rows.map((r) => r.name)).toEqual(['fresh'])
+    expect(st.seen).toHaveLength(2)
+  })
+
+  it('gives no rows for a null probe and does not cache it', async () => {
+    const st = stubs()
+    st.setAnswer(null)
+    const s = make({ probe: st.probe })
+    expect(await s.engineCommands(folder, 'helper')).toEqual({ engine: 'claude', rows: [] })
+    st.setAnswer(CLAUDE_ANSWER)
+    expect((await s.engineCommands(folder, 'helper'))?.rows).toHaveLength(1)
+    expect(st.seen).toHaveLength(2)
+  })
+
+  it('gives no rows, without a probe, when the CLI is missing', async () => {
+    const st = stubs()
+    const r = await make({ probe: st.probe, locate: async () => null }).engineCommands(folder, 'helper')
+    expect(r).toEqual({ engine: 'claude', rows: [] })
+    expect(st.seen).toHaveLength(0)
+  })
+
+  it('reads a Codex agent as codex and finds a skill by name, with its path', async () => {
+    const st = stubs()
+    const s = make({ probe: st.probe, locateCodex: CODEX_BIN })
+    const r = await s.engineCommands(folder, 'codexer')
+    expect(r?.engine).toBe('codex')
+    expect(r?.rows).toEqual([{ name: 'pdf', description: 'Pdf things', path: '/skills/pdf/SKILL.md', kind: 'skill' }])
+    expect(await s.codexSkill(folder, 'codexer', 'pdf')).toEqual({ name: 'pdf', path: '/skills/pdf/SKILL.md' })
+    expect(await s.codexSkill(folder, 'codexer', 'nope')).toBeNull()
+    // A Claude agent has no Codex skills.
+    expect(await s.codexSkill(folder, 'helper', 'review')).toBeNull()
+    expect(st.codexSeen).toHaveLength(1)
+  })
+
+  it('gives null for an ACP agent and an unknown one', async () => {
+    agentList.push(summary('gem', { provider: 'acp' }), summary('broken', { error: 'bad' }))
+    const st = stubs()
+    const s = make({ probe: st.probe })
+    expect(await s.engineCommands(folder, 'gem')).toBeNull()
+    expect(await s.engineCommands(folder, 'broken')).toBeNull()
+    expect(await s.engineCommands(folder, 'ghost')).toBeNull()
+    expect(st.seen).toHaveLength(0)
+  })
+
+  it('stop() ends a probe in flight and refuses later calls', async () => {
+    const st = stubs()
+    st.holdProbes(true)
+    const s = make({ probe: st.probe })
+    const running = s.engineCommands(folder, 'helper')
+    await settle()
+    const stopping = s.stop()
+    st.releaseAll()
+    await stopping
+    await running.catch(() => null)
+    await expect(s.engineCommands(folder, 'helper')).rejects.toThrow('ESHUTDOWN')
   })
 })

@@ -35,10 +35,12 @@ import {
   type NotifyRule,
   type ProcessInfo,
   type ProcessLogRead,
+  type ProcessRun,
   type ProcessStoppedBy,
   type ProcessWake,
   type WakeEvent
 } from '@zumibot/shared/processes'
+import { RUN_OUTPUT_MAX, type RunEnd } from '@zumibot/shared/runBlocks'
 import { writeFileAtomic } from '../fsutil'
 import { scrubText } from '../vault/scrub'
 import { ProcessOutput, type LogFiles } from './processOutput'
@@ -71,6 +73,28 @@ interface IndexFile {
 
 export type ProcessEvent = { kind: 'changed'; chatId: string; running: number } | { kind: 'output'; chatId: string; id: string; to: number }
 
+/** The end of a user's Run (Task 4 sends the block's author the result, Task 5 audits it). One per run, however it ended. */
+export interface RunEndEvent {
+  chatId: string
+  id: string
+  messageId: string
+  command: string
+  cwd: string
+  /** The block's author (`startedBy`). */
+  agent: string
+  startedAt: number
+  endedAt: number
+  /** null: send no message (the run was interrupted by something other than the user's Stop, or never ran). */
+  end: RunEnd | null
+  outcome: 'ok' | 'error' | 'interrupted'
+  /** For the audit record. */
+  error: string | null
+  /** The scrubbed tail of this run's output; '' when `end` is null. */
+  output: string
+  /** Whether older output of the run was left out. */
+  cut: boolean
+}
+
 export interface ProcessChat {
   cwd: string
   archived: boolean
@@ -87,6 +111,8 @@ export interface ProcessServiceDeps {
   scrubOf?(agent: string): ReadonlyMap<string, string>
   /** A notify rule raised an event (Phase 3): the wake service decides whether and when the agent hears of it. */
   onWake?(e: WakeEvent): void
+  /** A user's Run ended (any way): the block's author hears of it, and the audit log records it. */
+  onRunEnd?(e: RunEndEvent): void
   now?(): number
   shell?: string
   limits?: Partial<Limits>
@@ -121,6 +147,10 @@ interface Live {
   output: ProcessOutput
   /** Set when someone ends it: the exit then reads `stopped`, by them. */
   stopping: ProcessStoppedBy | null
+  /** Set by Restart before it ends the old run: that end is the user's own doing, not a Stop. */
+  restarting?: true
+  /** The cursor where this run's output starts (a Restart appends to the same stream). */
+  from: number
   exited: Promise<void>
   partial: string
   partialTo: number
@@ -196,9 +226,11 @@ export class ProcessService {
     }
     const boot = await bootId()
     let changed = false
+    const lostRuns: StoredProcess[] = []
     for (const rec of file?.items ?? []) {
       if (rec.state === 'running') {
         changed = true
+        if (rec.run) lostRuns.push(rec)
         const out = await ProcessOutput.open(this.filesOf(rec), rec.logBase, { onRotate: () => {}, onError: () => {} })
         Object.assign(rec, { state: 'lost', endedAt: this.now(), out: out.end, note: null })
         if (rec.pid !== null && boot !== null && rec.bootId === boot && rec.startTicks !== null) {
@@ -218,6 +250,8 @@ export class ProcessService {
     }
     this.loaded = true
     if (changed) await this.save()
+    // After the save, so a listener that reads the records finds them written.
+    for (const rec of lostRuns) this.raiseRunEnd(rec, { end: null, outcome: 'interrupted', error: 'lost at restart' }, '', false)
   }
 
   // ---- reads ----
@@ -275,7 +309,8 @@ export class ProcessService {
       restarts: r.restarts,
       until: r.until,
       out: live ? live.output.end : r.out,
-      wake: r.wake === null ? null : { ...r.wake, patterns: r.wake.patterns.map((x) => scrubText(x, scrub)) }
+      wake: r.wake === null ? null : { ...r.wake, patterns: r.wake.patterns.map((x) => scrubText(x, scrub)) },
+      run: r.run
     }
   }
 
@@ -322,14 +357,15 @@ export class ProcessService {
   // ---- starting ----
 
   /** Starts a command the agent asked for, after its card was answered. Refusals are plain sentences. */
-  start(chatId: string, agent: string, req: StartRequest): Promise<ProcessInfo> {
+  start(chatId: string, agent: string, req: StartRequest, opts?: { run?: ProcessRun }): Promise<ProcessInfo> {
     return this.serial(chatId, async () => {
       const chat = await this.openChat(chatId)
       const bad = commandError(req.command)
       if (bad) throw new Error(bad)
       if (req.name !== undefined && !isProcessName(req.name)) throw new Error(PROCESS_REFUSALS.name)
       let wake: ProcessWake | null = null
-      if (req.notify !== undefined) {
+      // A user's Run has its own end event: a notify rule would wake the agent twice.
+      if (req.notify !== undefined && !opts?.run) {
         const parsed = parseNotify(req.notify)
         if ('error' in parsed) throw new Error(parsed.error)
         wake = parsed.rule
@@ -363,6 +399,7 @@ export class ProcessService {
         until: now + minutes * 60_000,
         out: 0,
         wake,
+        run: opts?.run ?? null,
         pid: null,
         bootId: null,
         startTicks: null,
@@ -376,6 +413,11 @@ export class ProcessService {
     })
   }
 
+  /** The user's Run of a block: a process of the block's author, with the message it came from. Every limit applies as to a start. */
+  run(chatId: string, agent: string, messageId: string, command: string): Promise<ProcessInfo> {
+    return this.start(chatId, agent, { command }, { run: { messageId } })
+  }
+
   /** The user's Restart: the stored command in the stored folder, under the same id, with a fresh lifetime. */
   restart(chatId: string, id: string): Promise<ProcessInfo> {
     return this.serial(chatId, async () => {
@@ -383,7 +425,11 @@ export class ProcessService {
       const chat = await this.openChat(chatId)
       // The folder may have gone (a removed worktree): checked as a start's would be.
       await this.resolveCwd(chat.cwd, rec.cwd)
-      if (this.live.has(id)) await this.end(this.live.get(id)!, 'user')
+      const old = this.live.get(id)
+      if (old) {
+        old.restarting = true
+        await this.end(old, 'user')
+      }
       const others = [...this.live.values()].filter((l) => l.rec.chatId === chatId)
       if (others.length >= this.lim.perChat) throw new Error(PROCESS_REFUSALS.perChat)
       if (this.live.size >= this.lim.total) throw new Error(PROCESS_REFUSALS.total)
@@ -472,6 +518,7 @@ export class ProcessService {
       console.error('process spawn failed:', rec.id, errCode(err))
       await this.save()
       this.changed(rec.chatId)
+      this.raiseRunEnd(rec, { end: null, outcome: 'error', error: errCode(err) }, '', false)
       return
     }
     let resolveExit!: () => void
@@ -489,7 +536,8 @@ export class ProcessService {
       exitListeners: new Set(),
       lifetime: null,
       outputTimer: null,
-      decoder: new TextDecoder()
+      decoder: new TextDecoder(),
+      from: output.end
     }
     this.live.set(rec.id, live)
     const onData = (chunk: Buffer) => this.onData(live, chunk)
@@ -577,6 +625,15 @@ export class ProcessService {
       pid: null
     })
     if (failCode) console.error('process spawn failed:', rec.id, failCode)
+    // Read before any await: a Restart landing during the save below resets these fields and appends to the stream.
+    const runEnd = rec.run
+      ? {
+          ending: runEnding(rec, stopped, live.restarting === true, failCode),
+          span: { startedAt: rec.startedAt, endedAt: rec.endedAt ?? this.now() },
+          from: live.from,
+          to: live.output.end
+        }
+      : null
     // Only a natural end raises an exit event: anyone's stop never does, nor a spawn that failed.
     if (!stopped && !failCode && rec.wake && rec.wake.fired < rec.wake.times && exitFires(rec.wake.on, rec.exitCode, rec.signal))
       this.raise(rec, 'exit', null)
@@ -584,6 +641,72 @@ export class ProcessService {
     this.d.push({ kind: 'output', chatId: rec.chatId, id: rec.id, to: live.output.end })
     await this.save()
     this.changed(rec.chatId)
+    if (runEnd) {
+      const tail = runEnd.ending.end ? await this.runTailOf(rec, runEnd.from, runEnd.to) : { text: '', cut: false }
+      this.raiseRunEnd(rec, runEnd.ending, tail.text, tail.cut, runEnd.span)
+    }
+  }
+
+  /**
+   * Hands a run's end on. A listener that throws never breaks the end of the process, and the log holds a code and an id
+   * only. `span`: the run's times as its end recorded them, which a Restart since may have reset on the record.
+   */
+  private raiseRunEnd(
+    rec: StoredProcess,
+    ending: { end: RunEnd | null; outcome: RunEndEvent['outcome']; error: string | null },
+    output: string,
+    cut: boolean,
+    span: { startedAt: number; endedAt: number } = { startedAt: rec.startedAt, endedAt: rec.endedAt ?? this.now() }
+  ): void {
+    if (!rec.run || !this.d.onRunEnd) return
+    try {
+      this.d.onRunEnd({
+        chatId: rec.chatId,
+        id: rec.id,
+        messageId: rec.run.messageId,
+        command: scrubText(rec.command, this.scrubFor(rec)),
+        cwd: rec.cwd,
+        agent: rec.startedBy,
+        ...span,
+        ...ending,
+        output,
+        cut
+      })
+    } catch {
+      console.error('process run end not raised:', rec.id)
+    }
+  }
+
+  /**
+   * The tail of one run's output, bytes [runFrom, runTo), for its result: cleaned, scrubbed, cut, at most RUN_OUTPUT_MAX
+   * bytes from a line start.
+   */
+  private async runTailOf(rec: StoredProcess, runFrom: number, runTo: number): Promise<{ text: string; cut: boolean }> {
+    let out: ProcessOutput | null = null
+    try {
+      out = await this.outputOf(rec)
+      // Only this run's bytes: a Restart appends to the same stream, also while this one's end is still being saved.
+      const start = Math.max(runFrom, runTo - RUN_OUTPUT_MAX * 4)
+      const got = await out.read(start, Math.max(0, runTo - start))
+      // Scrubbed before the long lines are cut: a secret across the cut would leave its prefix.
+      let text = cutLines(scrubText(cleanOutput(got.bytes.toString('utf8')), this.scrubFor(rec)), 2000)
+      // The window (or a rotated log) may start inside a line: that first line is partial and goes.
+      let cut = got.from > runFrom
+      if (cut) text = text.replace(/^[^\n]*\n/, '')
+      if (Buffer.byteLength(text) > RUN_OUTPUT_MAX) {
+        text = Buffer.from(text)
+          .subarray(-RUN_OUTPUT_MAX)
+          .toString('utf8')
+          .replace(/^[^\n]*\n/, '')
+        cut = true
+      }
+      return { text, cut }
+    } catch {
+      console.error('process run output not read:', rec.id)
+      return { text: '', cut: false }
+    } finally {
+      if (out && !this.live.has(rec.id)) await out.close()
+    }
   }
 
   // ---- wake-ups ----
@@ -760,7 +883,7 @@ export class ProcessService {
       .map((p) => {
         const cmd = p.command.length > 200 ? `${p.command.slice(0, 200)}…` : p.command
         const time = p.state === 'running' ? `up ${spanText(now - p.startedAt)}` : p.endedAt ? `${spanText(now - p.endedAt)} ago` : ''
-        return `${p.id} "${p.name}": ${stateText(p)}${time ? `, ${time}` : ''}; started by ${p.startedBy}; ${cmd}`
+        return `${p.id} "${p.name}": ${stateText(p)}${time ? `, ${time}` : ''}; started by ${p.startedBy}${p.run ? ' (run by the user from a block)' : ''}; ${cmd}`
       })
       .join('\n')
   }
@@ -1036,10 +1159,42 @@ function parseIndex(v: unknown): IndexFile {
         startTicks: str(r.startTicks) ? r.startTicks : null,
         logBase: num(r.logBase) ? r.logBase : 0,
         lifetimeMs: num(r.lifetimeMs) ? r.lifetimeMs : PROCESS_LIFETIME_DEFAULT_MIN * 60_000,
-        wake: parseWake(r.wake)
+        wake: parseWake(r.wake),
+        run: parseRun(r.run)
       })
     }
   return { v: 1, items }
+}
+
+function parseRun(v: unknown): ProcessRun | null {
+  const m = (v as { messageId?: unknown } | null)?.messageId
+  return typeof v === 'object' && str(m) && m !== '' ? { messageId: m } : null
+}
+
+const STOP_ERROR: Record<ProcessStoppedBy, string> = {
+  agent: 'stopped by the agent',
+  user: 'stopped by the user',
+  archive: 'stopped at archive',
+  remove: 'stopped at remove',
+  lifetime: 'stopped at its time limit',
+  shutdown: 'stopped with the server'
+}
+
+/** How a run ended, as its event reports it. Only a natural end, the user's Stop and the time limit send the agent a message. */
+function runEnding(
+  rec: StoredProcess,
+  stopped: ProcessStoppedBy | null,
+  restarting: boolean,
+  failCode?: string
+): { end: RunEnd | null; outcome: RunEndEvent['outcome']; error: string | null } {
+  if (failCode) return { end: null, outcome: 'error', error: failCode }
+  if (stopped === 'user' && restarting) return { end: null, outcome: 'interrupted', error: 'restarted' }
+  if (stopped === 'user' || stopped === 'lifetime')
+    return { end: { kind: 'stopped', by: stopped }, outcome: 'interrupted', error: STOP_ERROR[stopped] }
+  if (stopped) return { end: null, outcome: 'interrupted', error: STOP_ERROR[stopped] }
+  if (rec.signal !== null) return { end: { kind: 'signal', signal: rec.signal }, outcome: 'error', error: rec.signal }
+  const code = rec.exitCode ?? 0
+  return { end: { kind: 'exit', code }, outcome: code === 0 ? 'ok' : 'error', error: code === 0 ? null : `exit code ${code}` }
 }
 
 function parseWake(v: unknown): ProcessWake | null {

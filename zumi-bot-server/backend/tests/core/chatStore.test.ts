@@ -722,6 +722,21 @@ describe('recovering a chat that was pausing', () => {
     expect(userPausedCount(await s.loadItems(g.id))).toBe(1)
   })
 
+  it('holds the tray only for a task the user can see, never for Run results alone', async () => {
+    const s = mk()
+    const run = { processId: 'p_0000000001' }
+    const alone = await s.create('alpha', '/a')
+    const mixed = await s.create('alpha', '/a')
+    for (const c of [alone, mixed]) await s.update(c.id, { inFlight: true, pause: 'pausing' })
+    await s.addTask(alone.id, { id: 'r1', text: 'r1', run, ts: 1 })
+    await s.addTask(mixed.id, { id: 'r2', text: 'r2', run, ts: 1 })
+    await s.addTask(mixed.id, task('t1'))
+    await s.recoverInterrupted()
+    expect(await s.get(alone.id)).toMatchObject({ pause: 'paused', tasks: [{ id: 'r1', run }] })
+    expect((await s.get(alone.id))?.held).toBeUndefined()
+    expect(await s.get(mixed.id)).toMatchObject({ pause: 'paused', held: true })
+  })
+
   it('treats a chat with no pause exactly as before', async () => {
     const s = mk()
     const c = await s.create('alpha', '/a')
@@ -964,6 +979,29 @@ describe('versions storage', () => {
     expect((await s.dropTask(a.id, 't3')).meta.held).toBe(true)
     expect((await s.dropTask(a.id, 't4')).meta.held).toBeUndefined()
     await expect(s.holdTasks('zzz')).rejects.toThrow('Chat not found: zzz')
+  })
+
+  it('never holds Run results alone: holdTasks and addTask skip them, and the last visible task out clears held', async () => {
+    const s = mk(),
+      a = await s.create('alpha', '/a')
+    const run = { processId: 'p_0000000001' }
+    await s.addTask(a.id, { id: 'r1', text: 'result', run, ts: 1 }, true)
+    expect((await s.get(a.id))?.held).toBeUndefined()
+    expect((await s.holdTasks(a.id)).held).toBeUndefined()
+    await s.addTask(a.id, { id: 't1', text: 't1', ts: 1 })
+    await s.addTask(a.id, { id: 'r2', text: 'result', run, ts: 1 })
+    expect((await s.holdTasks(a.id)).held).toBe(true)
+    // The run results stay queued, but nothing the user can see is left to hold.
+    const left = (await s.dropTask(a.id, 't1')).meta
+    expect(left.tasks?.map((t) => t.id)).toEqual(['r1', 'r2'])
+    expect(left.held).toBeUndefined()
+    await s.addTask(a.id, { id: 't2', text: 't2', ts: 1 }, true)
+    expect((await s.get(a.id))?.held).toBe(true)
+    await s.dropTask(a.id, 'r1')
+    expect((await s.get(a.id))?.held).toBe(true)
+    await s.dropTask(a.id, 't2')
+    expect((await s.get(a.id))?.held).toBeUndefined()
+    expect((await s.takeTask(a.id)).task?.id).toBe('r2')
   })
 
   it('renameAgent moves a member meter to the new name', async () => {

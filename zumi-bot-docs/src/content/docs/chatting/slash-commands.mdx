@@ -46,6 +46,12 @@ A command with a ☑ mark makes to-dos: using it also asks the agent to put its 
 
 If you type a `/name` that no command has, it is sent as typed.
 
+## Commands from the agent's engine
+
+In a single chat (and on the new-chat screen), the menu also lists what the agent's own engine can run. A Claude agent shows its Claude Code commands: skills, plugin commands, your own commands and the built-ins that do something, such as `/goal`. A Codex agent shows its Codex skills. The menu lists your agent's own commands first, then ZumiBot's (`/btw`, `/todo`, `/run-workflow`), then the engine's skills, labelled `skill`, then the engine's other commands, labelled `claude` or `codex`. Pick one and send it like any other command; a Claude Code command is sent exactly as you typed it, and ZumiBot sends a Codex skill as `$name`.
+
+Built-ins that only open a screen or change a setting, such as `/model` and `/usage`, are left out, since ZumiBot has its own controls for those. So are commands that hand the work to the other engine, such as a Claude Code plugin's `/codex:rescue`: a Claude chat lists only Claude's commands, and a Codex chat only Codex's. If you type the name yourself and the agent has its own command with it, the agent's command runs; pick the engine row from the menu to run the engine's. Group rooms do not list these. The list can take a few seconds the first time for a folder, and refreshes in the background.
+
 ## Make your own command
 
 You add commands to an agent. Open it with **Edit agent** in its sidebar menu, then find the **Commands** card.
@@ -63,6 +69,7 @@ Then save the agent. For example, a command named `explain` with the prompt "Exp
 - A command that names a model sets it only when it starts a chat, or when it asks for a stronger one than the chat has. A model you picked by hand always wins. See [Mode, effort and model](/chatting/mode-effort-model/).
 - The saved prompt is the one the agent had when you sent the message. Editing the command later does not change old messages.
 - Only the command's own agent reads its full prompt. Other agents in a room see the short form you typed.
+- A Claude Code command only runs when it is the first thing in the message. When the earlier session cannot be reused (after an engine switch, or when the session expired or has to be rebuilt), the history is sent first and the command is read as plain text.
 - If the menu does not show your new command, check the Commands card for a message under the command, such as a name that is already used.
 
 ## Related

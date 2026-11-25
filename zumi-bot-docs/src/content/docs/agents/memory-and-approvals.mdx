@@ -70,13 +70,15 @@ The **Remembered approvals** card in Agent Studio lists every answer you saved f
 
 1. **Open the agent** in Agent Studio and find the **Remembered approvals** card, under Memory.
 
-2. **Read the rows.** A row such as "Bash: npm test" allows only that exact command. A row with just a tool name, such as "Edit", allows any call to that tool. A row such as "Bash: commands starting with git branch -D" comes from **Allow and continue** on the card for a command Auto mode refused, with **Always for** this agent chosen, and allows any command that starts that way. See [When Auto mode refuses a command](/chatting/approvals-questions-plans/#when-auto-mode-refuses-a-command).
+2. **Read the rows.** A row such as "Bash: npm test" allows only that exact command. A row with just a tool name, such as "Edit", allows any call to that tool. A row such as "Bash: commands starting with git branch -D" comes from **Allow and continue** on the card for a command Auto mode refused, with **Always for** this agent chosen, and allows any command that starts that way. A row such as "Read: files in /home/you/other-repo" comes from the same card when you allowed a folder, and lets the agent read that folder and change into it. See [When Auto mode refuses a command](/chatting/approvals-questions-plans/#when-auto-mode-refuses-a-command).
 
 3. **Take one back.** Choose the × at the end of the row. It goes at once, and the agent asks again the next time.
 
+4. **Add one yourself.** Under the rows, pick **Bash commands starting with** and type the start of a command, such as `gh pr merge`, or pick **Folder it may read and cd into** and type a full folder path, such as `/home/you/other-repo`. The card shows the rule it will make, then choose **Add**. These are the same rules **Allow and continue** makes, so they apply in **Auto**, **Ask permissions** and **Accept edits**, never in **Plan mode**. A start that names a shell or wrapper, or `git` with no subcommand, is refused, and so are your home folder and a folder near the top of the disk.
+
 </Steps>
 
-With no rules, the card says "No remembered approvals. Use "Allow always for this agent" on an approval card."
+With no rules, the card says "No remembered approvals. Use "Allow always for this agent" on an approval card, or add a rule below."
 
 ### Tips and limits
 

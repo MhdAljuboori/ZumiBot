@@ -17,6 +17,14 @@ describe('sentTexts', () => {
   })
 })
 
+describe('sentTexts and run messages', () => {
+  it('run messages are not in history', () => {
+    const run: ChatItem = { type: 'user', id: 'r', text: 'ran ls', ts: 1, run: { processId: 'p' } }
+    const queuedRun: QueuedTask = { id: 'q', text: 'ran pwd', ts: 1, run: { processId: 'p2' } }
+    expect(sentTexts([user('1', 'typed'), run], [queuedRun, task('t', 'queued')])).toEqual(['typed', 'queued'])
+  })
+})
+
 describe('older and newer', () => {
   const history = ['one', 'two', 'three']
 

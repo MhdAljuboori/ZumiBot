@@ -4,6 +4,7 @@ import { capRefusal, engineCaps, ENGINES, roomRefusal, todoRefusal, type Engine,
 import { displayName } from '@zumibot/shared/frontmatter'
 import { findMentions, mentionsEveryone, stripMentions } from '@zumibot/shared/mentions'
 import { RESUME_TEXT } from '@zumibot/shared/pause'
+import type { RunMark } from '@zumibot/shared/runBlocks'
 import {
   GROUP_HOP_CAP,
   GROUP_MIN_MEMBERS,
@@ -81,6 +82,7 @@ type GroupMeta = ChatMeta & { group: GroupInfo }
  * restore: Resume's message: what the room saved when it paused; its waiting turns are queued again once it is routed.
  */
 // material: a workflow Chat step's message, whose <input> blocks hold untrusted text that never addresses a member.
+// run: a Run result, whose first line is its author's @mention and the rest the command's output (see routedText).
 interface InboxEntry {
   text: string
   speaker: string | null
@@ -89,7 +91,13 @@ interface InboxEntry {
   commandAgent?: string
   restore?: PausedRoom
   material?: true
+  run?: true
 }
+
+// What of a user message may address members: a Run result's first line only (`@author`), since its output is material
+// (a log line may say @everyone); a workflow's <input> blocks never do.
+const routedText = (text: string, run: boolean, material: boolean): string =>
+  run ? text.split('\n', 1)[0]! : material ? maskInputBlocks(text) : text
 
 /** A member's turn in progress. */
 interface Work {
@@ -304,6 +312,7 @@ export class GroupService {
   /** command: the resolved command the text starts with; its agent reads the prompt and counts as mentioned. */
   /** todo: the text began with /todo or used a command that makes to-dos; every member that answers it is asked for a list. */
   /** auto: no one typed the message (a routine's or workflow's); the room's member turns are unattended until the user types into it. */
+  /** run: the message is the agent's copy of a Run's result: stored with the mark, and it never titles the room. */
   send(
     chatId: string,
     text: string,
@@ -313,9 +322,10 @@ export class GroupService {
     command?: SentCommand,
     todo?: true,
     workflowSent?: WorkflowSent,
-    auto?: true
+    auto?: true,
+    run?: RunMark
   ): Promise<void> {
-    return this.serial(chatId, () => this.post(chatId, text, attachments, replyTo, messageId, command, todo, workflowSent, auto))
+    return this.serial(chatId, () => this.post(chatId, text, attachments, replyTo, messageId, command, todo, workflowSent, auto, undefined, run))
   }
 
   /**
@@ -451,7 +461,8 @@ export class GroupService {
     todo: true | undefined,
     workflowSent: WorkflowSent | undefined,
     auto: true | undefined,
-    resume?: { saved: PausedRoom; since: number }
+    resume?: { saved: PausedRoom; since: number },
+    run?: RunMark
   ): Promise<void> {
     const { store, push, now, newId } = this.d
     if (text.trim() === '' && attachments.length === 0) throw new Error('Message is empty')
@@ -489,10 +500,11 @@ export class GroupService {
       ...(quoted ? { replyTo: quoted } : {}),
       ...(command ? { command } : {}),
       ...(todo ? { todo } : {}),
-      ...(workflowSent ? { workflowSent } : {})
+      ...(workflowSent ? { workflowSent } : {}),
+      ...(run ? { run } : {})
     }
     // A workflow room's (or a workflow-sent message's) <input> blocks are material, so an @mention inside one neither routes nor gets a notice.
-    const missing = findMentions(meta.workflow || workflowSent ? maskInputBlocks(text) : text, members).filter(
+    const missing = findMentions(routedText(text, run !== undefined, !!(meta.workflow || workflowSent)), members).filter(
       (n) => loadable(agents, n) === undefined
     )
     room.ref.set([...room.ref.get(), user, ...missing.map((n) => this.unavailable(n))])
@@ -504,12 +516,14 @@ export class GroupService {
       ...(quoted ? { replyTo: quoted } : {}),
       ...(command ? { commandAgent: command.agent } : {}),
       ...(restore ? { restore } : {}),
-      ...(workflowSent ? { material: true as const } : {})
+      ...(workflowSent ? { material: true as const } : {}),
+      ...(run ? { run: true as const } : {})
     }
     if (restore) room.unrestored.add(entry)
     const saved = this.enter(chatId, room, fresh, entry)
     await saved
-    if (meta.title === '') {
+    // A Run's result never titles the room: the user did not write it.
+    if (meta.title === '' && !run) {
       const title = makeTitle(stripMentions(text, members) || attachments[0]?.name || '')
       if (title !== '') push({ chatId, kind: 'meta', meta: await store.update(chatId, { title }) })
     }
@@ -1154,7 +1168,7 @@ export class GroupService {
       // A command picks its agent as an @mention would, so only the user's entries carry one.
       const owner = speaker === null && entry.commandAgent !== undefined && members.includes(entry.commandAgent) ? [entry.commandAgent] : []
       // In a workflow room the message holds webhook text in <input> blocks: material, never an address.
-      const text = meta.workflow || entry.material ? maskInputBlocks(entry.text) : entry.text
+      const text = routedText(entry.text, entry.run === true, !!(meta.workflow || entry.material))
       const all = [...new Set([...owner, ...findMentions(text, members)])]
       // Only the user can address everyone; an agent's @everyone is plain text.
       const everyone = speaker === null && mentionsEveryone(text)

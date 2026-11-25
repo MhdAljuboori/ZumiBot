@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import { join } from 'node:path'
+import { RUN_REFUSALS } from '@zumibot/shared/runBlocks'
+import { homeAsFolder } from '@zumibot/shared/allowRules'
 import { createHandlers, type HandlerDeps, type Handlers } from '../../src/rpc/handlers'
 import { HistoryStore } from '../../src/core/history/historyStore'
 import type { RoutineDef, VersionSummary, WorkflowDef } from '@zumibot/shared/definitionHistory'
@@ -89,6 +91,7 @@ let store: ChatStore
 let settings: SettingsStore
 let sidebar: SidebarStore
 let told: SidebarLayout[]
+let repliesTold: boolean[]
 let approvals: ApprovalStore
 let approvalsTold: string[]
 let saveResult: unknown
@@ -166,6 +169,7 @@ beforeEach(async () => {
   settings = new SettingsStore(dir)
   sidebar = new SidebarStore(dir)
   told = []
+  repliesTold = []
   approvals = new ApprovalStore(dir)
   approvalsTold = []
   saveResult = { ok: true, name: 'new', renamedFrom: 'old' }
@@ -361,6 +365,7 @@ beforeEach(async () => {
     settings,
     sidebar,
     sidebarChanged: (l) => told.push(l),
+    suggestedRepliesChanged: (on) => repliesTold.push(on),
     chatService: svc,
     groupService: { renameAgent: () => {} } as unknown as HandlerDeps['groupService'],
     tasks,
@@ -449,6 +454,7 @@ const KEPT = [
   'agents:acpLaunch',
   'agents:testAgui',
   'agents:aguiLaunch',
+  'agents:engineCommands',
   'chats:list',
   'chats:create',
   'chats:createVoice',
@@ -504,6 +510,8 @@ const KEPT = [
   'app:setAccent',
   'app:getHouseStyle',
   'app:setHouseStyle',
+  'app:getSuggestedReplies',
+  'app:setSuggestedReplies',
   'app:getKeepWarm',
   'app:setKeepWarm',
   'app:setTimeZone',
@@ -517,6 +525,7 @@ const KEPT = [
   'sidebar:save',
   'approvals:list',
   'approvals:remove',
+  'approvals:addCli',
   'memory:list',
   'memory:save',
   'memory:remove',
@@ -558,6 +567,7 @@ const KEPT = [
   'processes:stop',
   'processes:restart',
   'processes:forget',
+  'processes:run',
   'processes:counts',
   'routines:list',
   'routines:save',
@@ -1006,6 +1016,25 @@ describe('createHandlers', () => {
     await expect(h['approvals:list'](5)).rejects.toThrow(/agentName must be a string/)
     await expect(h['approvals:remove'](5, 'k')).rejects.toThrow(/agentName must be a string/)
     await expect(h['approvals:remove']('a', 5)).rejects.toThrow(/key must be a string/)
+  })
+
+  it('approvals:addCli stores a prefix or folder rule as a CLI rule and refuses anything else', async () => {
+    const listed = await h['approvals:addCli']('a', 'prefix', ' gh pr merge ')
+    expect(listed).toEqual([{ key: JSON.stringify(['cli', 'Bash(gh pr merge:*)']), toolName: 'Bash', command: null, cli: 'Bash(gh pr merge:*)' }])
+    await h['approvals:addCli']('a', 'folder', '/work/repo')
+    expect(approvals.cliRules('a')).toEqual(['Bash(gh pr merge:*)', 'Read(//work/repo/**)'])
+    expect(approvals.list('a')[1].toolName).toBe('Read')
+    expect(approvalsTold).toEqual(['a', 'a'])
+    await expect(h['approvals:addCli'](5, 'prefix', 'x')).rejects.toThrow(/agentName must be a string/)
+    await expect(h['approvals:addCli']('a', 'any', 'x')).rejects.toThrow(/kind must be/)
+    await expect(h['approvals:addCli']('a', 'prefix', 5)).rejects.toThrow(/value must be a string/)
+    await expect(h['approvals:addCli']('a', 'prefix', 'bash -c')).rejects.toThrow(/Auto ignores/)
+    // As a rule names it: on Windows C:\Users\me is /c/Users/me.
+    await expect(h['approvals:addCli']('a', 'folder', homeAsFolder(os.homedir()))).rejects.toThrow(/home folder/)
+    await expect(h['approvals:addCli']('a', 'folder', '/etc')).rejects.toThrow(/narrower/)
+    await expect(h['approvals:addCli']('zumi-bot', 'prefix', 'gh pr view')).rejects.toThrow(/Zumi Bot/)
+    expect(approvals.cliRules('a')).toHaveLength(2)
+    expect(approvalsTold).toEqual(['a', 'a'])
   })
 
   describe('agents:save and launch trust (ACP)', () => {
@@ -1489,6 +1518,16 @@ describe('createHandlers', () => {
     expect((await settings.get()).houseStyle).toBe(false)
   })
 
+  it('app:setSuggestedReplies saves a boolean, tells every tab, and rejects anything else', async () => {
+    expect(await h['app:getSuggestedReplies']()).toBe(true)
+    expect(await h['app:setSuggestedReplies'](false)).toBe(false)
+    expect(await h['app:getSuggestedReplies']()).toBe(false)
+    expect(repliesTold).toEqual([false])
+    await expect(h['app:setSuggestedReplies']('true')).rejects.toThrow(/on must be a boolean/)
+    expect(repliesTold).toEqual([false])
+    expect((await settings.get()).suggestedReplies).toBe(false)
+  })
+
   it('app:setAccent saves one of the color themes and rejects anything else', async () => {
     expect(await h['app:getAccent']()).toBe('blue')
     expect(await h['app:setAccent']('graphite')).toBe('graphite')
@@ -1807,6 +1846,21 @@ describe('createHandlers', () => {
     await p
   })
 
+  it('processes:run checks its arguments, then runs only a block of that stored message as its author', async () => {
+    const c = await store.create('helper', dir)
+    await store.saveItems(c.id, [{ type: 'assistant', id: 'a1', text: '```bash\nls\n```', ts: 5 }] as ChatItem[])
+    const run = vi.fn(async () => ({ id: 'p_0000000001' }))
+    const hp = createHandlers({ ...handlerDeps, processes: { run } as unknown as HandlerDeps['processes'] })
+    await expect(hp['processes:run'](c.id, 'a1', 7)).rejects.toThrow(TypeError)
+    await expect(hp['processes:run'](c.id, 'bad id!', 'ls')).rejects.toThrow(/messageId/)
+    await expect(hp['processes:run'](c.id, null, 'ls')).rejects.toThrow(/messageId/)
+    await expect(hp['processes:run'](9, 'a1', 'ls')).rejects.toThrow(TypeError)
+    await expect(hp['processes:run'](c.id, 'a1', 'rm -rf /')).rejects.toThrow(RUN_REFUSALS.notBlock)
+    expect(run).not.toHaveBeenCalled()
+    await hp['processes:run'](c.id, 'a1', 'ls')
+    expect(run).toHaveBeenCalledWith(c.id, 'helper', 'a1', 'ls')
+  })
+
   it('chats:send stores the message under the id the client picked; a malformed id is refused before anything runs', async () => {
     const c = await store.create('helper', dir)
     await expect(h['chats:send'](c.id, 'go', null, null, 'bad id!')).rejects.toThrow(/messageId/)
@@ -1932,6 +1986,21 @@ describe('createHandlers', () => {
     expect(submit).not.toHaveBeenCalled()
     await h['chats:send']('c1', 'plain', null, null, null, null)
     expect(forSend).toHaveBeenLastCalledWith('c1', 'plain', undefined)
+  })
+
+  it('chats:send passes an engine pick on and refuses any other engine value', async () => {
+    const submit = vi.spyOn(tasks, 'submit').mockResolvedValue('sent')
+    for (const engine of ['claude', 'codex'] as const) {
+      await h['chats:send']('c1', '/goal x', null, null, null, { agent: 'a', name: 'goal', engine })
+      expect(forSend).toHaveBeenLastCalledWith('c1', '/goal x', { agent: 'a', name: 'goal', engine })
+    }
+    await h['chats:send']('c1', '/check', null, null, null, { agent: 'a', name: 'check' })
+    expect(forSend).toHaveBeenLastCalledWith('c1', '/check', { agent: 'a', name: 'check' })
+    submit.mockClear()
+    for (const engine of ['gemini', 1, null, true]) {
+      await expect(h['chats:send']('c1', '/goal x', null, null, null, { agent: 'a', name: 'goal', engine })).rejects.toThrow('Invalid command')
+    }
+    expect(submit).not.toHaveBeenCalled()
   })
 
   describe("/todo and an agent without ZumiBot's tools", () => {
@@ -2185,9 +2254,14 @@ describe('createHandlers', () => {
     await expect(h['chats:allowBlocked']('c1', 7, ['git status'], 'chat')).rejects.toThrow(TypeError)
     await expect(h['chats:allowBlocked']('c1', 't1', 'git status', 'chat')).rejects.toThrow(TypeError)
     await expect(h['chats:allowBlocked']('c1', 't1', ['git status'], 'all')).rejects.toThrow(TypeError)
+    await expect(h['chats:allowBlocked']('c1', 't1', ['git status'], 'chat', '/a/b')).rejects.toThrow(/folders must be/)
+    await expect(h['chats:allowBlocked']('c1', 't1', ['git status'], 'chat', [3])).rejects.toThrow(/folders must be/)
     expect(allow).not.toHaveBeenCalled()
     expect(await h['chats:allowBlocked']('c1', 't1', ['git status'], 'agent')).toEqual({ rules: ['Bash(git status:*)'], text: 'go' })
-    expect(allow).toHaveBeenCalledWith('c1', 't1', ['git status'], 'agent')
+    // An older page sends no folders.
+    expect(allow).toHaveBeenCalledWith('c1', 't1', ['git status'], 'agent', [])
+    await h['chats:allowBlocked']('c1', 't1', [], 'chat', ['/a/b'])
+    expect(allow).toHaveBeenLastCalledWith('c1', 't1', [], 'chat', ['/a/b'])
     expect(approvalsTold.at(-1)).toBe('helper')
   })
 

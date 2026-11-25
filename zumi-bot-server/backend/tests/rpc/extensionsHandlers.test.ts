@@ -52,8 +52,19 @@ beforeEach(() => {
     ])
   )
   h = createHandlers({
+    home: dir,
     extensions: {
       ...service,
+      engineCommands: async (...args: unknown[]) => {
+        calls.push(['engineCommands', args])
+        return {
+          engine: 'codex',
+          rows: [
+            { name: 'pdf', description: 'Pdf', path: '/skills/pdf/SKILL.md', kind: 'skill' },
+            { name: 'review', description: 'Review', hint: '[pr]', kind: 'command' }
+          ]
+        }
+      },
       forget: () => {
         forgot++
       }
@@ -97,6 +108,24 @@ describe('extensions handlers', () => {
     for (const a of ['nobody', 'broken', 5])
       await expect(h['extensions:loadout'](folder, a, false), String(a)).rejects.toThrow(EXT_TEXT.notFound)
     await expect(h['extensions:loadout'](folder, null, 'yes')).rejects.toThrow(TypeError)
+  })
+
+  it('agents:engineCommands checks the agent and folder, defaults to home and never sends a path', async () => {
+    const answer = {
+      engine: 'codex',
+      commands: [
+        { name: 'pdf', description: 'Pdf', kind: 'skill' },
+        { name: 'review', description: 'Review', hint: '[pr]', kind: 'command' }
+      ]
+    }
+    expect(await h['agents:engineCommands']('dev', folder)).toEqual(answer)
+    expect(lastCall()).toEqual(['engineCommands', [folder, 'dev']])
+    await h['agents:engineCommands']('zumi-bot', null)
+    expect(lastCall()).toEqual(['engineCommands', [dir, 'zumi-bot']])
+    for (const a of ['nobody', 'broken']) await expect(h['agents:engineCommands'](a, folder), a).rejects.toThrow(EXT_TEXT.notFound)
+    await expect(h['agents:engineCommands'](5, folder)).rejects.toThrow(TypeError)
+    await expect(h['agents:engineCommands']('dev', 'relative')).rejects.toThrow(EXT_TEXT.badFolder)
+    expect(JSON.stringify(await h['agents:engineCommands']('dev', folder))).not.toContain('SKILL.md')
   })
 
   it('refuses server names outside the set, a leading dash and zumibot_ names', async () => {

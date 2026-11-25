@@ -9,9 +9,11 @@ import { ChatService, NOTHING_TO_COMPACT, type ChatServiceDeps } from '../../src
 import type { BrowserHandoff, BrowserOwner } from '../../src/core/browser/types'
 import { HOUSE_STYLE } from '../../src/core/chat/houseStyle'
 import { TODO_REQUEST, TODO_SYSTEM } from '../../src/core/todos/todoPrompt'
+import { RUN_SYSTEM } from '../../src/core/processes/processPrompt'
 import { TodoService } from '../../src/core/todos/todoService'
 import { DispatchService } from '../../src/core/dispatch/dispatchService'
 import { lostNote } from '@zumibot/shared/pause'
+import { runResultText } from '@zumibot/shared/runBlocks'
 import { GroupService } from '../../src/core/chat/groupService'
 import { TaskQueue, type TaskQueueDeps } from '../../src/core/chat/taskQueue'
 import { ChatTmp } from '../../src/core/chat/chatTmp'
@@ -1106,7 +1108,9 @@ describe('GroupService room loop', () => {
       { name: 'wk', description: 'wk role' }
     ]
     // Joined as the side base joins it (app.ts), so a /btw side run shares the main turn's cache prefix.
-    expect(argAfter(calls[0].args, '--append-system-prompt')).toBe(`${workflowSystem('WF')}\n\n${buildBriefing('ui', members, dir, '')}`)
+    expect(argAfter(calls[0].args, '--append-system-prompt')).toBe(
+      `${workflowSystem('WF')}\n\n${buildBriefing('ui', members, dir, '')}\n\n${RUN_SYSTEM}`
+    )
     expect(ends.some((e) => e.chatId === c.id)).toBe(true)
     expect(ends.filter((e) => e.chatId === c.id).every((e) => e.workflow === true)).toBe(true)
   })
@@ -1125,7 +1129,9 @@ describe('GroupService room loop', () => {
       { name: 'ui', description: 'ui role' },
       { name: 'wk', description: 'wk role' }
     ]
-    expect(argAfter(calls[0].args, '--append-system-prompt')).toBe(`${workflowSystem('WF')}\n\n${buildBriefing('ui', members, dir, '')}`)
+    expect(argAfter(calls[0].args, '--append-system-prompt')).toBe(
+      `${workflowSystem('WF')}\n\n${buildBriefing('ui', members, dir, '')}\n\n${RUN_SYSTEM}`
+    )
     const mine = ends.filter((e) => e.chatId === c.id)
     expect(mine.length).toBeGreaterThan(0)
     expect(mine.every((e) => e.workflow === undefined)).toBe(true)
@@ -1196,7 +1202,7 @@ describe('GroupService room loop', () => {
       { name: 'ui', description: 'ui role' },
       { name: 'wk', description: 'wk role' }
     ]
-    expect(argAfter(calls[0].args, '--append-system-prompt')).toBe(buildBriefing('ui', members, dir, ''))
+    expect(argAfter(calls[0].args, '--append-system-prompt')).toBe(`${buildBriefing('ui', members, dir, '')}\n\n${RUN_SYSTEM}`)
     expect(ends.some((e) => e.chatId === c.id)).toBe(true)
     expect(ends.every((e) => e.workflow === undefined)).toBe(true)
   })
@@ -1418,8 +1424,9 @@ describe('GroupService room loop', () => {
     const args = calls[0].args
     expect(args.filter((a) => a === '--append-system-prompt')).toHaveLength(1)
     const system = argAfter(args, '--append-system-prompt')
-    expect(system.endsWith(HOUSE_STYLE)).toBe(true)
+    expect(system.endsWith(RUN_SYSTEM)).toBe(true)
     expect(system.indexOf('You are @ui')).toBeLessThan(system.indexOf(HOUSE_STYLE))
+    expect(system.indexOf(HOUSE_STYLE)).toBeLessThan(system.indexOf(RUN_SYSTEM))
     expect(args.filter((a) => a === '--system-prompt-snapshot')).toHaveLength(1)
   })
 
@@ -3654,6 +3661,41 @@ describe('GroupService to-dos', () => {
   })
 })
 
+describe('GroupService run messages', () => {
+  it('room run item keeps its mark', async () => {
+    const run = { processId: 'p_0000000001' }
+    const c = await group(['ui', 'wk'])
+    modAnswers = [none()]
+    await svc.send(c.id, '@ui the run ended', [], undefined, undefined, undefined, undefined, undefined, undefined, run)
+    await idle(c.id)
+    expect(calls.map(agentOf)).toEqual(['ui'])
+    const user = (await store.loadItems(c.id)).find((i) => i.type === 'user')
+    expect(user).toMatchObject({ text: '@ui the run ended', run })
+    expect(user).not.toHaveProperty('workflowSent')
+    // A run's text never titles the room.
+    expect((await metaOf(c.id)).title).toBe('')
+  })
+
+  it("routes a run result on its first line only: the output's @mentions and @everyone are material", async () => {
+    const run = { processId: 'p_0000000001' }
+    const c = await group(['ui', 'wk'])
+    modAnswers = [none()]
+    const text = runResultText({
+      command: 'git log -1',
+      output: 'ping @wk @everyone, ask @ghost\n',
+      cut: false,
+      end: { kind: 'exit', code: 0 },
+      mention: 'ui'
+    })
+    await svc.send(c.id, text, [], undefined, undefined, undefined, undefined, undefined, undefined, run)
+    await idle(c.id)
+    expect(calls.map(agentOf)).toEqual(['ui'])
+    expect(modInputs[0]).toMatchObject({ everyone: false, mentioned: ['ui'] })
+    // A missing member named in the output gets no notice either.
+    expect((await store.loadItems(c.id)).some((i) => i.type === 'notice')).toBe(false)
+  })
+})
+
 describe('GroupService unattended rooms', () => {
   const sendAuto = (chatId: string, text: string) => svc.send(chatId, text, [], undefined, undefined, undefined, undefined, undefined, true)
   const turns = () => vi.spyOn(chats, 'agentTurn')
@@ -4556,7 +4598,7 @@ describe('GroupService with Codex members', () => {
     expect(codexCalls).toHaveLength(1)
     const o = codexCalls[0]
     expect(o).toMatchObject({ bin: '/bin/codex', cwd: dir, start: { kind: 'new' } })
-    expect(o.thread.baseInstructions).toBe([DEF.body, briefingOf('cx', ['ui', 'cx'])].join('\n\n'))
+    expect(o.thread.baseInstructions).toBe([DEF.body, briefingOf('cx', ['ui', 'cx']), RUN_SYSTEM].join('\n\n'))
     expect(promptOf(o)).toContain('hello')
     const g = (await metaOf(c.id)).group
     expect(g.sessions).toEqual({ ui: 's-ui', cx: 'th-1' })
@@ -4730,7 +4772,7 @@ describe('GroupService with Codex members', () => {
     expect(o.subagents).toBe(true)
     expect(o.thread.mcpServers.map((s) => s.name)).toEqual(['zumibot_todos'])
     expect(o.env).not.toHaveProperty('ZUMIBOT_ASKS_CAPABILITY')
-    expect(o.thread.baseInstructions).toBe([DEF.body, briefingOf('cx', ['ui', 'cx']), TODO_SYSTEM].join('\n\n'))
+    expect(o.thread.baseInstructions).toBe([DEF.body, briefingOf('cx', ['ui', 'cx']), TODO_SYSTEM, RUN_SYSTEM].join('\n\n'))
     expect(o.thread.baseInstructions).not.toContain('@b')
   })
 
@@ -4831,7 +4873,7 @@ describe('GroupService with Codex members', () => {
         .filter(Boolean)
         .map((l) => JSON.parse(l) as { method: string; params: any })
     const start = sent().find((l) => l.method === 'thread/start')!
-    expect(start.params.baseInstructions).toBe([DEF.body, briefingOf('cx', ['ui', 'cx'])].join('\n\n'))
+    expect(start.params.baseInstructions).toBe([DEF.body, briefingOf('cx', ['ui', 'cx']), RUN_SYSTEM].join('\n\n'))
     const g = (await metaOf(c.id)).group
     expect(g.sessions.cx).toBe(sent().find((l) => l.method === 'turn/start')!.params.threadId)
     expect(g.sessionEngines).toEqual({ cx: 'codex' })
@@ -4954,7 +4996,7 @@ describe('GroupService with an ACP member', () => {
     expect(acpCalls[0]).toMatchObject({ bin: process.execPath, args: [FAKE], cwd: dir, start: { kind: 'new' } })
     const briefing = briefingOf('gm', ['ui', 'gm'])
     // The agent's body, then the room briefing: as Claude's append and Codex's baseInstructions order them.
-    expect(acpCalls[0].systemPrompt).toBe([BODY, briefing].join('\n\n'))
+    expect(acpCalls[0].systemPrompt).toBe([BODY, briefing, RUN_SYSTEM].join('\n\n'))
     // This fake takes no systemPrompt, so the whole of it leads the first prompt as the preamble.
     const first = sent('session/prompt')[0].params.prompt as { type: string; text: string }[]
     expect(first[0].text).toContain(BODY)
@@ -5022,7 +5064,7 @@ describe('GroupService with an ACP member', () => {
     await svc.send(c.id, 'hello')
     await idleLong(c.id)
     const sys = sent('session/new')[0].params.systemPrompt
-    expect(sys.content[0].text).toBe([BODY, briefingOf('gm', ['ui', 'gm'])].join('\n\n'))
+    expect(sys.content[0].text).toBe([BODY, briefingOf('gm', ['ui', 'gm']), RUN_SYSTEM].join('\n\n'))
     const prompt = sent('session/prompt')[0].params.prompt as { text: string }[]
     expect(prompt.map((b) => b.text).join('\n')).not.toContain(BODY)
   }, 30_000)

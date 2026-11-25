@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // A deterministic Claude stand-in for "Allow a refused call and continue" (allowBlocked.e2e.mjs). A run with no --resume is the
 // first turn: a Bash call the auto-mode classifier refuses (permission_denied, the error tool_result and the result's
-// permission_denials, as the real CLI orders them). A resumed run appends its argv to FAKE_ARGV_FILE, one JSON line each, and
-// replies "ok". No model, quota or personal HOME is used.
+// permission_denials, as the real CLI orders them). A first message that says "merge" refuses `cd $FAKE_OUTSIDE && gh pr merge
+// 1 --merge` instead, a cd into a folder outside the chat's; one that says "heredoc" refuses a `python3` heredoc followed by
+// `gh pr merge`, a part no rule can allow. A resumed run appends its argv to FAKE_ARGV_FILE, one JSON line each, and replies
+// "ok". No model, quota or personal HOME is used.
 import { appendFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 
@@ -19,6 +21,7 @@ if (argv.join(' ') === '-p --thinking-display summarized') {
 }
 
 const COMMAND = 'cd /tmp && git branch -D old-branch'
+const HEREDOC = "python3 - <<'EOF' > /tmp/body.json\nprint('{}')\nEOF\ngh pr merge 1 --merge"
 const TOOL_ID = 'toolu_allow_e2e'
 const emit = (m) => process.stdout.write(JSON.stringify(m) + '\n')
 const session = randomUUID()
@@ -37,6 +40,9 @@ process.stdin.on('end', () => process.exit(0))
 setTimeout(() => process.exit(13), 15_000).unref()
 
 function run() {
+  const merge = process.env.FAKE_OUTSIDE && buffered.includes('merge')
+  const heredoc = buffered.includes('heredoc')
+  const command = merge ? `cd ${process.env.FAKE_OUTSIDE} && gh pr merge 1 --merge` : heredoc ? HEREDOC : COMMAND
   emit({ type: 'system', subtype: 'init', session_id: session, cwd: process.cwd(), model: 'claude-haiku-5-5', permissionMode: 'auto' })
   if (resumed) {
     if (process.env.FAKE_ARGV_FILE) appendFileSync(process.env.FAKE_ARGV_FILE, JSON.stringify(argv) + '\n')
@@ -44,7 +50,7 @@ function run() {
     emit({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, session_id: session, result: 'ok', total_cost_usd: 0, permission_denials: [] })
     return
   }
-  const input = { command: COMMAND, description: 'Delete the old branch' }
+  const input = { command, description: merge ? 'Merge the pull request' : 'Delete the old branch' }
   emit({
     type: 'assistant',
     message: { id: 'msg_tool', role: 'assistant', content: [{ type: 'tool_use', id: TOOL_ID, name: 'Bash', input }] },

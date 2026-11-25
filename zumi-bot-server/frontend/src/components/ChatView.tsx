@@ -3,6 +3,8 @@ import type { ApprovalReply } from '../state/approvals'
 import type { ChatViewState } from '../state/chatView'
 import type { DraftFiles } from '../state/draftFiles'
 import { isSending, type PendingSend } from '../state/pendingSends'
+import { replyOptionsOf } from '../state/replyOptions'
+import { useSuggestedRepliesOn } from '../useSuggestedReplies'
 import { sentTexts } from '../state/promptHistory'
 import {
   GROUP_LABEL,
@@ -21,6 +23,7 @@ import { chatEngine, type CodexInfo } from '@zumibot/shared/engine'
 import { isChatMode, isEffort, type ChatMode, type Effort } from '@zumibot/shared/chatRun'
 import { pauseControl } from '../state/pause'
 import { TRAYS_KEY, tasksHeld, type TrayName } from '../state/tasks'
+import { visibleTasks } from '../state/runBlocks'
 import { newLineItem, sinceOnChange, sinceOnOpen } from '../state/unread'
 import { useDismiss } from '../useDismiss'
 import { useFitInViewport } from '../useFitInViewport'
@@ -62,9 +65,11 @@ import { RoleChip } from './RoleMenu'
 import { ProcessMark, SidePanelToggle } from './SidePanelMenu'
 import { useNarrow } from '../media'
 import { useFitRow } from '../useFitRow'
+import { useEngineCommands } from '../net/useEngineCommands'
 import { coldNoticeShown } from '../state/contextMeter'
 import { chatCaps, cliMissing, missingFeaturesTitle, roomMissingFeaturesTitle } from '../state/agentEngine'
 import { TasksTray } from './TasksTray'
+import { ReplyOptions } from './ReplyOptions'
 import { PausingLine } from './PausingLine'
 
 interface Props {
@@ -489,6 +494,16 @@ export function ChatView({
   const reply = replied ? { id: replied.id, agent: findAgent(agents, author) ?? missingAgent(author), text: replied.text } : null
   // A single chat runs from the moment its message is sent, not from when the server says so: no gap to see.
   const running = chat.inFlight || (!chat.group && isSending(pending))
+  const repliesOn = useSuggestedRepliesOn()
+  // A room's send is pending until the server says it runs: counted here so a clicked option hides at once there too.
+  const offered = replyOptionsOf({
+    on: repliesOn,
+    suggested: chat.suggested,
+    lastItemId: state.items.at(-1)?.id ?? null,
+    running: running || isSending(pending),
+    draftEmpty: draft.trim() === '' && files.files.length === 0 && replyTo === null
+  })
+  const suggestion = offered && 'placeholder' in offered ? offered.placeholder : undefined
   const failed = Object.fromEntries(pending.flatMap((p) => (p.error === null ? [] : [[p.item.id, p.error]])))
   const history = sentTexts([...state.items, ...pending.map((p) => p.item)], chat.tasks)
   // Stable references: the Composer repaints its colours whenever these change, and a streaming delta re-renders this view.
@@ -499,6 +514,8 @@ export function ChatView({
     [roomMembers, agents]
   )
   const singleAgents = useMemo(() => (agent ? [agent] : undefined), [agent])
+  // Engine rows only for a single chat's own composer (a room and the island's popup have none).
+  const engineCommands = useEngineCommands(chat.group || compact ? null : chat.agentName, chat.cwd)
   // A single chat's `@` asks another agent: the same list a room uses, without the chat's own agent.
   const selfName = chat.agentName
   const askable = useMemo(() => askableAgents(agents, selfName), [agents, selfName])
@@ -565,13 +582,24 @@ export function ChatView({
   // The page's box has no top bar, nor pickers under its composer (below): the page's own head names the chat.
   const shownTop = compact ? null : top
   // Send now only where the queue holds its tasks (a paused group, or a chat an edit or resend held); everywhere else it sends them itself.
-  const tasksTray = (chat.tasks?.length ?? 0) > 0 && (
+  // A Run's result waiting to go is the agent's, never a row of the user's. Memoized: the tray re-checks focus on a new list.
+  const shownTasks = useMemo(() => visibleTasks(chat.tasks), [chat.tasks])
+  const tasksTray = shownTasks.length > 0 && (
     <TasksTray
-      tasks={chat.tasks ?? []}
+      tasks={shownTasks}
       open={!collapsed.has('tasks')}
       onToggle={() => toggleTray('tasks')}
       onDrop={onDropTask}
       onSend={tasksHeld(chat, state.items) && !offline && cliFound ? sendTask : null}
+    />
+  )
+  const replyButtons = offered && 'buttons' in offered && (
+    <ReplyOptions
+      options={offered.buttons}
+      question={offered.question}
+      summary={offered.summary}
+      disabled={offline || !cliFound}
+      onPick={(text) => send(text)}
     />
   )
 
@@ -632,9 +660,11 @@ export function ChatView({
         {chat.pause === 'pausing' && chat.inFlight && <PausingLine running={runningAgents} />}
         {/* Right over the box: the queued messages read as what goes next from it. */}
         {tasksTray}
+        {replyButtons}
         <Composer
           label={GROUP_LABEL}
           placeholder={GROUP_PLACEHOLDER}
+          suggestion={suggestion}
           draft={draft}
           inFlight={chat.inFlight}
           cliFound={cliFound}
@@ -687,8 +717,10 @@ export function ChatView({
       {cold}
       {chat.pause === 'pausing' && chat.inFlight && <PausingLine running={runningAgents} />}
       {tasksTray}
+      {replyButtons}
       <Composer
         label={`Message ${displayName(agent.name)}`}
+        suggestion={suggestion}
         draft={draft}
         inFlight={running}
         cliFound={cliFound}
@@ -697,6 +729,7 @@ export function ChatView({
         mentionMembers={askable}
         everyone={false}
         commandAgents={singleAgents}
+        engineCommands={engineCommands}
         btw={caps.btw && !compact}
         noBtw={compact ? ISLAND_BTW_NOTICE : undefined}
         runWorkflow={offersRunWorkflow({ compact })}

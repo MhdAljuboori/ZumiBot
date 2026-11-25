@@ -26,6 +26,12 @@ export interface ProcessInfo {
   out: number
   /** The rule that wakes the agent on this process's events (Phase 3), or null. */
   wake: ProcessWake | null
+  /** The user's Run of an agent's block (the message it came from); null for an agent's own process. */
+  run: ProcessRun | null
+}
+
+export interface ProcessRun {
+  messageId: string
 }
 
 export type WakeOn = 'exit' | 'fail' | 'match'

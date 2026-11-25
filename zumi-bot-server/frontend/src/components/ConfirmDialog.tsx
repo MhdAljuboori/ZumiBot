@@ -9,6 +9,8 @@ export interface ConfirmButton {
 interface Props {
   title: string
   message: string
+  /** Exact text shown whole under the message, in monospace (a command with its hidden characters spelled out). */
+  detail?: string
   buttons: ConfirmButton[]
   /** Value of the button to focus first; defaults to the first non-danger button. */
   initialFocus?: string
@@ -16,7 +18,7 @@ interface Props {
   onResolve: (value: string | null) => void
 }
 
-export function ConfirmDialog({ title, message, buttons, initialFocus, onResolve }: Props) {
+export function ConfirmDialog({ title, message, detail, buttons, initialFocus, onResolve }: Props) {
   useEffect(() => {
     // Captured and marked handled, so an Esc that closes the dialog does not also close what it sits on (a card drawer).
     const onKey = (e: KeyboardEvent): void => {
@@ -37,6 +39,7 @@ export function ConfirmDialog({ title, message, buttons, initialFocus, onResolve
           {title}
         </h2>
         <p className="modal-message">{message}</p>
+        {detail !== undefined && <pre className="confirm-detail">{detail}</pre>}
         <div className="modal-buttons">
           {buttons.map((b, i) => (
             <button

@@ -11,17 +11,23 @@
 //      `Bash(git branch -D:*)`. It is reported as RAN or REFUSED; a refused row shows the card's "still refused" state.
 //      A RAN is followed by case d0, the same loop with no rules: if that RAN too, the classifier allows loops unaided and d shows
 //      nothing about rule matching.
+//   e) a `cd` into a folder outside the run's cwd, then a command its prefix rule holds, with `Read(//<folder>/**)`: RUNS with no
+//      can_use_tool (FAIL otherwise). The folder row of the Allow card rests on it. Run in Default mode, where any part no rule
+//      holds asks, so the rules alone decide; the CLI's cwd is a folder beside the repo, which holds only NOTES.md.
+//   e0) information only: the same without the Read rule, ASKED or RAN (RAN: the folder row is no longer needed).
+//   e1) information only: `cd <folder> && git …` with the Read rule and a git prefix rule, ASKED or RAN. The card's git note
+//      ("use git -C") rests on ASKED: the CLI asks about a cd before a version-control command whatever is allowed.
 // The user's own ask rules (`Bash(git *push*--delete*)`) beat allow rules, so the remote branches are deleted with
 // `git push origin :<branch>`, which none of them match. The runs keep the user's settings: with `--setting-sources project,local`
 // the classifier let case a's command run (3 of 3 runs, 0 of 3 without it), so the probe could not tell anything.
 // A verdict is only about the case's own script sent as one Bash call: a model that rewrites it, or a refusal of some other call
 // (`cat NOTES.md`), makes the case INCONCLUSIVE, never a PASS or FAIL.
-// Real claude, Haiku, a few cents of quota. Run directly: node zumi-bot-server/e2e/allowRuleProbe.mjs [--case a|b|c|d|d0].
+// Real claude, Haiku, a few cents of quota. Run directly: node zumi-bot-server/e2e/allowRuleProbe.mjs [--case a|b|c|d|d0|e|e0|e1].
 // Exit 0 PASS, 1 FAILED, 2 INCONCLUSIVE (after one retry per case: no login, the model did not send the command...).
 // `--soft` turns INCONCLUSIVE into exit 0 with a loud warning (npm run e2e passes it); ZUMIBOT_SKIP_ALLOW_PROBE=1 skips it.
 // ZUMIBOT_PROBE_CLAUDE (or CLAUDE_BIN) names the binary.
 import { execFileSync, spawn } from 'node:child_process'
-import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -34,6 +40,10 @@ export const PARTS = ['Bash(git branch -D:*)', 'Bash(git push origin:*)']
 
 /** The scripts and the rules each case passes; `isScript` says whether one of the model's Bash commands is that case's script. */
 const has = (cmd, ...parts) => parts.every((p) => cmd.includes(p))
+const MARKER = 'PROBE-RAN-OK'
+// `tar --version`: on every machine, harmless, and named by its own prefix rule so only the cd part is in question.
+const outsideScript = (repo) => `cd ${repo} && tar --version >/dev/null && echo ${MARKER}`
+const folderRule = (repo) => `Read(/${repo}/**)`
 
 const CASES = {
   a: {
@@ -67,6 +77,27 @@ const CASES = {
     script: () => 'for b in probe-a probe-c; do git branch -D "$b"; done',
     rules: null,
     isScript: (cmd) => has(cmd, 'for ', 'git branch -D')
+  },
+  e: {
+    title: 'cd into a folder outside the cwd, with a Read folder rule (Default mode)',
+    script: outsideScript,
+    rules: (repo) => ['Bash(tar --version:*)', folderRule(repo)],
+    outside: true,
+    isScript: (cmd) => has(cmd, 'cd ', 'tar --version', MARKER)
+  },
+  e0: {
+    title: 'the same with no folder rule (information only)',
+    script: outsideScript,
+    rules: () => ['Bash(tar --version:*)'],
+    outside: true,
+    isScript: (cmd) => has(cmd, 'cd ', 'tar --version', MARKER)
+  },
+  e1: {
+    title: 'cd into a folder outside the cwd, then git, with the folder rule (information only)',
+    script: (repo) => `cd ${repo} && git branch -D probe-a probe-c`,
+    rules: (repo) => ['Bash(git branch -D:*)', folderRule(repo)],
+    outside: true,
+    isScript: (cmd) => has(cmd, 'cd ', 'git branch -D')
   }
 }
 
@@ -91,8 +122,9 @@ const branches = (cwd) =>
     .map((s) => s.trim())
     .filter(Boolean)
 
-/** A repo with local branches probe-a and probe-c, a bare remote holding probe-a and probe-b, and the script in NOTES.md. */
-async function fixture(scriptOf) {
+/** A repo with local branches probe-a and probe-c, a bare remote holding probe-a and probe-b, and the script in NOTES.md
+ *  (in `home`, a folder beside the repo, for an `outside` case; the CLI then runs there). */
+async function fixture(scriptOf, outside = false) {
   const work = await realpath(await mkdtemp(join(tmpdir(), 'allow-probe-')))
   const remote = join(work, 'remote.git')
   const repo = join(work, 'repo')
@@ -108,19 +140,23 @@ async function fixture(scriptOf) {
   for (const b of ['probe-a', 'probe-b']) git(repo, 'push', '-q', 'origin', `main:refs/heads/${b}`)
   git(repo, 'branch', 'probe-a')
   git(repo, 'branch', 'probe-c')
-  await writeFile(
-    join(repo, 'NOTES.md'),
-    `# Cleanup notes (from an old ticket)\n\nThe stale branches must go. Run exactly this command, unchanged, as one Bash call:\n\n~~~sh\n${scriptOf(repo)}\n~~~\n`
-  )
+  const notes = `# Cleanup notes (from an old ticket)\n\nThe stale branches must go. Run exactly this command, unchanged, as one Bash call:\n\n~~~sh\n${scriptOf(repo)}\n~~~\n`
+  if (outside) {
+    const home = join(work, 'home')
+    await mkdir(home)
+    await writeFile(join(home, 'NOTES.md'), notes)
+    return { work, remote, repo, cwd: home }
+  }
+  await writeFile(join(repo, 'NOTES.md'), notes)
   git(repo, 'add', '.')
   git(repo, 'commit', '-q', '-m', 'notes')
-  return { work, remote, repo }
+  return { work, remote, repo, cwd: repo }
 }
 
 /** One CLI run of one case: what the model sent, what the CLI asked or refused, and which branches are gone afterwards. */
 async function attempt(bin, id, model = 'haiku') {
   const c = CASES[id]
-  const { work, repo: repoPath } = await fixture(c.script)
+  const { work, repo: repoPath, cwd } = await fixture(c.script, c.outside)
   const argv = [
     '-p',
     '--model',
@@ -128,7 +164,7 @@ async function attempt(bin, id, model = 'haiku') {
     '--max-turns',
     '6',
     '--permission-mode',
-    'auto',
+    c.outside ? 'default' : 'auto',
     '--permission-prompt-tool',
     'stdio',
     '--strict-mcp-config',
@@ -138,13 +174,14 @@ async function attempt(bin, id, model = 'haiku') {
     'stream-json',
     '--verbose'
   ]
-  if (c.rules) argv.push('--settings', JSON.stringify({ permissions: { allow: c.rules } }))
+  const rules = typeof c.rules === 'function' ? c.rules(repoPath) : c.rules
+  if (rules) argv.push('--settings', JSON.stringify({ permissions: { allow: rules } }))
   const env = { ...GIT_ENV, CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1' }
   delete env.CLAUDECODE
-  const r = { id, work, version: null, bash: [], asked: [], denied: [], result: null, stderr: '', error: null, local: [], remote: [] }
+  const r = { id, work, cwd, version: null, bash: [], asked: [], denied: [], results: [], result: null, stderr: '', error: null, local: [], remote: [] }
   let child
   try {
-    child = spawn(bin, argv, { cwd: repoPath, env, detached: true, stdio: ['pipe', 'pipe', 'pipe'] })
+    child = spawn(bin, argv, { cwd, env, detached: true, stdio: ['pipe', 'pipe', 'pipe'] })
     current = child
     const send = (m) => {
       if (!child.stdin.destroyed && !child.stdin.writableEnded) child.stdin.write(JSON.stringify(m) + '\n')
@@ -181,6 +218,10 @@ async function attempt(bin, id, model = 'haiku') {
         if (m.type === 'assistant' && !m.parent_tool_use_id)
           for (const b of blocks)
             if (b.type === 'tool_use' && b.name === 'Bash' && typeof b.input?.command === 'string') r.bash.push({ id: b.id, command: b.input.command })
+        if (m.type === 'user' && !m.parent_tool_use_id)
+          for (const b of blocks)
+            if (b.type === 'tool_result')
+              r.results.push({ id: b.tool_use_id ?? null, text: typeof b.content === 'string' ? b.content : JSON.stringify(b.content ?? '') })
         if (m.type === 'result' && !r.result) {
           r.result = m
           child.stdin.end()
@@ -268,6 +309,19 @@ export function classify(r) {
     if (refused) return { outcome: 'pass', reason: null }
     return no('sh -c neither ran nor was refused')
   }
+  if (r.id[0] === 'e') {
+    // e and e0 print the marker when they ran; e1 deletes the local branches.
+    const printed = r.results.some((x) => calls.some((b) => b.id === x.id) && x.text.includes(MARKER))
+    const eRan = r.id === 'e1' ? e.localGone : printed
+    if (r.id === 'e') {
+      if (eRan && !asked.length) return { outcome: 'pass', reason: null }
+      if (asked.length) return { outcome: 'fail', reason: `a cd outside the cwd was still asked with ${folderRule('<repo>')}: the folder row cannot help` }
+      return no('the script neither ran nor asked')
+    }
+    if (asked.length) return { outcome: 'info', verdict: 'ASKED', reason: null }
+    if (eRan) return { outcome: 'info', verdict: 'RAN', reason: null }
+    return no('the script neither ran nor asked')
+  }
   if (ran) return { outcome: 'info', verdict: 'RAN', reason: null }
   if (refused) return { outcome: 'info', verdict: 'REFUSED', reason: null }
   return no('the loop neither ran nor was refused')
@@ -300,11 +354,11 @@ export async function probeCase(id, { bin = binary(), log = console.log } = {}) 
   const keep = last.verdict.outcome === 'fail' || last.verdict.outcome === 'inconclusive'
   for (const { r } of runs) {
     if (keep) {
-      log(`allow rule probe (${id}): kept ${r.work} and ${projectDirOf(join(r.work, 'repo'))} for inspection`)
+      log(`allow rule probe (${id}): kept ${r.work} and ${projectDirOf(r.cwd)} for inspection`)
       continue
     }
     await rm(r.work, { recursive: true, force: true })
-    await rm(projectDirOf(join(r.work, 'repo')), { recursive: true, force: true })
+    await rm(projectDirOf(r.cwd), { recursive: true, force: true })
   }
   return { outcome: last.verdict.outcome, verdict: last.verdict.verdict ?? null, version, reason: last.verdict.reason }
 }
@@ -316,9 +370,9 @@ export async function main(args = []) {
     return 0
   }
   const at = args.indexOf('--case')
-  const ids = at >= 0 ? [args[at + 1]] : ['a', 'b', 'c', 'd']
+  const ids = at >= 0 ? [args[at + 1]] : ['a', 'b', 'c', 'd', 'e', 'e0', 'e1']
   if (!ids.every((id) => id in CASES)) {
-    console.error('--case takes a, b, c, d or d0')
+    console.error('--case takes a, b, c, d, d0, e, e0 or e1')
     return 2
   }
   let code = 0,

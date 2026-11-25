@@ -12,6 +12,7 @@ import { startAcp, type AcpRunOptions } from '../../src/core/acp/acpRunner'
 import { acpRecord, LaunchTrust } from '../../src/core/acp/launchTrust'
 import { TODO_SYSTEM } from '../../src/core/todos/todoPrompt'
 import { VAULT_SYSTEM } from '../../src/core/vault/vaultPrompt'
+import { RUN_SYSTEM } from '../../src/core/processes/processPrompt'
 import { NO_MCP } from '../../src/core/ipc/mcpSpec'
 import { IsolationService } from '../../src/core/isolation/isolationService'
 import { AuditService } from '../../src/core/audit/auditService'
@@ -167,7 +168,13 @@ describe('ACP agents in ChatService', () => {
     await svc.send(c.id, 'hi')
     expect(claudeRun).not.toHaveBeenCalled()
     expect(acpCalls).toHaveLength(1)
-    expect(acpCalls[0]).toMatchObject({ bin: process.execPath, args: [FAKE], cwd: dir, start: { kind: 'new' }, systemPrompt: BODY })
+    expect(acpCalls[0]).toMatchObject({
+      bin: process.execPath,
+      args: [FAKE],
+      cwd: dir,
+      start: { kind: 'new' },
+      systemPrompt: `${BODY}\n\n${RUN_SYSTEM}`
+    })
     expect(typeof acpCalls[0].requestTag).toBe('string')
     expect(methods()).toEqual(['initialize', 'session/new', 'session/prompt'])
     const items = await itemsOf(c.id)
@@ -178,6 +185,12 @@ describe('ACP agents in ChatService', () => {
     expect(svc.sideBase(c.id, 'gem')).toBeNull()
   }, 20_000)
 
+  it('run paragraph reaches an ACP agent after its body, though it has no bridges', async () => {
+    const c = await store.create('gem', dir)
+    await svc.send(c.id, 'hi')
+    expect(acpCalls[0].systemPrompt).toBe([BODY, RUN_SYSTEM].join('\n\n'))
+  }, 20_000)
+
   it('the next send resumes the session through the agent (load), with the same instructions', async () => {
     script = { initialize: { agentCapabilities: { loadSession: true } }, sessions: ['fake-session-1'], steps: [{ text: 'again' }] }
     const c = await store.create('gem', dir)
@@ -185,7 +198,7 @@ describe('ACP agents in ChatService', () => {
     await svc.send(c.id, 'two')
     expect(acpCalls.map((o) => o.start)).toEqual([{ kind: 'new' }, { kind: 'resume', sessionId: 'fake-session-1' }])
     expect(methods()).toEqual(['initialize', 'session/new', 'session/prompt', 'initialize', 'session/load', 'session/prompt'])
-    expect(acpCalls[1].systemPrompt).toBe(BODY)
+    expect(acpCalls[1].systemPrompt).toBe(`${BODY}\n\n${RUN_SYSTEM}`)
     expect(kinds(await itemsOf(c.id))).toEqual(['user', 'assistant', 'user', 'assistant'])
   }, 20_000)
 
@@ -279,7 +292,7 @@ describe('ACP agents in ChatService', () => {
       const c = await store.create('gem', dir)
       await svc.send(c.id, 'hi')
       for (const f of Object.values(made)) expect(f).not.toHaveBeenCalled()
-      expect(acpCalls[0].systemPrompt).toBe(BODY)
+      expect(acpCalls[0].systemPrompt).toBe(`${BODY}\n\n${RUN_SYSTEM}`)
       expect(acpCalls[0].systemPrompt).not.toContain(TODO_SYSTEM)
       expect(acpCalls[0].systemPrompt).not.toContain(VAULT_SYSTEM)
       expect(JSON.stringify(acpCalls[0].prompt)).not.toContain('BOARD NOTE')

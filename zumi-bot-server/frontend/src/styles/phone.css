@@ -286,6 +286,10 @@ html.typing-hold .tab-bar,
   .tasks-tray {
     padding: 6px 14px;
   }
+  /* Lines up with the phone's message box. */
+  .reply-options {
+    padding: 0 10px;
+  }
   .pausing-line {
     padding: 4px 14px;
     min-height: 36px;
@@ -399,7 +403,8 @@ html.typing-hold .tab-bar,
   .task-actions {
     opacity: 1;
   }
-  .code-copy {
+  .code-copy,
+  .code-run {
     opacity: 1;
   }
   .agent-turn:has(> .agent-turn-body > .msg:last-child) .agent-turn-avatar {
@@ -478,9 +483,20 @@ html.typing-hold .tab-bar,
     width: 32px;
     height: 32px;
   }
+  .code-run {
+    width: 32px;
+    height: 32px;
+  }
+  .code-run-status {
+    height: 32px;
+  }
   .code-tools {
     top: 2px;
     right: 2px;
+  }
+  /* 2 + 32 + 2: the bigger buttons still fit a one-line block's height. */
+  .code-block.runnable > .code-tools {
+    padding: 2px;
   }
   .send-btn,
   .attach-btn,
@@ -510,6 +526,14 @@ html.typing-hold .tab-bar,
   }
   .tasks-tray {
     min-height: 44px;
+  }
+  .reply-option {
+    min-height: 36px;
+  }
+  .composer-suggestion {
+    height: 32px;
+    padding: 0 12px;
+    font-size: 13px;
   }
   .task-action {
     width: 32px;

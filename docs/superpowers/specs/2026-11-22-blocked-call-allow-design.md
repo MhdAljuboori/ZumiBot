@@ -94,7 +94,8 @@ message flow, like the question card (`AllowCard.tsx`). It sits right after the 
   is a shell, interpreter or wrapper (below) is shown unticked and disabled with its reason and no prefix.
 - A part already covered by a rule this chat or agent holds shows "already allowed" (ticked, disabled). If every ticked-by-
   default part is already covered, the card says "Claude Code still refused this although these rules are allowed" and lists
-  them, with no button: nothing is re-sent.
+  them, with no button: nothing is re-sent. When the command also holds a part no rule can allow (a shell, interpreter or
+  wrapper, or a refused folder), the card names that part as the blocker instead, since the held rules are not the problem.
 - The card shows the resulting rule texts, so the user sees exactly what is granted. Default scope: **This chat**.
 - On a phone the card is the same column as the question card; the prefix fields are 16px so iOS does not zoom.
 

@@ -201,3 +201,24 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* The suggested reply's hint: Tab (or a tap on a touch screen) writes the placeholder into the box. */
+.composer-suggestion {
+  flex: none;
+  align-self: center;
+  height: 22px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 11px;
+  line-height: 20px;
+  cursor: pointer;
+}
+.composer-suggestion:hover:not(:disabled),
+.composer-suggestion:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent-text);
+}

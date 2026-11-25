@@ -12,12 +12,13 @@ import { makeGit } from '../../../src/core/git/git'
 import { createGhLocator, makeGh } from '../../../src/core/github/gh'
 import { DEFAULT_BRANCH, NO_COMMITS, NO_PR, NO_WORKTREE, PullRequests, WORKTREE_GONE } from '../../../src/core/github/pullRequests'
 import { writeFakeBin } from '../../support/fakeBin'
+import { isolatedGitEnv } from '../../support/gitEnv'
 
 const FAKE_GH = fileURLToPath(new URL('../../fixtures/fake-gh.mjs', import.meta.url))
 
 // The user's own git config must never leak into these repos, and no test touches a real remote: `origin` is a bare
 // repo in the same temp dir.
-const gitEnv = (): NodeJS.ProcessEnv => ({ ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' })
+const gitEnv = isolatedGitEnv
 const sh = (cwd: string, ...args: string[]): string => execFileSync('git', args, { cwd, env: gitEnv(), encoding: 'utf8' })
 
 let dir: string

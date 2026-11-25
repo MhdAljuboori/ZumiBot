@@ -27,6 +27,8 @@ interface ProbeOptions {
   pendingMs?: number
   /** The pause between those asks, 500 ms by default. */
   pollMs?: number
+  /** How long the commands-only Codex probe waits for the server list before asking the skills anyway, 5 s by default. */
+  mcpMs?: number
   /** From SIGTERM to SIGKILL, 3 s by default. */
   killGraceMs?: number
   /** Ends the probe early, as its deadline does (the server stopping). */
@@ -67,6 +69,8 @@ interface Dialect {
   readonly sequential: boolean
   /** Settles every open and later request with this reason. */
   end(why: 'timeout' | 'exit'): void
+  /** What `hello` was answered, raw: the commands-only probe reads it (Claude's `initialize` response). */
+  raw?: unknown
 }
 
 const sleep = (ms: number, signal: AbortSignal) =>
@@ -166,13 +170,18 @@ interface Texts {
 const CLAUDE_TEXTS: Texts = { missing: EXT_TEXT.cliMissing, timeout: EXT_TEXT.timeout, unsupported: EXT_TEXT.unsupported }
 const CODEX_TEXTS: Texts = { missing: EXT_TEXT.codexMissing, timeout: EXT_TEXT.codexTimeout, unsupported: EXT_TEXT.codexUnsupported }
 
-async function runProbe(
+/**
+ * The process handling every probe shares: spawn in its own group, a deadline, the abort signal, and ending the group at the end.
+ * `body` runs against the dialect; `spawnFailed` is the answer for a CLI that cannot be started.
+ */
+async function withSession<T>(
   o: ProbeOptions,
   args: string[],
   makeDialect: (write: (line: string) => boolean) => Dialect,
-  texts: Texts
-): Promise<ProbeAnswers> {
-  const out: ProbeAnswers = { version: null, mcp: null, skills: null, hooks: null, errors: {} }
+  deadlineMs: number,
+  spawnFailed: () => T,
+  body: (dialect: Dialect, over: AbortSignal) => Promise<T>
+): Promise<T> {
   let proc: ProbeProc | null = null
   const dialect = makeDialect((line) => proc?.write(line) ?? false)
   proc = new ProbeProc(
@@ -183,37 +192,56 @@ async function runProbe(
     (line) => dialect.onLine(line),
     () => dialect.end('exit')
   )
-  if (proc.spawnFailed) {
-    for (const s of SECTIONS) out.errors[s] = texts.missing
-    return out
-  }
+  if (proc.spawnFailed) return spawnFailed()
   const over = new AbortController()
   const finish = (why: 'timeout' | 'exit') => {
     dialect.end(why)
     over.abort()
   }
-  const deadline = setTimeout(() => finish('timeout'), o.deadlineMs ?? DEADLINE_MS)
+  const deadline = setTimeout(() => finish('timeout'), deadlineMs)
   const abort = () => finish('timeout')
   if (o.signal?.aborted) abort()
   else o.signal?.addEventListener('abort', abort, { once: true })
   try {
-    const hello = await dialect.hello()
-    if (hello.ok) out.version = hello.value
-    const collect = async (s: Section) => {
-      const r = await settle(dialect, s, o.pendingMs ?? PENDING_MS, o.pollMs ?? POLL_MS, over.signal)
-      if (r.ok) out[s] = r.value
-      // A CLI that answers with an error, or ends without answering, does not report this section.
-      else out.errors[s] = r.why === 'timeout' ? texts.timeout : texts.unsupported(LOADOUT_SECTION[s])
-    }
-    if (dialect.sequential) for (const s of SECTIONS) await collect(s)
-    else await Promise.all(SECTIONS.map(collect))
+    return await body(dialect, over.signal)
   } finally {
     clearTimeout(deadline)
     o.signal?.removeEventListener('abort', abort)
     over.abort()
     await proc.stop(o.killGraceMs ?? KILL_GRACE_MS)
   }
-  return out
+}
+
+async function runProbe(
+  o: ProbeOptions,
+  args: string[],
+  makeDialect: (write: (line: string) => boolean) => Dialect,
+  texts: Texts
+): Promise<ProbeAnswers> {
+  const out: ProbeAnswers = { version: null, mcp: null, skills: null, hooks: null, errors: {} }
+  return withSession(
+    o,
+    args,
+    makeDialect,
+    o.deadlineMs ?? DEADLINE_MS,
+    () => {
+      for (const s of SECTIONS) out.errors[s] = texts.missing
+      return out
+    },
+    async (dialect, over) => {
+      const hello = await dialect.hello()
+      if (hello.ok) out.version = hello.value
+      const collect = async (s: Section) => {
+        const r = await settle(dialect, s, o.pendingMs ?? PENDING_MS, o.pollMs ?? POLL_MS, over)
+        if (r.ok) out[s] = r.value
+        // A CLI that answers with an error, or ends without answering, does not report this section.
+        else out.errors[s] = r.why === 'timeout' ? texts.timeout : texts.unsupported(LOADOUT_SECTION[s])
+      }
+      if (dialect.sequential) for (const s of SECTIONS) await collect(s)
+      else await Promise.all(SECTIONS.map(collect))
+      return out
+    }
+  )
 }
 
 // Servers connect in the background: ask at once, then again while the dialect says the answer is still settling (a server
@@ -250,7 +278,7 @@ function claudeDialect(write: (line: string) => boolean): Dialect {
       }
     })
   }
-  return {
+  const dialect: Dialect = {
     // Everything else the CLI prints (hook and command lines, many `system` events) is not ours.
     onLine(line) {
       let msg: any
@@ -269,6 +297,7 @@ function claudeDialect(write: (line: string) => boolean): Dialect {
     async hello() {
       const r = await request('initialize')
       if (!r.ok) return r
+      dialect.raw = r.value
       const v = obj(r.value)?.claude_code_version
       return { ok: true, value: typeof v === 'string' && v ? v.slice(0, 40) : null }
     },
@@ -285,7 +314,24 @@ function claudeDialect(write: (line: string) => boolean): Dialect {
       for (const settle of all) settle({ ok: false, why })
     }
   }
+  return dialect
 }
+
+// The probe's fixed argv; the agent's own args follow it.
+const claudeArgs = (o: ClaudeProbeOptions): string[] => [
+  '-p',
+  '--input-format',
+  'stream-json',
+  '--output-format',
+  'stream-json',
+  '--verbose',
+  '--permission-prompt-tool',
+  'stdio',
+  ...(o.agent ? ['--agent', o.agent] : []),
+  // No session log for a session that never takes a turn.
+  '--no-session-persistence',
+  ...o.args
+]
 
 /**
  * Runs `claude -p` in `folder` (as `agent` when set), asks the version and the MCP, skills and hooks listings, and ends it.
@@ -293,21 +339,39 @@ function claudeDialect(write: (line: string) => boolean): Dialect {
  * a CLI that cannot be started gives `cliMissing` for all three.
  */
 export function probeClaude(o: ClaudeProbeOptions): Promise<ProbeAnswers> {
-  const args = [
-    '-p',
-    '--input-format',
-    'stream-json',
-    '--output-format',
-    'stream-json',
-    '--verbose',
-    '--permission-prompt-tool',
-    'stdio',
-    ...(o.agent ? ['--agent', o.agent] : []),
-    // No session log for a session that never takes a turn.
-    '--no-session-persistence',
-    ...o.args
-  ]
-  return runProbe(o, args, claudeDialect, CLAUDE_TEXTS)
+  return runProbe(o, claudeArgs(o), claudeDialect, CLAUDE_TEXTS)
+}
+
+const COMMANDS_DEADLINE_MS = 15_000
+// A slow server list must not eat the commands deadline: past this the skills are asked anyway.
+const CODEX_MCP_WAIT_MS = 5000
+
+/**
+ * Only `initialize`, which lists the CLI's slash commands: no MCP wait, no skills or hooks listing, no model call.
+ * Resolves the raw `response`, or null on an error, an exit, the deadline or a CLI that cannot start. Callers read it with
+ * `claudeCommandRows`; the raw answer (it holds the account) goes no further.
+ */
+/** `commands`: the raw `initialize` answer. `skills`: the raw `get_skills_dialog` answer, null when the CLI refused it. */
+export interface ClaudeCommandsAnswer {
+  commands: unknown
+  skills: unknown
+}
+
+export function probeClaudeCommands(o: ClaudeProbeOptions): Promise<ClaudeCommandsAnswer | null> {
+  return withSession<ClaudeCommandsAnswer | null>(
+    o,
+    claudeArgs(o),
+    claudeDialect,
+    o.deadlineMs ?? COMMANDS_DEADLINE_MS,
+    () => null,
+    async (d) => {
+      const hello = await d.hello()
+      if (!hello.ok) return null
+      // Only to tell skills from commands: the commands still show (all as commands) when this one is refused.
+      const skills = await d.ask('skills')
+      return { commands: d.raw ?? null, skills: skills.ok ? skills.value : null }
+    }
+  )
 }
 
 // ---- Codex: JSON-RPC over `app-server` ----
@@ -387,4 +451,29 @@ function codexDialect(folder: string) {
  */
 export function probeCodex(o: ProbeOptions): Promise<ProbeAnswers> {
   return runProbe(o, ['app-server', '--listen', 'stdio://'], codexDialect(o.folder), CODEX_TEXTS)
+}
+
+// The request itself stays open (the session's end settles it); only the wait for it is cut.
+const boundedBy = <T>(p: Promise<T>, ms: number, signal: AbortSignal): Promise<unknown> => Promise.race([p, sleep(ms, signal)])
+
+/**
+ * `initialize`, `initialized`, `mcpServerStatus/list` (unused, but plugin skills wait for it), then `skills/list` asked again until two answers hold as many skills (plugin skills arrive a
+ * moment after the built-in ones, as in `codexDialect.again`). Resolves the last answer or null; read it with `codexSkillRows`.
+ */
+export function probeCodexCommands(o: ProbeOptions): Promise<unknown | null> {
+  return withSession<unknown | null>(
+    o,
+    ['app-server', '--listen', 'stdio://'],
+    codexDialect(o.folder),
+    o.deadlineMs ?? COMMANDS_DEADLINE_MS,
+    () => null,
+    async (d, over) => {
+      const hello = await d.hello()
+      if (!hello.ok) return null
+      // The plugins' skills come only once the server list has answered, as in the loadout probe; its answer is not used.
+      await boundedBy(d.ask('mcp'), o.mcpMs ?? CODEX_MCP_WAIT_MS, over)
+      const r = await settle(d, 'skills', o.pendingMs ?? PENDING_MS, o.pollMs ?? POLL_MS, over)
+      return r.ok ? r.value : null
+    }
+  )
 }

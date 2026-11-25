@@ -32,3 +32,43 @@
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+
+/* Add a rule by hand: a Bash prefix or a folder, the same rules the Allow card makes. */
+.remembered-add {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.remembered-add-kind {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 13px;
+}
+.remembered-add-row {
+  display: flex;
+  gap: 8px;
+}
+.remembered-add-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.remembered-add-input[aria-invalid='true'] {
+  border-color: var(--error);
+}
+.remembered-add code {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 799px) {
+  .remembered-add-input {
+    font-size: 16px; /* under 16px iOS zooms the page on focus */
+  }
+}

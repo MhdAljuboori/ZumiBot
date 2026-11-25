@@ -124,7 +124,7 @@ export function PromptField({
   }
 
   const pickCommand = (o: CommandOption): void => {
-    if (!editor || !slash || 'builtin' in o) return
+    if (!editor || !slash || 'builtin' in o || 'engine' in o) return
     const { from, to } = slash
     editor
       .chain()

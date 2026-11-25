@@ -4,7 +4,7 @@ import os from 'node:os'
 import { join, resolve } from 'node:path'
 import { ChatStore } from '../../src/core/store/chatStore'
 import { ApprovalStore } from '../../src/core/store/approvalStore'
-import { checkPrefix, continueText } from '@zumibot/shared/allowRules'
+import { checkFolder, checkPrefix, continueText, homeAsFolder } from '@zumibot/shared/allowRules'
 import { cardAskPrompt } from '@zumibot/shared/todos'
 import { AttachmentStore } from '../../src/core/attachments/attachmentStore'
 import { SnapshotStore } from '../../src/core/files/snapshotStore'
@@ -47,6 +47,7 @@ import {
 } from '../../src/core/chat/controlProtocol'
 import { buildArgs, type RunHandle, type RunOptions, type RunOutcome } from '../../src/core/chat/claudeRunner'
 import { NOTICE_TEXT, type AgentRule, type Attachment, type ChatItem, type ChatPush } from '@zumibot/shared/types'
+import { RUN_ITEM_FIXED } from '@zumibot/shared/runBlocks'
 import type { TurnEnd } from '@zumibot/shared/notify'
 import { applyPush, emptyChatView } from '../support/chatView'
 import { writeFakeBin } from '../support/fakeBin'
@@ -58,6 +59,7 @@ import { TodoService } from '../../src/core/todos/todoService'
 import type { TodoOwner, TodoTurn } from '../../src/core/todos/todoIpc'
 import type { VaultApprovalRequest } from '@zumibot/shared/vault'
 import { TODO_SYSTEM } from '../../src/core/todos/todoPrompt'
+import { RUN_SYSTEM } from '../../src/core/processes/processPrompt'
 import type { AskOwner, AskTurn } from '../../src/core/asks/askIpc'
 import { serveVaultIpc, type VaultOwner, type VaultTurn } from '../../src/core/vault/vaultIpc'
 import { VAULT_SYSTEM } from '../../src/core/vault/vaultPrompt'
@@ -299,21 +301,27 @@ describe('ChatService', () => {
     expect(calls[1].args).not.toContain('--disallowedTools')
   })
 
+  it('run paragraph reaches a Claude run with no bridge at all (not tied to bridges, processes or isolation)', async () => {
+    const c = await store.create('helper', dir)
+    await svc.send(c.id, 'one')
+    const args = calls[0].args
+    expect(args[args.indexOf('--append-system-prompt') + 1]).toBe(RUN_SYSTEM)
+  })
+
   it('house style goes to the system prompt only while on, fresh on resume', async () => {
     const c = await store.create('helper', dir)
     await svc.send(c.id, 'one')
-    expect(calls[0].args).not.toContain('--append-system-prompt')
-    expect(calls[0].args).not.toContain('--system-prompt-snapshot')
+    expect(calls[0].args[calls[0].args.indexOf('--append-system-prompt') + 1]).toBe(RUN_SYSTEM)
     style = true
     await svc.send(c.id, 'two')
     const args = calls[1].args
-    expect(args[args.indexOf('--append-system-prompt') + 1]).toBe(HOUSE_STYLE)
+    expect(args[args.indexOf('--append-system-prompt') + 1]).toBe(`${HOUSE_STYLE}\n\n${RUN_SYSTEM}`)
     expect(args[args.indexOf('--system-prompt-snapshot') + 1]).toBe('off')
     expect(args).toContain('--resume')
     expect(calls[1].stdin).toBe('two')
     style = false
     await svc.send(c.id, 'three')
-    expect(calls[2].args).not.toContain('--append-system-prompt')
+    expect(calls[2].args[calls[2].args.indexOf('--append-system-prompt') + 1]).toBe(RUN_SYSTEM)
   })
 
   it('new chat runs fresh and stores session, title, items', async () => {
@@ -3650,7 +3658,8 @@ describe('desktop turns', () => {
     dispose: async () => {},
     ...extra
   })
-  const plain = () => buildArgs({ agentName: 'helper', effort: 'medium', resumeSessionId: null, permissionMode: 'auto' })
+  const plain = () =>
+    buildArgs({ agentName: 'helper', effort: 'medium', resumeSessionId: null, permissionMode: 'auto', appendSystemPrompt: RUN_SYSTEM })
 
   it('agent without computerUse gets no desktop args', async () => {
     const turns = { plan: vi.fn(async () => 'off' as const), create: vi.fn() }
@@ -3701,7 +3710,7 @@ describe('desktop turns', () => {
     ])
     for (const i of configs) expect(args[i + 2].startsWith('--')).toBe(true)
     expect(args.slice(-2)).toEqual(['--disallowedTools', 'Agent(other)'])
-    expect(args[args.indexOf('--append-system-prompt') + 1]).toBe(['Browser prompt', desktopPrompt].join('\n\n'))
+    expect(args[args.indexOf('--append-system-prompt') + 1]).toBe([RUN_SYSTEM, 'Browser prompt', desktopPrompt].join('\n\n'))
     expect(calls[0].env).toMatchObject({
       ZUMIBOT_BROWSER_CAPABILITY: 'browser-cap',
       ZUMIBOT_DESKTOP_CAPABILITY: expect.any(String),
@@ -3711,7 +3720,7 @@ describe('desktop turns', () => {
     const b = svc.sideBase(c.id, 'helper')!
     expect(b.desktop).toBe(true)
     expect(b.args.extraArgs).toEqual([])
-    expect(b.args.appendSystemPrompt).toBe('')
+    expect(b.args.appendSystemPrompt).toBe(RUN_SYSTEM)
   })
 
   it('plans once per logical turn and gives every retry a fresh desktop turn', async () => {
@@ -3754,7 +3763,7 @@ describe('desktop turns', () => {
         effort: 'medium',
         resumeSessionId: null,
         permissionMode: 'auto',
-        appendSystemPrompt: desktopUnavailablePrompt
+        appendSystemPrompt: [RUN_SYSTEM, desktopUnavailablePrompt].join('\n\n')
       })
     )
     expect(calls[0].env ?? {}).toEqual({})
@@ -4777,6 +4786,13 @@ describe('context meter and compact', () => {
     expect((await store.get(c.id))?.compacting).toBeUndefined()
   })
 
+  it('compact keeps the run paragraph (it goes through agentTurn, so the cache prefix matches the chat)', async () => {
+    const c = await chatWithSession()
+    scripts.push({ events: compactRun() })
+    await svc.compact(c.id, '')
+    expect(argAfter(calls[1], '--append-system-prompt')).toContain(RUN_SYSTEM)
+  })
+
   it('compact runs /compact with the note on the chat session and adds no items', async () => {
     const c = await chatWithSession()
     const before = await itemsOf(c.id)
@@ -5011,13 +5027,13 @@ describe('turn-end signal', () => {
       style = true
       await turn([])
       const a = calls[0].args
-      expect(a[a.indexOf('--append-system-prompt') + 1]).toBe(`${HOUSE_STYLE}\n\nCAP NOTE`)
+      expect(a[a.indexOf('--append-system-prompt') + 1]).toBe(`${HOUSE_STYLE}\n\nCAP NOTE\n\n${RUN_SYSTEM}`)
       expect(begun).toEqual(['helper'])
       note = null
       style = false
       const c = await store.create('helper', dir)
       await svc.send(c.id, 'x')
-      expect(calls[1].args).not.toContain('--append-system-prompt')
+      expect(calls[1].args[calls[1].args.indexOf('--append-system-prompt') + 1]).toBe(RUN_SYSTEM)
       const before = begun.length
       await svc.compact(c.id, '').catch(() => {})
       expect(begun.length).toBe(before)
@@ -5398,7 +5414,7 @@ describe('side questions: spawn capture and fork point', () => {
     const b = svc.sideBase(c.id, 'helper')!
     expect(b.browser).toBe(true)
     expect(b.args.extraArgs).not.toContain('--no-chrome')
-    expect(b.args.appendSystemPrompt).toBe('')
+    expect(b.args.appendSystemPrompt).toBe(RUN_SYSTEM)
     const turn = (await svc.sideBrowser(c.id, 'helper'))!
     const appendSystemPrompt = [b.args.appendSystemPrompt, turn.prompt].filter(Boolean).join('\n\n')
     expect(buildArgs({ ...b.args, resumeSessionId: null, extraArgs: [...b.args.extraArgs, ...turn.args], appendSystemPrompt })).toEqual(
@@ -5562,7 +5578,10 @@ describe('side questions: spawn capture and fork point', () => {
       }
     )
     expect(svc.sideBase(c.id, 'helper')?.start).toEqual({ session: 'S0', at: 'own' })
-    expect(svc.sideBase(c.id, 'helper')?.args).toMatchObject({ extraArgs: ['--add-dir', '/shared'], appendSystemPrompt: 'Room briefing' })
+    expect(svc.sideBase(c.id, 'helper')?.args).toMatchObject({
+      extraArgs: ['--add-dir', '/shared'],
+      appendSystemPrompt: `Room briefing\n\n${RUN_SYSTEM}`
+    })
     svc.release(c.id, running)
   })
 })
@@ -6728,11 +6747,17 @@ describe('allowBlocked', () => {
   }
   const approvalsFile = async (): Promise<string | null> => fs.readFile(join(dir, 'approvals.json'), 'utf8').catch(() => null)
   // A refusal leaves meta, items and approvals.json as they were.
-  const refused = async (c: { id: string }, message: string, prefixes = ['git branch -D'], scope: 'chat' | 'agent' = 'chat') => {
+  const refused = async (
+    c: { id: string },
+    message: string,
+    prefixes = ['git branch -D'],
+    scope: 'chat' | 'agent' = 'chat',
+    folders: string[] = []
+  ) => {
     const meta = JSON.stringify(await store.get(c.id))
     const items = JSON.stringify(await itemsOf(c.id))
     const file = await approvalsFile()
-    await expect(svc.allowBlocked(c.id, 't1', prefixes, scope)).rejects.toThrow(message)
+    await expect(svc.allowBlocked(c.id, 't1', prefixes, scope, folders)).rejects.toThrow(message)
     expect(JSON.stringify(await store.get(c.id))).toBe(meta)
     expect(JSON.stringify(await itemsOf(c.id))).toBe(items)
     expect(await approvalsFile()).toBe(file)
@@ -6864,6 +6889,46 @@ describe('allowBlocked', () => {
       'between 1 and 10',
       Array.from({ length: 11 }, (_, i) => `git branch -D${i}`)
     )
+  })
+
+  describe('folders', () => {
+    // As a rule names it: on Windows C:\Users\me is /c/Users/me.
+    const HOME = homeAsFolder(os.homedir())!
+    const CD = `cd /work/repo && gh pr merge 1 --merge; cd ${HOME} && ls`
+    const FOLDER_RULE = 'Read(//work/repo/**)'
+    const cdTool = (): ChatItem => blockedTool({ input: { command: CD } })
+
+    it('chat scope: stores the folder rule with the prefix rules, in that order, and names both in the text', async () => {
+      const c = await setup([cdTool()])
+      const r = await svc.allowBlocked(c.id, 't1', ['gh pr merge'], 'chat', ['/work/repo'])
+      expect(r.rules).toEqual(['Bash(gh pr merge:*)', FOLDER_RULE])
+      expect(r.text).toBe(continueText(['Bash(gh pr merge:*)', FOLDER_RULE], 'chat', 'helper', null))
+      expect((await store.get(c.id))?.allowRules).toEqual(['Bash(gh pr merge:*)', FOLDER_RULE])
+      expect((await itemsOf(c.id))[0]).toMatchObject({ allowedAs: 'chat' })
+    })
+    it('agent scope: a folder alone is enough, stored as a CLI rule', async () => {
+      const c = await setup([cdTool()])
+      const r = await svc.allowBlocked(c.id, 't1', [], 'agent', ['/work/repo', '/work/repo'])
+      expect(r.rules).toEqual([FOLDER_RULE])
+      expect(approvals.cliRules('helper')).toEqual([FOLDER_RULE])
+    })
+    it('refuses a folder the command does not enter, the home folder, and a bad shape, storing nothing', async () => {
+      const c = await setup([cdTool()])
+      await refused(c, checkFolder('/work/other', CD)!, ['gh pr merge'], 'chat', ['/work/repo', '/work/other'])
+      await refused(c, 'home folder', [], 'agent', [HOME])
+      await refused(c, checkFolder('/work/repo/', CD)!, [], 'chat', ['/work/repo/'])
+    })
+    it('counts prefixes and folders together', async () => {
+      const c = await setup([cdTool()])
+      await refused(c, 'between 1 and 10', [], 'chat', [])
+      await refused(
+        c,
+        'between 1 and 10',
+        Array.from({ length: 10 }, () => 'gh pr merge'),
+        'chat',
+        ['/work/repo']
+      )
+    })
   })
 })
 
@@ -7713,7 +7778,7 @@ describe('agent asks', () => {
     for (const call of calls) {
       expect(argAfter(call.args, '--mcp-config')).toBe(ASK_CONFIG)
       const system = argAfter(call.args, '--append-system-prompt')
-      expect(system).toBe(askSystem(roster.filter((a) => a.name !== 'helper')))
+      expect(system).toBe([RUN_SYSTEM, askSystem(roster.filter((a) => a.name !== 'helper'))].join('\n\n'))
       expect(system).toContain('- @b: Makes cards in Workiom')
       expect(system).not.toContain('@helper')
       expect(call.env).toMatchObject({ ZUMIBOT_ASKS_IPC: '/tmp/private-ask-ipc', CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS: '0' })
@@ -7757,7 +7822,7 @@ describe('agent asks', () => {
     expect(args.indexOf('browser-config')).toBeLessThan(args.indexOf('todo-config'))
     expect(args.indexOf('todo-config')).toBeLessThan(args.indexOf(ASK_CONFIG))
     expect(argAfter(args, '--append-system-prompt')).toBe(
-      [TODO_SYSTEM, askSystem(roster.filter((a) => a.name !== 'helper')), 'Browser prompt'].join('\n\n')
+      [TODO_SYSTEM, RUN_SYSTEM, askSystem(roster.filter((a) => a.name !== 'helper')), 'Browser prompt'].join('\n\n')
     )
     expect(calls[0].env).toMatchObject({
       ZUMIBOT_BROWSER_CAPABILITY: 'browser-cap',
@@ -7938,7 +8003,7 @@ describe('agent asks', () => {
     const c = await store.create('helper', dir)
     await svc.send(c.id, 'go')
     expect(hasAsk(calls[0])).toBe(false)
-    expect(calls[0].args).not.toContain('--append-system-prompt')
+    expect(argAfter(calls[0].args, '--append-system-prompt')).toBe(RUN_SYSTEM)
     expect((await itemsOf(c.id)).map((i) => i.type)).toEqual(['user', 'assistant'])
     expect(log.mock.calls.flat().join(' ')).not.toContain('/home/u')
     log.mockRestore()
@@ -8317,8 +8382,8 @@ describe('Zumi Bot automations', () => {
       // The delete ask rules, as the CLI's one --settings.
       expect(settingsOf(call.args).permissions?.ask).toEqual([...CONFIRM_ONLY_TOOLS])
       expect(call.env).toMatchObject({ ZUMIBOT_AUTOMATIONS_IPC: '/tmp/private-automation-ipc' })
-      // The system prompt is not changed by the bridge.
-      expect(call.args).not.toContain('--append-system-prompt')
+      // The system prompt is not changed by the bridge: the run paragraph alone.
+      expect(call.args[call.args.indexOf('--append-system-prompt') + 1]).toBe(RUN_SYSTEM)
     }
     expect(calls.map((call) => call.env?.ZUMIBOT_AUTOMATIONS_CAPABILITY)).toEqual(['auto-cap-1', 'auto-cap-2', 'auto-cap-3'])
     expect(disposed).toBe(3)
@@ -8640,7 +8705,7 @@ describe('voice chats', () => {
     const c = await store.create('helper', dir)
     await store.update(c.id, { voice: true })
     await svc.send(c.id, 'hi')
-    expect(calls[0].args).not.toContain('--append-system-prompt')
+    expect(calls[0].args[calls[0].args.indexOf('--append-system-prompt') + 1]).toBe(RUN_SYSTEM)
     expect(calls[0].args).not.toContain('--settings')
     const input = { to: 'a@b.c' }
     chatRules().set(c.id, new Set([allowKey('mcp__gmail__send_message', input)]))
@@ -9735,11 +9800,22 @@ describe('codex engine', () => {
     expect(o).toMatchObject({ bin: '/bin/codex', cwd: dir, start: { kind: 'new' }, action: { kind: 'turn', prompt: 'hello' } })
     expect(o.thread).toMatchObject({ cwd: dir, model: DEF.model, permissionMode: 'auto' })
     expect(o.thread.baseInstructions.startsWith(DEF.body)).toBe(true)
-    expect(o.thread.baseInstructions).toBe([DEF.body, TODO_SYSTEM].join('\n\n'))
+    expect(o.thread.baseInstructions).toBe([DEF.body, TODO_SYSTEM, RUN_SYSTEM].join('\n\n'))
     expect(defs).toEqual(['cx'])
     expect(kinds(await itemsOf(c.id))).toEqual(['user', 'assistant'])
     expect(await store.get(c.id)).toMatchObject({ sessionId: 's1', sessionEngine: 'codex', inFlight: false })
     expect(ends).toEqual([{ chatId: c.id, agent: 'cx', outcome: 'ok', reply: expect.any(String) }])
+  })
+
+  it('run paragraph reaches a Codex agent, right after the bridge paragraphs and before the ask roster', async () => {
+    svc = withCodex(allBridges())
+    const c = await store.create('cx', dir)
+    await svc.send(c.id, 'hello')
+    expect(codexCalls[0].thread.baseInstructions).toBe(
+      [DEF.body, TODO_SYSTEM, VAULT_SYSTEM, RUN_SYSTEM, askSystem([{ name: 'b', description: 'Makes cards' }]), 'Browser prompt'].join(
+        '\n\n'
+      )
+    )
   })
 
   it("a Codex agent's run gets none of the agent run config, nor does its Compact or side base", async () => {
@@ -9810,7 +9886,9 @@ describe('codex engine', () => {
     expect(threadOf(o)).toBe('th-1')
     expect(o.thread.mcpServers.map((s) => s.name)).toEqual(['zumibot_browser', 'zumibot_todos', 'zumibot_vault', 'zumibot_agents'])
     expect(o.thread.baseInstructions).toBe(
-      [DEF.body, TODO_SYSTEM, VAULT_SYSTEM, askSystem([{ name: 'b', description: 'Makes cards' }]), 'Browser prompt'].join('\n\n')
+      [DEF.body, TODO_SYSTEM, VAULT_SYSTEM, RUN_SYSTEM, askSystem([{ name: 'b', description: 'Makes cards' }]), 'Browser prompt'].join(
+        '\n\n'
+      )
     )
     expect(o.env).toMatchObject({
       ZUMIBOT_BROWSER_CAPABILITY: 'browser-cap',
@@ -9848,7 +9926,9 @@ describe('codex engine', () => {
     expect(b.codex).toEqual({
       threadId: '',
       at: null,
-      baseInstructions: [DEF.body, TODO_SYSTEM, VAULT_SYSTEM, askSystem([{ name: 'b', description: 'Makes cards' }])].join('\n\n'),
+      baseInstructions: [DEF.body, TODO_SYSTEM, VAULT_SYSTEM, RUN_SYSTEM, askSystem([{ name: 'b', description: 'Makes cards' }])].join(
+        '\n\n'
+      ),
       model: DEF.model
     })
     expect([b.codex!.baseInstructions, 'Browser prompt'].join('\n\n')).toBe(o.thread.baseInstructions)
@@ -9954,6 +10034,48 @@ describe('codex engine', () => {
     model = ' gpt-6-sol '
     await svc.send(c.id, 'hello')
     expect(codexCalls.at(-1)!.thread.model).toBe('gpt-6-sol')
+  })
+
+  it('a Codex skill command rides as a skill item on the codex run, and the typed text goes in as the skill reads it', async () => {
+    const asked: Array<[string, string, string]> = []
+    svc = withCodex({
+      codexSkill: async (folder, agent, name) => {
+        asked.push([folder, agent, name])
+        return { name, path: '/s/pdf/SKILL.md' }
+      }
+    })
+    const c = await store.create('cx', dir)
+    const cmd = { agent: 'cx', name: 'pdf', prompt: '$pdf a', engine: 'codex' as const }
+    await svc.send(c.id, '/pdf a', [], undefined, undefined, cmd)
+    expect(asked).toEqual([[dir, 'cx', 'pdf']])
+    expect(codexCalls[0].skills).toEqual([{ name: 'pdf', path: '/s/pdf/SKILL.md' }])
+    expect(promptOf(codexCalls[0])).toBe('$pdf a')
+    expect(JSON.stringify(await itemsOf(c.id))).not.toContain('SKILL.md')
+  })
+
+  it('a Codex skill that is gone ends the turn with an error item and starts no CLI', async () => {
+    svc = withCodex({ codexSkill: async () => null })
+    const c = await store.create('cx', dir)
+    const cmd = { agent: 'cx', name: 'pdf', prompt: '$pdf a', engine: 'codex' as const }
+    await svc.send(c.id, '/pdf a', [], undefined, undefined, cmd).catch(() => {})
+    expect(codexCalls).toHaveLength(0)
+    const items = await itemsOf(c.id)
+    expect(items.at(-1)).toMatchObject({ type: 'error', text: 'Codex has no $pdf skill any more' })
+  })
+
+  it('a plain Codex message carries no skills', async () => {
+    svc = withCodex({ codexSkill: async () => ({ name: 'x', path: '/p' }) })
+    const c = await store.create('cx', dir)
+    await svc.send(c.id, 'hello')
+    expect(codexCalls[0].skills).toBeUndefined()
+  })
+
+  it('a Claude engine command keeps first position when the message quotes a reply', async () => {
+    const c = await store.create('helper', dir)
+    await store.saveItems(c.id, [{ type: 'assistant', id: 'a1', text: 'done', ts: 1 }])
+    const cmd = { agent: 'helper', name: 'goal', prompt: '/goal x', engine: 'claude' as const }
+    await svc.send(c.id, '/goal x', [], 'a1', undefined, cmd)
+    expect(calls[0].stdin).toBe('/goal x\n\n<reply_to>\ndone\n</reply_to>')
   })
 
   it('a Claude session never reaches Codex: the turn starts a fresh thread from the history', async () => {
@@ -10736,7 +10858,7 @@ describe('codex engine', () => {
     expect(calls).toHaveLength(0)
     expect(codexCalls).toHaveLength(1)
     expect(promptOf(codexCalls[0])).toBe('make a card')
-    expect(codexCalls[0].thread.baseInstructions).toBe([DEF.body, askedSystem('helper', 'Issue chat')].join('\n\n'))
+    expect(codexCalls[0].thread.baseInstructions).toBe([DEF.body, askedSystem('helper', 'Issue chat'), RUN_SYSTEM].join('\n\n'))
   })
 
   it('a Codex base replaces the Claude one left from before the agent moved to Codex, and the other way round', async () => {
@@ -12324,5 +12446,36 @@ describe('ack line', () => {
     await svc.send(c.id, 'typed')
     expect(asked).toBe(1)
     expect((await itemsOf(c.id)).map((i) => i.type)).toEqual(['user', 'assistant', 'user', 'assistant'])
+  })
+
+  it('run item is stored hidden: it keeps its mark, gets no ack and sets no title', async () => {
+    let asked = 0
+    svc = makeService({
+      acknowledge: async () => {
+        asked++
+        return 'Looking into it now.'
+      }
+    })
+    const run = { processId: 'p_0000000001' }
+    const c = await store.create('helper', dir)
+    await svc.send(c.id, 'Run result: exit 0', [], undefined, undefined, undefined, undefined, undefined, undefined, undefined, run)
+    expect(asked).toBe(0)
+    const items = await itemsOf(c.id)
+    expect(items[0]).toMatchObject({ type: 'user', text: 'Run result: exit 0', run })
+    expect(items[0]).not.toHaveProperty('ack')
+    expect((await store.get(c.id))?.title).toBe('')
+  })
+
+  it('a run item is never edited or sent again: the chat is left as it was', async () => {
+    const run = { processId: 'p_0000000001' }
+    const c = await store.create('helper', dir)
+    await svc.send(c.id, 'Run result: exit 0', [], undefined, undefined, undefined, undefined, undefined, undefined, undefined, run)
+    const before = await itemsOf(c.id)
+    const runs = calls.length
+    await expect(svc.rerun(c.id, before[0]!.id, 'edited')).rejects.toThrow(RUN_ITEM_FIXED)
+    await expect(svc.rerun(c.id, before[0]!.id, null)).rejects.toThrow(RUN_ITEM_FIXED)
+    expect(await itemsOf(c.id)).toEqual(before)
+    expect(calls).toHaveLength(runs)
+    expect(svc.isRunning(c.id)).toBe(false)
   })
 })

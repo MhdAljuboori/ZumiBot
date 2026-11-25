@@ -39,6 +39,8 @@ export type AuditDecision =
   | { kind: 'unanswered' }
   // A remote (AG-UI) agent's tool, run by its own server: no approval reached ZumiBot, which neither ran nor could stop it.
   | { kind: 'ranRemotely' }
+  // A shell block the user ran with its Run button: no agent call and no card, the click itself was the approval.
+  | { kind: 'runByUser' }
 
 export type AuditDecisionKind = AuditDecision['kind']
 export const AUDIT_DECISION_KINDS: readonly AuditDecisionKind[] = [
@@ -55,7 +57,8 @@ export const AUDIT_DECISION_KINDS: readonly AuditDecisionKind[] = [
   'deniedByHook',
   'deniedByZumiBot',
   'unanswered',
-  'ranRemotely'
+  'ranRemotely',
+  'runByUser'
 ]
 export const AUDIT_OUTCOMES: readonly AuditOutcome[] = ['ok', 'error', 'denied', 'interrupted', 'noResult']
 
@@ -283,6 +286,8 @@ export function decisionLabel(d: AuditDecision): string {
       return 'Unanswered'
     case 'ranRemotely':
       return 'Ran on the remote server'
+    case 'runByUser':
+      return 'Run by you'
   }
 }
 

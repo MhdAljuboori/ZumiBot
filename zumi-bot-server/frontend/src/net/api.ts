@@ -68,7 +68,8 @@ export function createApi(
       testAcp: (agentName) => call('agents:testAcp', agentName),
       acpLaunch: (agentName) => call('agents:acpLaunch', agentName),
       testAgui: (agentName) => call('agents:testAgui', agentName),
-      aguiLaunch: (agentName) => call('agents:aguiLaunch', agentName)
+      aguiLaunch: (agentName) => call('agents:aguiLaunch', agentName),
+      engineCommands: (agent, folder) => call('agents:engineCommands', agent, folder)
     },
     chats: {
       list: () => call('chats:list'),
@@ -95,7 +96,7 @@ export function createApi(
       compact: (chatId, note, agent) => call('chats:compact', chatId, note, agent),
       setModel: (chatId, model) => call('chats:setModel', chatId, model),
       setPermissionMode: (chatId, mode) => call('chats:setPermissionMode', chatId, mode),
-      allowBlocked: (chatId, toolUseId, prefixes, scope) => call('chats:allowBlocked', chatId, toolUseId, prefixes, scope),
+      allowBlocked: (chatId, toolUseId, prefixes, scope, folders = []) => call('chats:allowBlocked', chatId, toolUseId, prefixes, scope, folders),
       setEffort: (chatId, effort) => call('chats:setEffort', chatId, effort),
       cancelResume: (chatId) => call('chats:cancelResume', chatId),
       continueNow: (chatId) => call('chats:continueNow', chatId),
@@ -153,6 +154,9 @@ export function createApi(
       setAccent: (accent) => call('app:setAccent', accent),
       getHouseStyle: () => call('app:getHouseStyle'),
       setHouseStyle: (on) => call('app:setHouseStyle', on),
+      getSuggestedReplies: () => call('app:getSuggestedReplies'),
+      setSuggestedReplies: (on) => call('app:setSuggestedReplies', on),
+      onSuggestedRepliesChanged: (cb) => rpc.on('app:suggestedReplies', (p: { on: boolean }) => cb(p.on)),
       getKeepWarm: () => call('app:getKeepWarm'),
       setKeepWarm: (v) => call('app:setKeepWarm', v),
       setTimeZone: (tz) => call('app:setTimeZone', tz),
@@ -178,6 +182,7 @@ export function createApi(
     approvals: {
       list: (agentName) => call('approvals:list', agentName),
       remove: (agentName, key) => call('approvals:remove', agentName, key),
+      addCli: (agentName, kind, value) => call('approvals:addCli', agentName, kind, value),
       onChanged: (cb) => rpc.on('approvals:changed', (p: { agent: string }) => cb(p.agent))
     },
     routines: {
@@ -354,6 +359,7 @@ export function createApi(
       stop: (chatId, id) => call('processes:stop', chatId, id),
       restart: (chatId, id) => call('processes:restart', chatId, id),
       forget: (chatId, id) => call('processes:forget', chatId, id),
+      run: (chatId, messageId, command) => call('processes:run', chatId, messageId, command),
       counts: () => call('processes:counts'),
       onChanged: (cb) => rpc.on('processes:changed', (p: { chatId: string; running: number }) => cb(p)),
       onOutput: (cb) => rpc.on('processes:output', (p: { chatId: string; id: string; to: number }) => cb(p))

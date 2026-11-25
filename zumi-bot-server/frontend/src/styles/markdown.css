@@ -109,7 +109,8 @@
 .code-block {
   position: relative;
 }
-.code-copy {
+.code-copy,
+.code-run {
   position: absolute;
   top: 4px;
   right: 4px;
@@ -126,19 +127,24 @@
   opacity: 0;
   transition: opacity 0.12s;
 }
-.code-copy svg {
+.code-copy svg,
+.code-run svg {
   width: 16px;
   height: 16px;
 }
 .code-block:hover .code-copy,
-.code-copy:focus-visible {
+.code-copy:focus-visible,
+.code-block:hover .code-run,
+.code-run:focus-visible {
   opacity: 1;
 }
-.code-copy:hover {
+.code-copy:hover,
+.code-run:hover {
   background: color-mix(in srgb, var(--fg) 10%, var(--code-bg));
   color: var(--fg);
 }
-.code-copy:focus-visible {
+.code-copy:focus-visible,
+.code-run:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: -2px;
 }
@@ -149,8 +155,78 @@
   display: flex;
   gap: 2px;
 }
-.code-tools .code-copy {
+.code-tools .code-copy,
+.code-tools .code-run {
   position: static;
+}
+/* A runnable block (CodeBlock.tsx): its tools sit beside the line, not over it, since the run's status stays on screen.
+   The box holds the one fill, so there is no seam between code and tools. The code keeps at least 15ch to be read: a
+   narrower box (a phone) wraps the tools to their own row under it, on the right. */
+.code-block.runnable {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  border-radius: 8px;
+  background: var(--code-bg);
+}
+/* Its one line wraps instead of scrolling: Run asks for no approval, so the whole command must be on screen to be read
+   before the click. */
+.code-block.runnable > pre {
+  flex: 1 1 0;
+  min-width: min(15ch, 100%);
+  background: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.code-block.runnable > .code-tools {
+  position: static;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 100%;
+  margin-left: auto;
+  padding: 4px;
+}
+.code-run:disabled {
+  cursor: progress;
+}
+/* The block's latest run, always shown; the dot and words take the Processes panel's tones. */
+.code-run-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 7px;
+  background: var(--code-bg);
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.code-run-status[data-tone='running'] {
+  color: var(--success);
+}
+.code-run-status[data-tone='bad'] {
+  color: var(--error);
+}
+.code-run-status:hover {
+  background: color-mix(in srgb, var(--fg) 10%, var(--code-bg));
+}
+.code-run-status:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+/* Under the block, outside its fill: -6px against the block's 10px margin leaves a 4px gap. */
+.code-run-error {
+  display: block;
+  margin: -6px 0 10px;
+  color: var(--warning);
+  font-size: 12px;
+  line-height: 16px;
 }
 /* Mermaid measures labels in a scratch div on <body>, so the diagram undoes what the bubble would change about them. */
 .mermaid-diagram {

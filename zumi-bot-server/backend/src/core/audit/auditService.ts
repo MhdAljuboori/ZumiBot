@@ -21,6 +21,11 @@ export class AuditService implements AuditSource {
     }
   ) {}
 
+  /** One record written outside a tool call (a Run button press): the caller supplies the facts, this fills the log's own. */
+  async record(r: Omit<AuditRecord, 'v' | 'id' | 'machine' | 'prev'>): Promise<void> {
+    this.o.write({ ...r, v: 1, id: this.o.newId(), machine: this.o.machine })
+  }
+
   tap(run: AuditRun, d: AuditRunDeps): AuditTap {
     let link = run
     if (run.runKind === 'routine' && !run.routine && this.o.routineOf) {

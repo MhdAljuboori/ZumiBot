@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net'
 import { homedir, hostname, userInfo } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { isInside } from './core/fsutil'
+import { folderOfRule } from '@zumibot/shared/allowRules'
 import { ZUMI_BOT_NAME } from '@zumibot/shared/zumiBot'
 import { groupKey, type SidebarLayout } from '@zumibot/shared/sidebarLayout'
 import type { ChatMeta, ChatPush } from '@zumibot/shared/types'
@@ -50,6 +51,8 @@ import { buildBriefing } from './core/chat/groupPrompts'
 import { HOUSE_STYLE } from './core/chat/houseStyle'
 import { runJsonCall, runModerator } from './core/chat/moderator'
 import { ackMessage, runAck } from './core/chat/acknowledge'
+import { runReplyOptions } from './core/chat/replyOptions'
+import { ReplyOptions } from './core/chat/replyOptionsService'
 import { runRoute } from './core/todos/commentRouting'
 import type { RunCost } from './core/usage/runCost'
 import { createRunEnv } from './core/chat/shellEnv'
@@ -136,9 +139,11 @@ import { DispatchService } from './core/dispatch/dispatchService'
 import { migrateToBoard } from './core/todos/boardMigration'
 import { SearchIndex } from './core/search/searchIndex'
 import { serveTodoIpc } from './core/todos/todoIpc'
-import { ProcessService } from './core/processes/processService'
+import { ProcessService, type RunEndEvent } from './core/processes/processService'
 import { serveProcessIpc } from './core/processes/processIpc'
 import { ProcessWakes } from './core/processes/processWakes'
+import { RunResults } from './core/processes/runResults'
+import { runAuditRecord } from './core/audit/runAudit'
 import { serveVaultIpc } from './core/vault/vaultIpc'
 import { VaultApprovals } from './core/vault/vaultApprovals'
 import { UpdateService, detectAvailability } from './core/update/updateService'
@@ -171,6 +176,7 @@ import { keyVarInUse } from './core/claudeStatus'
 import { CONNECTOR_IDS } from '@zumibot/shared/connectors'
 import { NO_EXTENSIONS } from '@zumibot/shared/extensions'
 import { TODO_SYSTEM } from './core/todos/todoPrompt'
+import { RUN_SYSTEM } from './core/processes/processPrompt'
 import { askRoster, askSystem, askedSystem } from './core/asks/askPrompt'
 import { trashPath } from './core/trash'
 import { restoreFile } from './core/files/restoreFile'
@@ -767,9 +773,43 @@ export async function startServer(
       now: () => Date.now(),
       newId: () => randomUUID()
     })
+    // Above the process service: its load() can raise a Run's end (a lost run) before the chat service below exists.
+    const permissionMode = devEnv('ZUMIBOT_PERMISSION_MODE') === 'manual' ? 'manual' : 'auto'
+    // Per turn, so a provider change applies from a chat's next message. Zumi Bot stays on Claude whatever its file says: its
+    // deny rules and automations exist only on Claude runs.
+    const engineOf = async (agent: string): Promise<Engine> =>
+      agent === ZUMI_BOT_NAME ? 'claude' : engineOfAgent((await agents.list()).find((a) => a.name === agent))
+    // One audit record per Run when it ends, whichever way it ends. Never throws or blocks the process service; codes only.
+    const auditRun = (e: RunEndEvent): void => {
+      void (async () => {
+        const meta = await chats.get(e.chatId).catch(() => null)
+        const runKind = meta?.workflow ? 'workflow' : meta?.group ? 'room' : 'chat'
+        await audit.record(
+          runAuditRecord(e, {
+            engine: await engineOf(e.agent),
+            isolation: isolation.levelOf(e.agent),
+            mode: permissionMode,
+            runKind,
+            scrub: scrubOf(e.agent)
+          })
+        )
+      })().catch((err) => console.error('run audit record not written:', (err as { code?: unknown } | null)?.code ?? 'error'))
+    }
+    // A Run's end goes to the block's author the same way, as a hidden message; a server restart ends the run and sends nothing.
+    const runResults = new RunResults({
+      submit: (chatId, text, run) => tasks.submit(chatId, text, [], undefined, undefined, undefined, undefined, 'run', undefined, { run }),
+      chat: async (id) => {
+        const m = await chats.get(id)
+        return m ? { archived: isArchived(m), room: m.group !== undefined } : null
+      }
+    })
     const processes = new ProcessService({
       dataDir,
       onWake: (e) => wakes.event(e),
+      onRunEnd: (e) => {
+        runResults.ended(e)
+        auditRun(e)
+      },
       env: async () => {
         await runEnv.ready()
         return runEnv.env()
@@ -796,6 +836,28 @@ export async function startServer(
     undo.push(() => processIpc.close())
     const vaultIpc = await serveVaultIpc({ items: (agent) => vault.agentItems(agent) })
     undo.push(() => vaultIpc.close())
+    // Suggested replies: a chat gone idle on a reply that asks the user gets their likely next messages (replyOptions.ts).
+    const replyOptions = new ReplyOptions({
+      store: chats,
+      push,
+      enabled: async () => (await settings.get()).suggestedReplies,
+      // Built later; only ever called once a chat goes idle, by which time it exists.
+      running: (chatId) => chatService.isRunning(chatId),
+      read: async (chatId, input, signal) => {
+        const bin = await claude.locate()
+        if (!bin) return null
+        await runEnv.ready()
+        // No tools and no session: the home folder is only where the call starts.
+        return runReplyOptions({
+          bin,
+          cwd: homedir(),
+          env: runEnv.env(),
+          input,
+          signal,
+          onCost: (c, id) => usage.recordModerator(chatId, c, id, Date.now())
+        })
+      }
+    })
     // Agent asks: B's turn runs through ChatService, which is built later, so `run` reaches it by closure.
     const asks = new AgentAsks({
       agents: () => agents.list(),
@@ -903,17 +965,12 @@ export async function startServer(
       env: { ...runEnv.env(), ...o.env },
       ...(o.hookTrustEnv ? { hookTrustEnv: { ...runEnv.env(), ...o.hookTrustEnv } } : {})
     })
-    const permissionMode = devEnv('ZUMIBOT_PERMISSION_MODE') === 'manual' ? 'manual' : 'auto'
     const memoryNote = async (agent: string): Promise<string> => {
       const summary = (await agents.list()).find((a) => a.name === agent)
       if (summary?.memory !== 'user' || (await autoMemoryOff())) return ''
       return capNote(await memoryStore.count(agent), effectiveLimit(summary.memoryLimit))
     }
     const askRosterOf = async (agent: string): Promise<{ name: string; description: string }[]> => askRoster(await agents.list(), agent)
-    // Per turn, so a provider change applies from a chat's next message. Zumi Bot stays on Claude whatever its file says: its
-    // deny rules and automations exist only on Claude runs.
-    const engineOf = async (agent: string): Promise<Engine> =>
-      agent === ZUMI_BOT_NAME ? 'claude' : engineOfAgent((await agents.list()).find((a) => a.name === agent))
     // The second Claude adapter, behind its dev hook: its own chunk, imported only when the hook is on, so neither the
     // packaged build nor a normal server loads the SDK. It is given this service's caps and locate, the run env and the same
     // usage interception `run` below does, so only the spawn differs (see docs/architecture/engines.md).
@@ -923,6 +980,7 @@ export async function startServer(
     if (claudeSdk) console.log('ZUMIBOT_CLAUDE_SDK=1: Claude turns run through the Agent SDK adapter')
     const chatService = new ChatService({
       engineOf,
+      codexSkill: (folder, agent, name) => extensions.codexSkill(folder, agent, name),
       // The CLI path asks each binary whether it takes the flag; the SDK path needs no probe, since its option is typed and
       // the SDK's own version pins the Claude Code version that has it.
       dropsTurn: claudeSdk ? async () => true : dropsTurnProbe,
@@ -1088,6 +1146,8 @@ export async function startServer(
         spendCaps.chatIdle(id)
         // Last: a wake-up queues behind whatever the queue, routines and limit waits just did with the idle chat.
         wakes.idle(id)
+        // After everything that may start a new run: the reader skips a chat that is running again.
+        void replyOptions.idle(id)
       },
       approvalRisk: async (chatId, r) => {
         const meta = await chats.get(chatId)
@@ -1106,7 +1166,8 @@ export async function startServer(
         cli: (a) => approvals.cliRules(a),
         // Awaited: the user's Allow is stored before the continue message goes out.
         addCli: async (a, rule) => {
-          await approvals.add(a, { key: JSON.stringify(['cli', rule]), toolName: 'Bash', command: null, cli: rule })
+          const toolName = folderOfRule(rule) !== null ? 'Read' : 'Bash'
+          await approvals.add(a, { key: JSON.stringify(['cli', rule]), toolName, command: null, cli: rule })
           approvalsChanged(a)
         },
         // Memory is already updated; the write and the broadcast must not hold up the reply.
@@ -1199,6 +1260,7 @@ export async function startServer(
         (await settings.get()).houseStyle ? HOUSE_STYLE : '',
         TODO_SYSTEM,
         VAULT_SYSTEM,
+        RUN_SYSTEM,
         askable ? await sideRoster(agent) : ''
       ]
         .filter(Boolean)
@@ -1342,6 +1404,7 @@ export async function startServer(
               note,
               TODO_SYSTEM,
               VAULT_SYSTEM,
+              RUN_SYSTEM,
               asks
             ]
               .filter(Boolean)
@@ -1457,7 +1520,21 @@ export async function startServer(
       now: () => Date.now(),
       newId: () => randomUUID()
     })
-    const commands = new CommandResolver({ store: chats, commandsOf: (n) => agents.commandsOf(n) })
+    const commands = new CommandResolver({
+      store: chats,
+      commandsOf: (n) => agents.commandsOf(n),
+      // An unreadable agents list or a failed probe means no engine rows: the text goes out as typed.
+      engineCommandsOf: async (agent, folder, o) => {
+        if (o?.cachedOnly) {
+          const hit = await extensions.cachedEngineCommands(folder, agent).catch(() => null)
+          if (hit) return hit
+          // A cold cache never holds up a send: a Claude command goes out as typed (only its chip is lost); a Codex skill needs the list.
+          const found = (await agents.list().catch(() => [])).find((a) => a.name === agent)
+          if (!(found && engineOfAgent(found) === 'codex')) return null
+        }
+        return extensions.engineCommands(folder, agent).catch(() => null)
+      }
+    })
     // Whether a routine's or workflow's spend cap can hold for its agents' engines: at save, and again where a run starts.
     const capEngineCheck = capEngines({ agents: () => agents.list(), chats })
     runner = new RoutineRunner({
@@ -1928,6 +2005,7 @@ export async function startServer(
       settings,
       sidebar,
       sidebarChanged,
+      suggestedRepliesChanged: (on) => hub.broadcast({ event: 'app:suggestedReplies', payload: { on } }),
       approvals,
       approvalsChanged,
       launchTrust,
@@ -2247,6 +2325,7 @@ export async function startServer(
         bare.stopAll() // after stop(): a call killed before it would be written as a failed visit and reported
         tasks.shutdown() // before stopAll: the runs it stops must not start queued tasks
         asks.close() // before stopAll too: an ask made while runs end is refused, not started
+        replyOptions.close() // its Haiku calls are child processes; none may outlive the server
         summaries.stopAll() // a summary call is a child process; it must not outlive the server
         keepWarm.stop() // before side.stopAll: no new ping may start while the running ones stop
         prWatcher.stopAll() // its timers only read GitHub, but none may outlive the server

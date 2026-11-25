@@ -11,13 +11,16 @@ export function repliedItem(items: readonly ChatItem[], id: string | undefined):
   return items.find((i): i is AssistantItem => i.type === 'assistant' && i.id === id)
 }
 
-/** The user's text, after a quote of the agent message it replies to. */
-export function withReply(text: string, quoted: AssistantItem | undefined): string {
+/**
+ * The user's text, after a quote of the agent message it replies to. `after` puts the quote behind the text instead: a Claude
+ * command only runs as the first thing in the message, so a quote in front would turn it into plain text.
+ */
+export function withReply(text: string, quoted: AssistantItem | undefined, after = false): string {
   if (!quoted) return text
   const chars = [...quoted.text]
   const body = chars.length > REPLY_QUOTE_MAX ? chars.slice(0, REPLY_QUOTE_MAX).join('') + '…' : quoted.text
   const note = `<reply_to${quoted.agent ? ` from="${quoted.agent}"` : ''}>\n${body}\n</reply_to>`
-  return text === '' ? note : `${note}\n\n${text}`
+  return text === '' ? note : after ? `${text}\n\n${note}` : `${note}\n\n${text}`
 }
 
 /** The items with each reply's quote put in front of its text, as the agents read them. */

@@ -41,6 +41,7 @@ import { ProcessesPanel } from './components/ProcessesPanel'
 import { useProcessCounts, useProcesses } from './useProcesses'
 import { processesBadge, processMark } from './state/processes'
 import { DispatchLinkContext, type DispatchLink } from './components/dispatchLink'
+import { RunLinkContext, type RunLink } from './components/runLink'
 import { cliMissing } from './state/agentEngine'
 import { dispatchBadge, linkState, waitingIds } from './state/dispatchPanel'
 import { TodoBoard } from './components/TodoBoard'
@@ -368,6 +369,7 @@ export default function App() {
   // A reply chip asks the To-dos view to scroll to that reply's group (keyed by the reply's item id).
   const [todosFocus, setTodosFocus] = useState<{ chatId: string; itemId: string; n: number } | null>(null)
   const [dispatchFocus, setDispatchFocus] = useState<{ chatId: string; id: string; n: number } | null>(null)
+  const [processFocus, setProcessFocus] = useState<{ chatId: string; id: string; n: number } | null>(null)
   const askingSides = useRef(new Set<string>())
   const startingRuns = useRef(new Set<string>()) // chats with a /run-workflow on its way
   // query: a search hit's, whose words the message lights (a search jump opens no tool runs).
@@ -1569,6 +1571,12 @@ export default function App() {
     setSide('dispatch')
   }
 
+  // A shell block's run status: the panel opens on that run's log.
+  const openProcessAt = (chatId: string, id: string): void => {
+    setProcessFocus((prev) => ({ chatId, id, n: (prev?.n ?? 0) + 1 }))
+    setSide('processes')
+  }
+
   // `/run-workflow <name> <input>` in a chat: the server finds the workflow (the Workflows list's pick, else by the name)
   // and starts it with the input.
   const runWorkflowFromChat = async (chatId: string, text: string, workflowId?: string): Promise<void> => {
@@ -1978,6 +1986,17 @@ export default function App() {
       }
     }),
     [dispatch.list, dispatchShownId]
+  )
+  // The shown chat's processes are the main chat view's: each shell block finds its latest run there.
+  const runLink = useMemo(
+    (): RunLink => ({
+      list: processes.list,
+      run: async (chatId, messageId, command) => {
+        await api.processes.run(chatId, messageId, command)
+      },
+      open: openProcessAt
+    }),
+    [processes.list]
   )
   // The Files panel's Explain sends into the shown chat, which needs its own CLI (codex for a Codex chat).
   const canSend =
@@ -2904,7 +2923,10 @@ export default function App() {
                       />
                     ) : view.kind === 'chat' && openChatMeta && (isGroup(openChatMeta) || openChatAgent) ? (
                       <DispatchLinkContext.Provider value={dispatchLink}>
-                        <ChatView key={openChatMeta.id} {...chatViewProps(openChatMeta, openChatAgent ?? null)} />
+                        {/* Here only: the island popup's chat view gets no Run, having no Processes panel to show a run in. */}
+                        <RunLinkContext.Provider value={runLink}>
+                          <ChatView key={openChatMeta.id} {...chatViewProps(openChatMeta, openChatAgent ?? null)} />
+                        </RunLinkContext.Provider>
                       </DispatchLinkContext.Provider>
                     ) : view.kind === 'editor' ? (
                       <AgentEditor
@@ -3024,6 +3046,8 @@ export default function App() {
                       failed={processes.failed}
                       onRetry={processes.retry}
                       connected={connection === 'connected'}
+                      focusId={processFocus?.chatId === shownChat.id ? processFocus.id : null}
+                      focusRequest={processFocus?.n ?? 0}
                       onBack={() => setSide('menu')}
                       onClose={closeSideView}
                     />

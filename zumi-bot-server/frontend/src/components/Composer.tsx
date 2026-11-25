@@ -12,6 +12,7 @@ import { Slice } from '@tiptap/pm/model'
 import { Selection, type EditorState } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
 import type { CommandPick } from '@zumibot/shared/commands'
+import type { EngineCommands } from '@zumibot/shared/engineCommands'
 import { displayName } from '@zumibot/shared/frontmatter'
 import type { AgentSummary } from '@zumibot/shared/types'
 import {
@@ -26,6 +27,7 @@ import {
   type SlashQuery
 } from '../composerExtensions'
 import { coarsePointer, keepFocus } from '../media'
+import { isBlankBox } from '../state/replyOptions'
 import { offersTodo } from '../state/agentEngine'
 import { agentInk } from '../state/bot'
 import {
@@ -56,6 +58,8 @@ interface Props {
   /** Accessible name of the input; also its placeholder (with an ellipsis) unless one is given. */
   label: string
   placeholder?: string
+  /** A suggested reply: the placeholder while the box is empty, and Tab (or the hint button) writes it into the box. */
+  suggestion?: string
   /** The message as markdown: what the box shows (lists, code, code blocks) and what Send sends. */
   draft: string
   inFlight: boolean
@@ -81,6 +85,8 @@ interface Props {
   everyone?: boolean
   /** Whose commands a leading `/` lists: the chat's agent, or a room's loadable members (grouped under headers when `mentionMembers` is set). */
   commandAgents?: AgentSummary[]
+  /** The chat agent's engine rows after the agent's own in the `/` menu (single chat and new-chat screen only; a room has none). */
+  engineCommands?: EngineCommands | null
   /** Whether the `/` menu offers `/btw`: false for an engine without side questions (Codex). Default true. */
   btw?: boolean
   /** A typed leading `/btw` is not sent: this notice shows instead (the island, which has no side panel for the answer). */
@@ -129,6 +135,7 @@ const quoteTint = (agent: AgentSummary): CSSProperties | undefined => {
 export function Composer({
   label,
   placeholder = `${label}…`,
+  suggestion,
   draft,
   inFlight,
   cliFound,
@@ -142,6 +149,7 @@ export function Composer({
   mentionMembers,
   everyone = true,
   commandAgents,
+  engineCommands,
   btw = true,
   noBtw,
   runWorkflow = true,
@@ -199,6 +207,9 @@ export function Composer({
   // Nothing to send: no text, no ready file and no dictation.
   const empty = latestText().trim() === '' && !hasReady && !dictating
   const showStop = inFlight && (!allowSendWhileRunning || empty)
+  // Only into an empty box: Tab in a message the user is writing keeps its usual meaning.
+  const suggested = suggestion !== undefined && latestText().trim() === '' && !dictating ? suggestion : null
+  const shownPlaceholder = suggested ?? placeholder
   const canSend = ready && !empty
   /** The send itself, with the box's latest text; a held send comes here directly, never through submit. */
   const submitText = (text: string): void => {
@@ -209,7 +220,7 @@ export function Composer({
       return
     }
     // Checked against the agents as they are now: the new-chat agent may have been switched since the pick.
-    const sent = keepPick(text, pick, commandAgents ?? [])
+    const sent = keepPick(text, pick, commandAgents ?? [], engineCommands)
     const workflow = keepWorkflowPick(text, wfPick)
     lastSent.current = { text, pick: sent, workflow }
     setPick(null)
@@ -241,7 +252,13 @@ export function Composer({
   const options: MentionOption[] = mentionMembers && query ? mentionOptions(query.query, mentionMembers, everyone) : []
   const commands: CommandOption[] =
     commandAgents && slash
-      ? filterCommands(slash.query, commandAgents, { afterTodo: slash.afterTodo, btw, todo: offersTodo(commandAgents), runWorkflow })
+      ? filterCommands(slash.query, commandAgents, {
+          afterTodo: slash.afterTodo,
+          btw,
+          todo: offersTodo(commandAgents),
+          runWorkflow,
+          engine: engineCommands
+        })
       : []
   // The Workflows list shows only while it has names: typing past a name closes it.
   const workflowNames = runWorkflow && workflows && wfQuery ? filterWorkflowNames(wfQuery.query, workflows) : []
@@ -278,7 +295,16 @@ export function Composer({
       })
       .run()
     // After the insert's own update, which saw no pick yet.
-    setPick('builtin' in o ? null : { agent: o.agent.name, name: o.command.name })
+    // An engine row belongs to the chat's one agent (engine rows are offered only where `commandAgents` is that agent).
+    setPick(
+      'builtin' in o
+        ? null
+        : 'engine' in o
+          ? commandAgents?.[0]
+            ? { agent: commandAgents[0].name, name: o.command.name, engine: o.engine }
+            : null
+          : { agent: o.agent.name, name: o.command.name }
+    )
   }
 
   const pickWorkflow = (w: WorkflowPick): void => {
@@ -297,8 +323,17 @@ export function Composer({
     setWfQuery(null)
   }
 
+  // Written in as if typed: the draft effect puts it in the box with the caret at the end, and nothing is sent.
+  // Read live: an empty code block or list draws no new render, and Tab or the hint must not replace it.
+  const boxBlank = (): boolean => !editor || isBlankBox(editor.getJSON())
+  const takeSuggestion = (): void => {
+    if (suggested === null || !boxBlank()) return
+    onDraftChange(suggested)
+    editor?.commands.focus('end')
+  }
+
   /**
-   * Keys the editor sees first: the @ list's, then Enter (send) and Esc (cancel the reply). True when handled.
+   * Keys the editor sees first: the @ list's, then Tab (take the suggested reply), Enter (send) and Esc (cancel the reply). True when handled.
    * A touch keyboard's Enter starts a new line instead, the way phone chat apps do: there the Send button sends
    * (and Ctrl or Cmd+Enter, for a keyboard attached to a tablet).
    */
@@ -321,6 +356,10 @@ export function Composer({
         else if (query) setClosedAt(query.from)
         return true
       }
+    }
+    if (e.key === 'Tab' && suggested !== null && !e.isComposing && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && boxBlank()) {
+      takeSuggestion()
+      return true
     }
     if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.isComposing && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
       if (recall(e.key === 'ArrowUp')) return true
@@ -402,7 +441,7 @@ export function Composer({
   // The editor is made once; its handlers and props reach the latest render through this.
   const latest = useRef({
     label,
-    placeholder,
+    placeholder: shownPlaceholder,
     cliFound,
     mentionMembers,
     everyone,
@@ -413,7 +452,7 @@ export function Composer({
     onPaste,
     onUpdate
   })
-  latest.current = { label, placeholder, cliFound, mentionMembers, everyone, commandAgents, pick, wfPick, onKeyDown, onPaste, onUpdate }
+  latest.current = { label, placeholder: shownPlaceholder, cliFound, mentionMembers, everyone, commandAgents, pick, wfPick, onKeyDown, onPaste, onUpdate }
 
   const [editorOptions] = useState<UseEditorOptions>(() => ({
     extensions: [
@@ -502,7 +541,7 @@ export function Composer({
   // The label, placeholder, mention and command colors live outside the document: a no-op transaction repaints them.
   useEffect(() => {
     if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta('composerProps', true))
-  }, [editor, label, placeholder, mentionMembers, everyone, commandAgents, pick])
+  }, [editor, label, shownPlaceholder, mentionMembers, everyone, commandAgents, pick])
 
   // Picking a message to reply to puts the caret in the box, ready to type the reply.
   const replyId = reply?.id ?? null
@@ -580,6 +619,20 @@ export function Composer({
             <MentionMenu options={options} members={mentionMembers} active={activeIndex} onActive={setActive} onPick={insert} />
           )}
         </div>
+        {suggested !== null && (
+          <button
+            type="button"
+            className="composer-suggestion"
+            data-testid="composer-suggestion"
+            aria-label={`Use suggested reply: ${suggested}`}
+            data-tip={coarsePointer() ? 'Use suggested reply' : 'Press Tab to use it'}
+            disabled={!cliFound}
+            onMouseDown={keepFocus}
+            onClick={takeSuggestion}
+          >
+            {coarsePointer() ? 'Use' : 'Tab'}
+          </button>
+        )}
         {micVisible(voiceOn, dictation.state) && <DictationButton d={dictation} disabled={micDisabled(!cliFound, dictation.state)} />}
         {showStop && pause !== null && onPause !== undefined && (
           <button

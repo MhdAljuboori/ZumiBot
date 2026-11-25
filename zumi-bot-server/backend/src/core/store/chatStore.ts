@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { NOTICE_TEXT, type ChatItem, type ChatWorktree, type ChatMeta, type GroupInfo, type QueuedTask } from '@zumibot/shared/types'
 import { capPausedText } from '@zumibot/shared/spendCaps'
+import { holdsVisibleTask } from '@zumibot/shared/runBlocks'
 import { archivePatch } from '@zumibot/shared/archive'
 import { writeFileAtomic } from '../fsutil'
 import type { SideQuestion } from '@zumibot/shared/btw'
@@ -269,11 +270,12 @@ export class ChatStore {
     })
   }
 
-  /** Queues a task at the end; the chat keeps its place in the list. `hold`: the tray is held too, in the same write. */
+  /** Queues a task at the end; the chat keeps its place in the list. `hold`: the tray is held too, in the same write (never for a Run result). */
   addTask(id: string, task: QueuedTask, hold = false): Promise<ChatMeta> {
     return this.run(async () => {
       const cur = await this.mustGet(id)
-      return this.updateLocked(id, { tasks: [...(cur.tasks ?? []), task], ...(hold ? { held: true } : {}), updatedAt: cur.updatedAt })
+      const held = hold && task.run === undefined
+      return this.updateLocked(id, { tasks: [...(cur.tasks ?? []), task], ...(held ? { held: true } : {}), updatedAt: cur.updatedAt })
     })
   }
 
@@ -287,18 +289,19 @@ export class ChatStore {
     })
   }
 
-  /** Marks the queued tasks as held (they wait for the user); no-op without tasks. */
+  /** Marks the queued tasks as held (they wait for the user); no-op without a task the user can see (holdsVisibleTask). */
   holdTasks(id: string): Promise<ChatMeta> {
     return this.run(async () => {
       const cur = await this.mustGet(id)
-      if (!cur.tasks?.length || cur.held) return cur
+      if (!holdsVisibleTask(cur.tasks) || cur.held) return cur
       return this.updateLocked(id, { held: true, updatedAt: cur.updatedAt })
     })
   }
 
-  /** The tasks left after a take or drop; the last one out also clears `held`. */
+  /** The tasks left after a take or drop; the last one the user can see out also clears `held` (Run results alone are never held). */
   private tasksPatch(rest: QueuedTask[], cur: ChatMeta): Partial<Omit<ChatMeta, 'id'>> {
-    return rest.length > 0 ? { tasks: rest, updatedAt: cur.updatedAt } : { tasks: undefined, held: undefined, updatedAt: cur.updatedAt }
+    if (rest.length === 0) return { tasks: undefined, held: undefined, updatedAt: cur.updatedAt }
+    return holdsVisibleTask(rest) ? { tasks: rest, updatedAt: cur.updatedAt } : { tasks: rest, held: undefined, updatedAt: cur.updatedAt }
   }
 
   /** Removes the task with this id; null (and no write) when it is not queued. */
@@ -723,8 +726,8 @@ export class ChatStore {
           text: chat.pauseCap ? capPausedText(chat.pauseCap) : NOTICE_TEXT.userPaused,
           ts: this.now()
         })
-        // Held as the landing does (holdTasks): only a tray with tasks has anything to hold.
-        const heldPatch = (): Partial<Omit<ChatMeta, 'id'>> => (chat.tasks?.length ? { held: true } : {})
+        // Held as the landing does (holdTasks): only a tray with a task the user can see has anything to hold.
+        const heldPatch = (): Partial<Omit<ChatMeta, 'id'>> => (holdsVisibleTask(chat.tasks) ? { held: true } : {})
         if (!chat.inFlight) {
           const base = items.map((it): ChatItem =>
             it.type === 'browser-action' && it.handoff.status === 'pending'

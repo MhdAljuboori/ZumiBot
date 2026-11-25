@@ -129,6 +129,15 @@ const askQ = (id: string) => ({
 })
 
 describe('runCodex against fake-codex', () => {
+  test('a turn with skills sends them as skill items on turn/start', async () => {
+    const skills = [{ name: 'pdf', path: '/s/pdf/SKILL.md' }]
+    const { h } = run({ FAKE_CODEX_SCRIPT: script(message('ok')) }, { skills, action: { kind: 'turn', prompt: '$pdf hello' } })
+    await h.done
+    const log = lines(logFile())
+    expect(log.find((l: any) => l.method === 'turn/start').params.input).toEqual(codexInput('$pdf hello', skills))
+    expect(log.find((l: any) => l.method === 'turn/start').params.input.at(-1)).toEqual({ type: 'skill', name: 'pdf', path: '/s/pdf/SKILL.md' })
+  })
+
   test('a plain turn: init, text, result; the outcome holds the result and exit code 0', async () => {
     const { h, events } = run({ FAKE_CODEX_SCRIPT: script(delta('Hi'), delta(' there'), message('Hi there')) })
     const out = await h.done

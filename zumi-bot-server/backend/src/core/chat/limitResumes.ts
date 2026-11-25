@@ -1,5 +1,6 @@
 import { isAsked } from '@zumibot/shared/agentAsk'
 import { continueText, lastTurn, limitHit, limitStop, resumeTime, LIMIT_MAX_RESUMES, type LimitResume } from '@zumibot/shared/limitResume'
+import { holdsVisibleTask } from '@zumibot/shared/runBlocks'
 import type { ChatPush } from '@zumibot/shared/types'
 import type { ChatStore } from '../store/chatStore'
 import type { TaskQueue } from './taskQueue'
@@ -61,15 +62,19 @@ export class LimitResumes {
 
   /**
    * The user's Don't continue: the chat waits no more, and its queued tasks, which the wait held, now wait for the user
-   * (Send now, or a message of their own) instead of meeting the limit one after another. Never rejects.
+   * (Send now, or a message of their own) instead of meeting the limit one after another. A Run result's task is never
+   * held (the user cannot see it): the queue is woken for it. Never rejects.
    */
   dontContinue(chatId: string): Promise<void> {
     return this.serialize(chatId, async () => {
       this.disarm(chatId)
       const meta = await this.d.store.patchInPlace(chatId, (cur) =>
-        cur.resume ? { resume: undefined, ...(cur.tasks?.length ? { held: true } : {}) } : null
+        cur.resume ? { resume: undefined, ...(holdsVisibleTask(cur.tasks) ? { held: true } : {}) } : null
       )
-      if (meta) this.d.push({ chatId, kind: 'meta', meta })
+      if (!meta) return
+      this.d.push({ chatId, kind: 'meta', meta })
+      // No turn's end will wake the queue for it now.
+      if (meta.tasks?.some((t) => t.run !== undefined)) this.d.tasks.idle(chatId)
     })
   }
 

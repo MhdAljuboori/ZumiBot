@@ -22,6 +22,12 @@ describe('allowSettingsArgs', () => {
       '{"permissions":{"allow":["Bash(ok:*)"]}}'
     ])
   })
+  it('keeps folder rules of the exact Read(//<folder>/**) shape', () => {
+    expect(allowSettingsArgs(['Read(//work/repo/**)', 'Read(/work/repo/**)', 'Read(//**)'], ['Read(//a/b/**)'], 'auto')).toEqual([
+      '--settings',
+      '{"permissions":{"allow":["Read(//work/repo/**)","Read(//a/b/**)"]}}'
+    ])
+  })
   it('none at all gives nothing', () => {
     expect(allowSettingsArgs(undefined, [], 'auto')).toEqual([])
   })

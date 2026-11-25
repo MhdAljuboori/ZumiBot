@@ -248,6 +248,13 @@ describe('codexInput', () => {
     ])
   })
 
+  it('appends a skill item per ref after the content', () => {
+    expect(codexInput('$pdf a', [{ name: 'pdf', path: '/s/pdf/SKILL.md' }])).toEqual([
+      { type: 'text', text: '$pdf a', text_elements: [] },
+      { type: 'skill', name: 'pdf', path: '/s/pdf/SKILL.md' }
+    ])
+  })
+
   it('maps a plain string to one text input', () => {
     expect(codexInput('hi')).toEqual([{ type: 'text', text: 'hi', text_elements: [] }])
   })

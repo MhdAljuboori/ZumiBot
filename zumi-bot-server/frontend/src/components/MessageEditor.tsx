@@ -150,7 +150,7 @@ export function MessageEditor({
     if (!slash) return
     replace(slash, `/${'builtin' in o ? o.builtin : o.command.name} `)
     // After the insert's own update, which dropped the old pick; a no-op transaction recolors the `/name`.
-    pickNow.current = 'builtin' in o ? null : { agent: o.agent.name, name: o.command.name }
+    pickNow.current = 'builtin' in o || 'engine' in o ? null : { agent: o.agent.name, name: o.command.name }
     if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta('composerProps', true))
   }
 

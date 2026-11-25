@@ -1,6 +1,7 @@
 import type { SentCommand } from '@zumibot/shared/commands'
 import { RESUME_TEXT } from '@zumibot/shared/pause'
 import type { CapPause } from '@zumibot/shared/spendCaps'
+import { holdsVisibleTask, RUN_ITEM_FIXED, type RunMark } from '@zumibot/shared/runBlocks'
 import type { CardAsk } from '@zumibot/shared/todos'
 import {
   isGroup,
@@ -26,8 +27,15 @@ export const PAUSE_UNAVAILABLE = 'Pause is unavailable: the pause hook is missin
  * Who sends a message: the user's own goes into a paused chat and ends the pause; a routine's (and a usage limit wait's
  * own `continue`) waits there for Resume.
  */
-// 'process': a background process's wake-up (core/processes/processWakes.ts). Like a routine's, never the user's own message.
-export type SendFrom = 'user' | 'routine' | 'process'
+// 'process': a background process's wake-up (core/processes/processWakes.ts). Like a routine's, never the user's own message;
+// unlike one, it never ends a usage limit wait, and queues behind it.
+// 'run': the result of a Run button's command, sent to the agent that wrote it. The user's own message in effect (not auto),
+// but it waits out a pause and a usage limit wait like a routine's, and ends neither. The user never sees its task, so it is
+// never held (`held`): nothing they can press would let it go.
+export type SendFrom = 'user' | 'routine' | 'process' | 'run'
+
+/** Whether the message counts as unattended: only a routine's and a process's do. */
+export const autoFor = (from: SendFrom): true | undefined => (from === 'routine' || from === 'process' ? true : undefined)
 
 export interface TaskQueueDeps {
   store: Pick<ChatStore, 'get' | 'list' | 'loadItems' | 'addTask' | 'takeTask' | 'dropTask' | 'holdTasks' | 'patchInPlace'>
@@ -62,29 +70,34 @@ const withTail = (call: (...tail: Tail) => Promise<void>, command?: SentCommand,
 // A room's post takes the workflow Chat step's sender in the slot after the to-do flag, then `auto` (a routine's or workflow's
 // message, not typed by the user: the room stays unattended until the user types into it).
 const withSent = (
-  call: (...tail: [command?: SentCommand, todo?: true, sent?: WorkflowSent, auto?: true]) => Promise<void>,
+  call: (...tail: [command?: SentCommand, todo?: true, sent?: WorkflowSent, auto?: true, run?: RunMark]) => Promise<void>,
   command?: SentCommand,
   todo?: true,
   sent?: WorkflowSent,
-  auto?: true
-): Promise<void> => (auto ? call(command, todo, sent, true) : sent ? call(command, todo, sent) : withTail(call, command, todo))
+  auto?: true,
+  run?: RunMark
+): Promise<void> =>
+  run ? call(command, todo, sent, auto, run) : auto ? call(command, todo, sent, true) : sent ? call(command, todo, sent) : withTail(call, command, todo)
 // A single chat's send takes `auto` in the slot after the to-do flag, the sender after it, then a card comment's context
-// (only set when there is one, so every other call keeps its exact arguments).
+// (only set when there is one, so every other call keeps its exact arguments), then a Run result's mark likewise.
 const withAuto = (
-  call: (...tail: [command?: SentCommand, todo?: true, auto?: true, sent?: WorkflowSent, cardAsk?: CardAsk]) => Promise<void>,
+  call: (...tail: [command?: SentCommand, todo?: true, auto?: true, sent?: WorkflowSent, cardAsk?: CardAsk, run?: RunMark]) => Promise<void>,
   command?: SentCommand,
   todo?: true,
   auto?: true,
   sent?: WorkflowSent,
-  cardAsk?: CardAsk
+  cardAsk?: CardAsk,
+  run?: RunMark
 ): Promise<void> =>
-  cardAsk
-    ? call(command, todo, auto, sent, cardAsk)
-    : sent
-      ? call(command, todo, auto, sent)
-      : auto
-        ? call(command, todo, true)
-        : withTail(call, command, todo)
+  run
+    ? call(command, todo, auto, sent, cardAsk, run)
+    : cardAsk
+      ? call(command, todo, auto, sent, cardAsk)
+      : sent
+        ? call(command, todo, auto, sent)
+        : auto
+          ? call(command, todo, true)
+          : withTail(call, command, todo)
 
 /** A run started under the lock. Wrapped so the lock's promise does not wait for it. */
 interface Started {
@@ -108,8 +121,9 @@ const unpaused = ({ paused: _gone, ...g }: GroupInfo): GroupInfo => g
 
 /**
  * The user took over a paused chat (a message of their own, Send now, an edit, a version switch): the pause is over, and
- * so are the turns a paused room saved for Resume. Queued tasks stay held, as in any held tray; an empty tray is not left
- * held, or what the user sends during the new reply would wait too. Null (no write) when the chat is not paused.
+ * so are the turns a paused room saved for Resume. Queued tasks stay held, as in any held tray; a tray with none the user
+ * can see is not left held, or what the user sends during the new reply would wait too (and a Run result would wait
+ * forever). Null (no write) when the chat is not paused.
  */
 const takeOverPatch = (cur: ChatMeta): Partial<Omit<ChatMeta, 'id' | 'updatedAt'>> | null =>
   cur.pause === undefined
@@ -117,7 +131,7 @@ const takeOverPatch = (cur: ChatMeta): Partial<Omit<ChatMeta, 'id' | 'updatedAt'
     : {
         pause: undefined,
         pauseCap: undefined,
-        held: cur.tasks?.length ? true : undefined,
+        held: holdsVisibleTask(cur.tasks) ? true : undefined,
         ...(cur.group?.paused ? { group: unpaused(cur.group) } : {})
       }
 
@@ -131,6 +145,8 @@ export interface SubmitOptions {
   once?: true
   // A card comment's @mention: the card's context, which the agent reads with the comment (single chats only).
   cardAsk?: CardAsk
+  // The mark of a Run result (from 'run'): travels with the message onto the user item.
+  run?: RunMark
   committed?: (r: SendResult | 'duplicate') => void
 }
 
@@ -176,17 +192,20 @@ export class TaskQueue {
       const paused = meta.pause !== undefined
       // Older tasks go first (a send racing a run's end lands here), except while they are held (an Edit or Resend
       // stopped the reply), wait out a usage limit, in a paused chat, or in a group the hop cap paused: there the new
-      // message goes straight in and the tasks stay where they are.
+      // message goes straight in and the tasks stay where they are. A Run result or a process's wake-up waits out a usage
+      // limit itself: the wait's continue goes first, and it follows that turn.
       const waiting =
-        !paused &&
-        (meta.tasks?.length ?? 0) > 0 &&
-        !meta.held &&
-        meta.resume === undefined &&
-        !(isGroup(meta) && (await this.paused(chatId)))
+        ((from === 'run' || from === 'process') && meta.resume !== undefined) ||
+        (!paused &&
+          (meta.tasks?.length ?? 0) > 0 &&
+          !meta.held &&
+          meta.resume === undefined &&
+          !(isGroup(meta) && (await this.paused(chatId))))
       const idle = !this.busy(chatId)
       if (this.down) throw new Error('Server is shutting down') // closed while this waited for the lock or the store
-      // A new message, sent or queued, ends a usage limit wait.
-      await this.newTurn(chatId)
+      // A new message, sent or queued, ends a usage limit wait; a Run result or a process's wake-up is not one the user
+      // wrote, so neither does.
+      if (from !== 'run' && from !== 'process') await this.newTurn(chatId)
       if (idle && !waiting && (!paused || from === 'user')) {
         const attachments = await files.commit(chatId, stagedIds)
         if (paused) {
@@ -194,7 +213,7 @@ export class TaskQueue {
           if (over) this.pushMeta(over)
         }
         if (opts?.once && messageId !== undefined) this.recent.add(messageId)
-        return this.launch(meta, text, attachments, replyTo, messageId, command, todo, from !== 'user' ? true : undefined, workflowSent, opts?.cardAsk)
+        return this.launch(meta, text, attachments, replyTo, messageId, command, todo, autoFor(from), workflowSent, opts?.cardAsk, opts?.run)
       }
       // Before commit, so a send that is bound to fail moves no files.
       if ((meta.tasks?.length ?? 0) >= TASKS_MAX) throw new Error(`A chat can hold at most ${TASKS_MAX} queued messages`)
@@ -207,12 +226,14 @@ export class TaskQueue {
         ...(replyTo !== undefined ? { replyTo } : {}),
         ...(command ? { command } : {}),
         ...(todo ? { todo } : {}),
-        ...(from !== 'user' ? { auto: true as const } : {}),
+        ...(autoFor(from) ? { auto: true as const } : {}),
         ...(workflowSent ? { workflowSent } : {}),
         ...(opts?.cardAsk ? { cardAsk: opts.cardAsk } : {}),
+        ...(opts?.run ? { run: opts.run } : {}),
         ts: now()
       }
-      // A paused chat's tray is held in the same write, also after the user emptied it (the last task out clears held).
+      // A paused chat's tray is held in the same write, also after the user emptied it (the last task out clears held); a
+      // Run result's never is.
       push({ chatId, kind: 'meta', meta: await store.addTask(chatId, task, paused) })
       return { idle }
     })
@@ -282,6 +303,7 @@ export class TaskQueue {
       // reply that is running. The services check again once they have the chat.
       const old = (await store.loadItems(chatId)).find((i) => i.type === 'user' && i.id === userId)
       if (old?.type !== 'user') throw new Error('Message not found')
+      if (old.run) throw new Error(RUN_ITEM_FIXED)
       if ((text ?? old.text).trim() === '' && !old.attachments?.length) throw new Error('Message is empty')
       await this.newTurn(chatId)
       // Only an edit that stops a reply holds the tray; on an idle chat the tasks are left as they are. Held BEFORE the
@@ -307,12 +329,13 @@ export class TaskQueue {
   }
 
   /**
-   * Shows another version of a message. Refused while the chat runs. Nothing is woken afterwards, on purpose: the lock
-   * keeps every send out until the switch is over, so none queues behind it, and tasks that wait on an idle chat are held
-   * or belong to a paused room, which the switch must not start (it holds them, see below).
+   * Shows another version of a message. Refused while the chat runs. Nothing the user can see is woken afterwards, on
+   * purpose: the lock keeps every send out until the switch is over, so none queues behind it, and tasks that wait on an
+   * idle chat are held or belong to a paused room, which the switch must not start (it holds them, see below). A Run
+   * result the switch freed (it ended a pause or a usage limit wait) is never held, so the queue is woken for it.
    */
-  switchVersion(chatId: string, userId: string, index: number): Promise<void> {
-    return this.serial(chatId, async () => {
+  async switchVersion(chatId: string, userId: string, index: number): Promise<void> {
+    const left = await this.serial(chatId, async () => {
       if (this.busy(chatId)) throw new Error('Chat is busy')
       await this.newTurn(chatId)
       await this.d.chats.switchVersion(chatId, userId, index)
@@ -321,12 +344,15 @@ export class TaskQueue {
       if (meta?.pause !== undefined) {
         const over = await this.takeOver(chatId)
         if (over) this.pushMeta(over)
-        return
+        return over ?? meta
       }
       // The switch can move a paused room's `paused` notice into a hidden version, which would leave its tasks neither
       // paused nor held on an idle chat. Held, they wait for the user (a restart's resume() skips them too).
       if (meta?.tasks?.length && !meta.held) this.pushMeta(await this.d.store.holdTasks(chatId))
+      return meta
     })
+    // After the lock, since pump takes it too.
+    if (left?.tasks?.some((t) => t.run !== undefined)) void this.pump(chatId)
   }
 
   /**
@@ -426,7 +452,7 @@ export class TaskQueue {
       if (this.busy(chatId)) return 'busy'
       // The continue is a new message: the wait ends with it, so its own turn's end lets the tasks go.
       await this.newTurn(chatId)
-      return this.launch(meta, text, [], undefined, messageId, undefined, undefined, from !== 'user' ? true : undefined)
+      return this.launch(meta, text, [], undefined, messageId, undefined, undefined, autoFor(from))
     })
     if (typeof out === 'string') return out
     void out.run.catch(failed)
@@ -481,7 +507,8 @@ export class TaskQueue {
 
   /**
    * Startup, after interrupted chats are recovered: sends the oldest task of every chat that holds tasks, except held or
-   * paused ones, a paused group's and one waiting out a usage limit (its continue goes first).
+   * paused ones, a paused group's and one waiting out a usage limit (its continue goes first). A held tray's Run results
+   * still go, oldest first.
    */
   async resume(): Promise<void> {
     const chats = await this.d.store.list()
@@ -519,11 +546,20 @@ export class TaskQueue {
         }
         if (meta.pause) return null // paused: nothing starts by itself, held or not, until Resume or the user's own message
         if (!meta.tasks?.length) return null
-        if (meta.held) return null // waits for the user: Send now, or a message of their own; also after a restart
+        // Held: the tasks wait for the user (Send now, or a message of their own; also after a restart). A Run result's
+        // task is never held, since the user cannot see it to let it go: the oldest of those goes on.
+        const oldestRun = () => meta.tasks?.find((t) => t.run !== undefined)?.id
+        let runId = meta.held ? oldestRun() : undefined
+        if (meta.held && runId === undefined) return null
         // A usage limit wait: its continue goes first, at the reset (or on Continue now), and the tasks follow its turn.
         if (meta.resume) return null
-        if (isGroup(meta) && (await this.paused(chatId))) return null
-        const { task, meta: rest } = await this.d.store.takeTask(chatId)
+        // The hop cap paused the room for the user: its tasks wait for a message, as held ones do. A Run result is let in,
+        // as submit lets one into the idle room.
+        if (runId === undefined && isGroup(meta) && (await this.paused(chatId))) {
+          runId = oldestRun()
+          if (runId === undefined) return null
+        }
+        const { task, meta: rest } = runId !== undefined ? await this.d.store.dropTask(chatId, runId) : await this.d.store.takeTask(chatId)
         if (!task) return null // dropped meanwhile
         // Launched before the push, so a failed push can't lose the task it already took.
         const started = this.launchTask(rest, task)
@@ -588,7 +624,8 @@ export class TaskQueue {
       task.todo,
       task.auto,
       task.workflowSent,
-      task.cardAsk
+      task.cardAsk,
+      task.run
     )
   }
 
@@ -602,7 +639,8 @@ export class TaskQueue {
     todo?: true,
     auto?: true,
     workflowSent?: WorkflowSent,
-    cardAsk?: CardAsk
+    cardAsk?: CardAsk,
+    run?: RunMark
   ): Started {
     const chatId = meta.id
     return this.begin(chatId, () =>
@@ -612,7 +650,8 @@ export class TaskQueue {
             command,
             todo,
             workflowSent,
-            auto
+            auto,
+            run
           )
         : withAuto(
             (...tail) => this.d.chats.send(chatId, text, attachments, replyTo, messageId, ...tail),
@@ -620,7 +659,8 @@ export class TaskQueue {
             todo,
             auto,
             workflowSent,
-            cardAsk
+            cardAsk,
+            run
           )
     )
   }

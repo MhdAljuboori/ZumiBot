@@ -64,6 +64,7 @@ An agent can also ask to be woken. It sets a rule when it starts the process: wa
 - **A restart stops them all.** If ZumiBot's server restarts, every running process is stopped, and on the next start they read "Lost at restart". In Local mode, quitting the desktop app stops the server, and the app asks first, with a line such as "2 background processes will stop. Quit?". A running process does not block an update.
 - **Plan mode waits.** While an agent is still planning, starting a process is refused: "Start processes after the plan is approved."
 - **Not every agent can.** An agent set up to run on [a different tool](/engines/codex/) than Claude Code, and an agent set to run in a sandbox or a container, do not get this tool. In a group room the panel lists what any member started.
+- **Your own runs show here too.** A command you start with the [Run button](/chatting/run-button/) on a code block is listed in the same panel, with the same limits.
 - **No copies.** A fork or a cloned room starts with no processes.
 - **Wake-ups are rationed.** A chat gets at most six wake messages an hour and the server thirty, so a crashing loop cannot run up your usage. A skipped wake-up leaves a note on the row, such as "Wake-up skipped: daily spend cap". A wake message does nothing in an archived chat.
 

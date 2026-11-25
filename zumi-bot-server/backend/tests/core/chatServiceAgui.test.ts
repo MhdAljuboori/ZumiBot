@@ -9,6 +9,7 @@ import { ChatService, MODEL_REFUSED, type ChatServiceDeps } from '../../src/core
 import { startAgui, type AguiRunOptions } from '../../src/core/agui/aguiRunner'
 import { aguiRecord, LaunchTrust } from '../../src/core/acp/launchTrust'
 import { AGUI_TOOL } from '../../src/core/agui/aguiEvents'
+import { RUN_SYSTEM } from '../../src/core/processes/processPrompt'
 import { forkChat } from '../../src/core/chat/fork'
 import type { Provider } from '@zumibot/shared/engine'
 import { NO_MCP } from '../../src/core/ipc/mcpSpec'
@@ -644,6 +645,8 @@ describe('remote (AG-UI) agents in ChatService', () => {
       expect(req.body.messages.map((m: { role: string }) => m.role)).toEqual(['user'])
       expect(req.body.messages[0].content).toBe('hi')
       expect(req.body).toMatchObject({ tools: [], context: [], forwardedProps: {} })
+      // No run paragraph either: a remote agent cannot hand a command to this machine's user.
+      expect(JSON.stringify(req.body)).not.toContain(RUN_SYSTEM)
       expect(await svc.canPause(c.id)).toBe(false)
     }, 20_000)
   })
