@@ -52,6 +52,8 @@ While the agent is replying, the card is there but the button waits. A refusal f
 
 These rules work in **Auto**, **Ask permissions** and **Accept edits**, and never in **Plan mode**, so a plan stays read-only. Only you can add one: an agent cannot allow things for itself. Your own Claude Code settings still win, so a command you set to always ask still asks. The card does not appear for refusals you caused yourself, for example by choosing Deny, or in Zumi Bot's own chat or a workflow's chat. If the agent is refused again, the card says Claude Code still refused it although the rules are allowed.
 
+A command with a part that cannot be allowed, such as `python3` writing a file, is refused as a whole, however many of its other parts you allowed. When everything else in it is already allowed, the card has no button: it names that part and lists the rules you already have. Ask the agent to do it another way, without that part, for example by writing the file itself and then running the other command on its own.
+
 Claude Code always asks about a command that changes into another folder and then runs `git` there, such as `cd /home/you/other-repo && git push`, because the folder's own git settings could run code. No rule changes that, so the card says so: ask the agent to use `git -C /home/you/other-repo push` instead, which runs git in that folder without changing into it.
 
 ## Questions

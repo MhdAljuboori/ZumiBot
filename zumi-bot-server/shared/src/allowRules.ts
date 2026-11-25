@@ -371,8 +371,11 @@ export function prefixOfRule(rule: string): string | null {
   return m && shapeError(m[1]) === null ? m[1] : null
 }
 
-const PROGRAM_MESSAGE =
-  'Auto ignores rules that start with a shell, an interpreter, a wrapper or a word that expands at run time, or such a rule would run any command. Allow a narrower command instead.'
+/** Why no rule may start with a shell, interpreter or wrapper, without the advice to narrow it: where nothing can be allowed
+ *  (the Allow card's blocker list), that advice has nothing to act on. */
+export const PROGRAM_REASON =
+  'Auto ignores rules that start with a shell, an interpreter, a wrapper or a word that expands at run time, or such a rule would run any command.'
+export const PROGRAM_MESSAGE = `${PROGRAM_REASON} Allow a narrower command instead.`
 
 /** Whether a first word names a program that can run any command, or hides which program runs. */
 function isInterpreter(word: string): boolean {

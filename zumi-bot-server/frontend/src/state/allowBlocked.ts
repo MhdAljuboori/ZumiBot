@@ -7,6 +7,8 @@ import {
   folderCoveredBy,
   isGitPart,
   isSafePart,
+  PROGRAM_MESSAGE,
+  PROGRAM_REASON,
   programError,
   suggestPrefix
 } from '@zumibot/shared/allowRules'
@@ -118,6 +120,19 @@ export function gitAfterFolder(rows: readonly SheetRow[]): string | null {
 /** Every row that would be allowed is already held: the CLI refused anyway, so a new rule cannot help. */
 export const allHeld = (rows: readonly SheetRow[]): boolean =>
   rows.some((r) => r.ticked) && rows.every((r) => !r.ticked || r.heldBy !== null)
+
+/** The parts the card cannot allow (a shell, interpreter or wrapper, or a folder it does not offer), each once, with why.
+ *  No rule covers such a part, so the CLI hands the whole command to the classifier however many other parts are held: when
+ *  allHeld, these are what blocked it, not the held rules. A program's reason drops "Allow a narrower command": there is
+ *  nothing to allow here. */
+export function unallowableParts(rows: readonly SheetRow[]): { part: string; reason: string }[] {
+  const out: { part: string; reason: string }[] = []
+  for (const r of rows) {
+    if (r.refused === null || out.some((b) => b.part === r.part)) continue
+    out.push({ part: r.part, reason: r.refused === PROGRAM_MESSAGE ? PROGRAM_REASON : r.refused })
+  }
+  return out
+}
 
 /**
  * What a click would send: each ticked, not yet held row's prefix, trimmed (checkPrefix refuses spaces at the ends) and

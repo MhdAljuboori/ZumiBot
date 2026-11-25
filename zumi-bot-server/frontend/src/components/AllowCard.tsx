@@ -12,6 +12,7 @@ import {
   gitAfterFolder,
   rowAgent,
   sheetRows,
+  unallowableParts,
   type AllowCardState
 } from '../state/allowBlocked'
 
@@ -120,6 +121,7 @@ function AllowForm({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const stuck = allHeld(initial)
+  const blockers = unallowableParts(initial)
   const locked = busy || running
   const canSubmit = !locked && newRules.length > 0 && errors.every((e) => e === null)
   const heldRules = [...new Set(initial.flatMap((r) => (r.heldBy === null ? [] : [r.heldBy])))]
@@ -153,7 +155,31 @@ function AllowForm({
           agent to use <code>git -C {gitFolder}</code> instead.
         </p>
       )}
-      {stuck ? (
+      {stuck && blockers.length > 0 ? (
+        // The held rules are not the problem: the CLI sent the whole command to the classifier for this part.
+        <>
+          <p className="hint" data-testid="allow-unallowable">
+            Nothing here can allow {blockers.length === 1 ? 'this part' : 'these parts'}, so Claude Code refused the whole command:
+          </p>
+          <ul className="allow-parts">
+            {blockers.map((b) => (
+              <li key={b.part} className="allow-part" data-testid="allow-unallowable-part" data-part={b.part}>
+                <code className="allow-part-off">{b.part}</code>
+                <div className="hint allow-part-reason">{b.reason}</div>
+              </li>
+            ))}
+          </ul>
+          <p className="hint">Ask the agent to do it another way, without {blockers.length === 1 ? 'this part' : 'these parts'}.</p>
+          <div className="allow-group-label">Already allowed:</div>
+          <ul className="allow-rules">
+            {heldRules.map((r) => (
+              <li key={r}>
+                <code>{r}</code>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : stuck ? (
         <>
           <p className="hint">Claude Code still refused this although these rules are allowed:</p>
           <ul className="allow-rules">

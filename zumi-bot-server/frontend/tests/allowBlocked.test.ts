@@ -8,7 +8,8 @@ import {
   chosenPrefixes,
   gitAfterFolder,
   inLatestTurn,
-  sheetRows
+  sheetRows,
+  unallowableParts
 } from '../src/state/allowBlocked'
 
 type ToolItem = Extract<ChatItem, { type: 'tool' }>
@@ -76,6 +77,33 @@ describe('allowBlocked: sheetRows', () => {
     expect(allHeld(sheetRows(script, ['Bash(git branch -D:*)', 'Bash(git push origin:*)']))).toBe(true)
     // Nothing ticked is not "all held": the sheet just has nothing to allow.
     expect(allHeld(sheetRows('ls -la', []))).toBe(false)
+  })
+})
+
+describe('allowBlocked: unallowableParts', () => {
+  it('the reported case: every workiom part held, so the python heredoc is what blocked it', () => {
+    const user = `L=9cda; R=6b06
+python3 -I - <<'EOF' > /tmp/loc1.json
+import json
+print(json.dumps({"k":'v'}))
+EOF
+workiom records update $L $R --data @/tmp/loc1.json
+workiom records get $L $R`
+    const rows = sheetRows(user, ['Bash(workiom records update:*)', 'Bash(workiom records get:*)'])
+    expect(allHeld(rows)).toBe(true)
+    expect(unallowableParts(rows)).toEqual([{ part: "python3 -I - <<'EOF' > /tmp/loc1.json", reason: expect.stringMatching(/Auto ignores/) }])
+    // The form's row keeps "Allow a narrower command"; the blocker list has nothing to allow, so it drops it.
+    expect(rows[0].refused).toMatch(/narrower command/)
+    expect(unallowableParts(rows)[0].reason).not.toMatch(/narrower/)
+    expect(unallowableParts(rows)[0].reason).toMatch(/would run any command\.$/)
+  })
+  it('is empty when every part could be allowed', () => {
+    expect(unallowableParts(sheetRows(script, ['Bash(git branch -D:*)', 'Bash(git push origin:*)']))).toEqual([])
+  })
+  it('names a folder the card cannot offer, and each part once', () => {
+    const rows = sheetRows('cd /etc && make x; bash -c y; bash -c y', [], '/cwd')
+    expect(unallowableParts(rows).map((b) => b.part)).toEqual(['cd /etc', 'bash -c y'])
+    expect(unallowableParts(rows)[0].reason).toMatch(/narrower/)
   })
 })
 

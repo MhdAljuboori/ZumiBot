@@ -7,11 +7,13 @@
 // continue message and the reply appear; the resumed run's merged --settings allows the rule; the card then reads allowed.
 // Then the folder case: Agent Studio's Add stores `Bash(gh pr merge:*)` for the agent; a refused `cd <outside folder> && gh pr
 // merge …` shows the gh part already allowed and the folder as a ticked folder row (not the dead "still refused" card); its
-// Allow sends `Read(//<folder>/**)`, and the resumed run gets both rules.
+// Allow sends `Read(//<folder>/**)`, and the resumed run gets both rules. Last, a refused `python3` heredoc followed by the
+// held `gh pr merge` names the python part as what no rule can allow, with no Allow button.
 //
 // DOM hooks relied on (data-testid): agent-row (+ data-agent-name), new-chat, new-chat-folder, new-chat-choose-folder,
 //   composer-input, send-button, agent-message, allow-card (+ data-status), allow-blocked-part (+ data-part),
-//   allow-blocked-scope (+ data-scope), allow-blocked-submit, allow-blocked-error, allowed-as, agent-menu-button,
+//   allow-blocked-scope (+ data-scope), allow-blocked-submit, allow-blocked-error, allowed-as, allow-unallowable,
+//   allow-unallowable-part (+ data-part), agent-menu-button,
 //   agent-menu-edit, rule-add-kind (+ data-kind), rule-add-value, rule-add, rule-remove (+ aria-label).
 
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -193,6 +195,46 @@ async function main() {
   })
   assert(allowed2.includes('Bash(gh pr merge:*)') && allowed2.includes(folderRule), `--settings allows both (${JSON.stringify(allowed2)})`)
   pass('the resumed run got the prefix rule and the folder rule')
+
+  // 9. a refused python3 heredoc next to the held gh part: the card names the python part, not the held rule, and has no button
+  await row.click()
+  await page.locator(tid('new-chat')).waitFor({ timeout: T })
+  await page.locator(tid('new-chat-folder')).click()
+  await page.locator(tid('new-chat-choose-folder')).click()
+  await page.waitForFunction(() => document.querySelector('[data-testid="new-chat-folder"]')?.getAttribute('data-tip'), null, {
+    timeout: 5_000
+  })
+  await page.locator(tid('composer-input')).fill('write the heredoc file')
+  await page.locator(tid('send-button')).click()
+  const card3 = page.locator(`${tid('allow-card')}[data-status="pending"]`)
+  await card3.waitFor({ timeout: T })
+  await card3.locator(tid('allow-unallowable')).waitFor({ timeout: T })
+  const blockers = card3.locator(tid('allow-unallowable-part'))
+  assert((await blockers.count()) === 1, `one part no rule can allow (${await blockers.count()})`)
+  assert(
+    (await blockers.first().getAttribute('data-part')) === "python3 - <<'EOF' > /tmp/body.json",
+    `the python part is named (${await blockers.first().getAttribute('data-part')})`
+  )
+  await card3.locator('.allow-rules code', { hasText: 'Bash(gh pr merge:*)' }).waitFor({ timeout: T })
+  assert((await card3.locator(tid('allow-blocked-submit')).count()) === 0, 'no Allow button: no rule would help')
+  if (process.env.SCREENSHOT_DIR) {
+    const dir = process.env.SCREENSHOT_DIR
+    await card3.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: join(dir, 'allow-card-unallowable.png') })
+    await page.emulateMedia({ colorScheme: 'dark' }) // the app's theme follows the system by default
+    await page.waitForTimeout(300)
+    await page.screenshot({ path: join(dir, 'allow-card-unallowable-dark.png') })
+    await page.emulateMedia({ colorScheme: 'light' })
+    const size = page.viewportSize()
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.waitForTimeout(400)
+    const drawer = page.locator(tid('nav-backdrop'))
+    if ((await drawer.count()) > 0) await drawer.first().click().catch(() => {})
+    await card3.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: join(dir, 'allow-card-unallowable-phone.png') })
+    if (size) await page.setViewportSize(size)
+  }
+  pass('a python heredoc next to a held part: the card names the python part as the blocker, with no Allow button')
 
   const bad = unexpectedErrors(h.errors, [])
   assert(bad.length === 0, `unexpected console/server errors: ${bad.join(' | ')}`)
