@@ -194,6 +194,19 @@ server.on('upgrade', (req, sock, head) =>
           case 'notify:state':
             value = { pending: {}, lookedAt: {} }
             break
+          case 'chats:pending':
+          case 'processes:counts':
+            value = {}
+            break
+          case 'todos:board':
+            value = { rev: 0, open: [], done: [], doneTotal: 0 }
+            break
+          case 'inbox:messages':
+            value = { messages: [], seenAt: 0 }
+            break
+          case 'workflows:list':
+            value = { workflows: [], runs: {} }
+            break
           case 'browsers:clear':
             status.state = 'stopped'
             status.control = 'agent'
@@ -321,6 +334,22 @@ try {
   await page.waitForFunction(() => document.querySelector('canvas')?.width === 1280)
   assert.equal(await page.getByRole('switch', { name: 'Take control' }).isChecked(), false)
   await page.screenshot({ path: join(out, 'desktop-inline.png') })
+  // The thread's edge fade is a mask, which would trap a fixed panel inside it: expanded, the card's panel must cover the
+  // window (over the sidebar, chat head and composer) with Restore on top, and the moved canvas must repaint.
+  await page.getByRole('button', { name: 'Expand browser' }).click()
+  // Near the left edge: the sidebar covered the URL's start, where the address begins.
+  const topmost = (b) => {
+    const r = b.getBoundingClientRect(),
+      hit = document.elementFromPoint(r.x + Math.min(8, r.width / 2), r.y + r.height / 2)
+    return b === hit || b.contains(hit)
+  }
+  assert.equal(await page.getByRole('button', { name: 'Restore browser size' }).evaluate(topmost), true)
+  assert.equal(await page.getByLabel('Browser URL').evaluate(topmost), true)
+  await page.waitForFunction(() => document.querySelector('canvas')?.width === 1280)
+  await page.screenshot({ path: join(out, 'desktop-expanded.png') })
+  await page.getByRole('button', { name: 'Restore browser size' }).click()
+  await page.getByTestId('browser-action').getByTestId('browser-panel').waitFor()
+  await page.waitForFunction(() => document.querySelector('canvas')?.width === 1280)
   await page.getByRole('switch', { name: 'Take control' }).check()
   await page.getByText('You have control', { exact: true }).waitFor()
   const surface = await page.getByLabel('Browser page input').boundingBox()
@@ -504,13 +533,14 @@ try {
       'Cmd+V key default permits one local paste event with no remote raw V',
       'AltGraph and Option printable key defaults permit committed text once',
       'Escape restores app focus',
+      'Expanded card panel covers the window above the thread fade, Restore and URL on top, canvas repainted',
       'Hidden unwatch and no new stream for answer-only Done',
       'Terminal card uses ordinary target',
       'Terminal status blanks canvas/disables input',
       'Group member selector',
       'Agent settings clear requires confirmation and respects Cancel'
     ],
-    screenshots: ['desktop-inline.png', 'desktop-panel.png', 'narrow-inline.png', 'narrow-expanded.png', 'narrow-panel.png'],
+    screenshots: ['desktop-inline.png', 'desktop-expanded.png', 'desktop-panel.png', 'narrow-inline.png', 'narrow-expanded.png', 'narrow-panel.png'],
     requests: requests.map((r) => ({ id: r.id, op: r.op, ...(r.op === 'watch' ? { target: r.target } : {}) })),
     captures,
     consoleErrors: errors
