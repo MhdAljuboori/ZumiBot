@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { createPortal } from 'react-dom'
 import type { BrowserModifier } from '@zumibot/shared/browser'
 import { displayName } from '@zumibot/shared/frontmatter'
 import {
@@ -39,7 +40,8 @@ export function BrowserPanel({ inline = false, onBack }: { inline?: boolean; onB
     status = state?.status
   const tab = status?.tabs.find((t) => t.id === status.activeTabId)
   const resize = browser?.resize
-  const open = !!state?.open
+  const open = !!state?.open,
+    expanded = !!state?.expanded
   useEffect(() => {
     setUrl(tab?.url ?? '')
   }, [tab?.url])
@@ -59,7 +61,8 @@ export function BrowserPanel({ inline = false, onBack }: { inline?: boolean; onB
       setPasteText('')
     }
   }, [state?.control])
-  // The page is sized to this surface, so its pixels map 1:1 to the screen's.
+  // The page is sized to this surface, so its pixels map 1:1 to the screen's. Expanding moves the panel to the body,
+  // a new surface element, so it is observed again.
   const resizeRef = useRef(resize)
   resizeRef.current = resize
   useEffect(() => {
@@ -81,7 +84,7 @@ export function BrowserPanel({ inline = false, onBack }: { inline?: boolean; onB
       observer.disconnect()
       clearTimeout(timer)
     }
-  }, [open])
+  }, [open, expanded])
   useEffect(() => () => clearTimeout(longPress.current), [])
   if (!browser || !state?.open) return null
   const owned = state.control && status?.control === 'you'
@@ -179,9 +182,9 @@ export function BrowserPanel({ inline = false, onBack }: { inline?: boolean; onB
     else setPasting(true)
   }
   const blank = tab?.url === 'about:blank'
-  return (
+  const panel = (
     <section
-      className={`browser-panel${inline ? ' inline' : ''}${state.expanded ? ' expanded' : ''}`}
+      className={`browser-panel${inline ? ' inline' : ''}${expanded ? ' expanded' : ''}`}
       aria-label={`${displayName(state.target?.agent ?? '')} browser`}
       data-testid="browser-panel"
     >
@@ -500,4 +503,7 @@ export function BrowserPanel({ inline = false, onBack }: { inline?: boolean; onB
       </footer>
     </section>
   )
+  // The thread's edge fade is a mask, and a mask clips and stacks even fixed descendants inside it: drawn in a handoff
+  // card, the expanded panel would sit under the sidebar, chat head and composer with Restore out of reach.
+  return expanded ? createPortal(panel, document.body) : panel
 }

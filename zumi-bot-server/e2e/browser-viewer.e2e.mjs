@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os'
 import { randomBytes } from 'node:crypto'
 import { chromium } from 'playwright-core'
 import { WebSocketServer } from 'ws'
-import { pickOption } from './harness.mjs'
+import { pickOption, unexpectedErrors } from './harness.mjs'
 import { encodeBrowserFrame } from '../shared/src/browser.ts'
 const here = dirname(fileURLToPath(import.meta.url))
 const out = join(here, 'screenshots', 'browser-task7')
@@ -194,6 +194,50 @@ server.on('upgrade', (req, sock, head) =>
           case 'notify:state':
             value = { pending: {}, lookedAt: {} }
             break
+          case 'chats:pending':
+          case 'processes:counts':
+            value = {}
+            break
+          case 'todos:board':
+            value = { rev: 0, open: [], done: [], doneTotal: 0 }
+            break
+          case 'inbox:messages':
+            value = { messages: [], seenAt: 0 }
+            break
+          case 'workflows:list':
+            value = { workflows: [], runs: {} }
+            break
+          case 'update:status':
+            value = {
+              current: '0.0.0',
+              availability: 'notInstaller',
+              local: true,
+              latest: null,
+              newer: false,
+              checkedAt: null,
+              checking: false,
+              error: null,
+              installing: false,
+              lastResult: null,
+              canRollBack: false
+            }
+            break
+          case 'agents:codexInfo':
+            value = { found: false, models: [] }
+            break
+          case 'vault:list':
+            value = []
+            break
+          case 'isolation:status':
+            value = {
+              sandbox: { available: false, reason: 'synthetic' },
+              container: { available: false, reason: 'synthetic' },
+              toolchain: []
+            }
+            break
+          case 'isolation:get':
+            value = { isolation: { level: 'off', write: [], read: [], network: [], webSearch: false, autoBash: false }, refused: null }
+            break
           case 'browsers:clear':
             status.state = 'stopped'
             status.control = 'agent'
@@ -321,6 +365,22 @@ try {
   await page.waitForFunction(() => document.querySelector('canvas')?.width === 1280)
   assert.equal(await page.getByRole('switch', { name: 'Take control' }).isChecked(), false)
   await page.screenshot({ path: join(out, 'desktop-inline.png') })
+  // The thread's edge fade is a mask, which would trap a fixed panel inside it: expanded, the card's panel must cover the
+  // window (over the sidebar, chat head and composer) with Restore on top, and the moved canvas must repaint.
+  await page.getByRole('button', { name: 'Expand browser' }).click()
+  // Near the left edge: the sidebar covered the URL's start, where the address begins.
+  const topmost = (b) => {
+    const r = b.getBoundingClientRect(),
+      hit = document.elementFromPoint(r.x + Math.min(8, r.width / 2), r.y + r.height / 2)
+    return b === hit || b.contains(hit)
+  }
+  assert.equal(await page.getByRole('button', { name: 'Restore browser size' }).evaluate(topmost), true)
+  assert.equal(await page.getByLabel('Browser URL').evaluate(topmost), true)
+  await page.waitForFunction(() => document.querySelector('canvas')?.width === 1280)
+  await page.screenshot({ path: join(out, 'desktop-expanded.png') })
+  await page.getByRole('button', { name: 'Restore browser size' }).click()
+  await page.getByTestId('browser-action').getByTestId('browser-panel').waitFor()
+  await page.waitForFunction(() => document.querySelector('canvas')?.width === 1280)
   await page.getByRole('switch', { name: 'Take control' }).check()
   await page.getByText('You have control', { exact: true }).waitFor()
   const surface = await page.getByLabel('Browser page input').boundingBox()
@@ -504,13 +564,21 @@ try {
       'Cmd+V key default permits one local paste event with no remote raw V',
       'AltGraph and Option printable key defaults permit committed text once',
       'Escape restores app focus',
+      'Expanded card panel covers the window above the thread fade, Restore and URL on top, canvas repainted',
       'Hidden unwatch and no new stream for answer-only Done',
       'Terminal card uses ordinary target',
       'Terminal status blanks canvas/disables input',
       'Group member selector',
       'Agent settings clear requires confirmation and respects Cancel'
     ],
-    screenshots: ['desktop-inline.png', 'desktop-panel.png', 'narrow-inline.png', 'narrow-expanded.png', 'narrow-panel.png'],
+    screenshots: [
+      'desktop-inline.png',
+      'desktop-expanded.png',
+      'desktop-panel.png',
+      'narrow-inline.png',
+      'narrow-expanded.png',
+      'narrow-panel.png'
+    ],
     requests: requests.map((r) => ({ id: r.id, op: r.op, ...(r.op === 'watch' ? { target: r.target } : {}) })),
     captures,
     consoleErrors: errors
@@ -560,7 +628,7 @@ try {
         }
       })
       child.once('exit', () => reject(new Error('Production fixture server exited')))
-      child.stderr.on('data', (d) => errors.push(String(d).trim()))
+      child.stderr.on('data', (d) => errors.push(...String(d).trim().split('\n')))
     })
     productionContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
     await productionContext.addCookies([{ name: 'cb_local', value: secret, url: productionOrigin }])
@@ -609,7 +677,17 @@ try {
           d = Math.min(2, devicePixelRatio)
         return [Math.round(c.width / d), Math.round(c.height / d)]
       })
+    // On a phone, focusing or leaving a field hides or shows the tab bar, which resizes the surface; the page follows a
+    // frame later. Map points only once the frame is the surface's size again, or they land off by the bar's height.
+    const settled = (page) =>
+      page.waitForFunction(() => {
+        const c = document.querySelector('canvas'),
+          r = c.getBoundingClientRect(),
+          d = Math.min(2, devicePixelRatio)
+        return Math.round(c.width / d) === Math.floor(r.width) && Math.round(c.height / d) === Math.floor(r.height)
+      })
     const remoteBox = async (page, url, selector) => {
+      await settled(page)
       const [W, H] = await remoteSize(page),
         probe = await browser.newPage({ viewport: { width: W, height: H } })
       try {
@@ -620,6 +698,7 @@ try {
       }
     }
     const toScreen = async (page, x, y) => {
+      await settled(page)
       const [W, H] = await remoteSize(page),
         r = await page.getByLabel('Browser page input').boundingBox(),
         k = Math.min(r.width / W, r.height / H)
@@ -746,7 +825,8 @@ try {
     } finally {
       await phone.close()
     }
-    assert.deepEqual(errors, [])
+    // A fresh server's connector switch-over cannot probe the stand-in claude and says so, as in e2e:connectors.
+    assert.deepEqual(unexpectedErrors(errors, [/^connectors: switch-over probe failed, every connector starts off$/]), [])
   } finally {
     await productionContext?.close()
     if (child && child.exitCode === null) {

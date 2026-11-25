@@ -385,6 +385,7 @@
   width: auto;
   height: auto;
   margin: 0;
+  resize: none;
 }
 .browser-settings {
   display: flex;
