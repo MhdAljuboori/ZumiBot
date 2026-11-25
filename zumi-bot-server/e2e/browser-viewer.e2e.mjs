@@ -825,8 +825,14 @@ try {
     } finally {
       await phone.close()
     }
-    // A fresh server's connector switch-over cannot probe the stand-in claude and says so, as in e2e:connectors.
-    assert.deepEqual(unexpectedErrors(errors, [/^connectors: switch-over probe failed, every connector starts off$/]), [])
+    // The stand-in claude (/usr/bin/true) answers no probe: the connector switch-over and the slash menu's commands probe say so.
+    assert.deepEqual(
+      unexpectedErrors(errors, [
+        /^connectors: switch-over probe failed, every connector starts off$/,
+        /^engine commands probe failed \(claude\)$/
+      ]),
+      []
+    )
   } finally {
     await productionContext?.close()
     if (child && child.exitCode === null) {
