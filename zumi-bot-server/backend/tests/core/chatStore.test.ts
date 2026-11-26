@@ -137,6 +137,58 @@ describe('ChatStore', () => {
   describe('tasks', () => {
     const task = (id: string) => ({ id, text: `text ${id}`, ts: 1 })
 
+    it('addSteer and dropSteer keep the unread steers in order; the last one out leaves steering absent', async () => {
+      const s = mk()
+      const a = await s.create('alpha', '/a')
+      await s.addSteer(a.id, task('s1'))
+      const both = await s.addSteer(a.id, task('s2'))
+      expect(both.steering?.map((t) => t.id)).toEqual(['s1', 's2'])
+      expect(both.updatedAt).toBe(a.updatedAt)
+      expect((await s.dropSteer(a.id, 's1')).steering?.map((t) => t.id)).toEqual(['s2'])
+      expect((await s.dropSteer(a.id, 's2')).steering).toBeUndefined()
+      await expect(s.addSteer('zzz', task('x'))).rejects.toThrow('Chat not found: zzz')
+    })
+
+    it('holdTasks holds a tray whose only messages are unread steers; the last one read lets go', async () => {
+      const s = mk()
+      const a = await s.create('alpha', '/a')
+      await s.addSteer(a.id, task('s1'))
+      expect((await s.holdTasks(a.id)).held).toBe(true)
+      // Read after all: nothing the user can see is left to hold, or their next message would wait too.
+      expect((await s.dropSteer(a.id, 's1')).held).toBeUndefined()
+      await s.addTask(a.id, task('t1'))
+      await s.addSteer(a.id, task('s2'))
+      await s.holdTasks(a.id)
+      expect((await s.dropSteer(a.id, 's2')).held).toBe(true)
+    })
+
+    it('returnSteers puts unread steers ahead of the queued tasks and leaves held as it was', async () => {
+      const s = mk()
+      const a = await s.create('alpha', '/a')
+      await s.addTask(a.id, task('t1'), true)
+      await s.addSteer(a.id, task('s1'))
+      await s.addSteer(a.id, task('s2'))
+      await s.addSteer(a.id, task('s3'))
+      const meta = await s.returnSteers(a.id, ['s2', 's1'])
+      expect(meta.tasks?.map((t) => t.id)).toEqual(['s1', 's2', 't1'])
+      expect(meta.steering?.map((t) => t.id)).toEqual(['s3'])
+      expect(meta.held).toBe(true)
+      const none = await s.returnSteers(a.id, [])
+      expect(none.tasks?.map((t) => t.id)).toEqual(['s1', 's2', 't1'])
+    })
+
+    it('recoverInterrupted hands leftover steers back to the front of the tray', async () => {
+      const s = mk()
+      const a = await s.create('alpha', '/a')
+      await s.addTask(a.id, task('t1'))
+      await s.addSteer(a.id, task('s1'))
+      await s.update(a.id, { inFlight: true })
+      await s.recoverInterrupted()
+      const meta = await s.get(a.id)
+      expect(meta?.tasks?.map((t) => t.id)).toEqual(['s1', 't1'])
+      expect(meta?.steering).toBeUndefined()
+    })
+
     it('addTask appends in order and keeps updatedAt', async () => {
       const s = mk()
       const a = await s.create('alpha', '/a')

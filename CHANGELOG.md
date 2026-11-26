@@ -2,6 +2,18 @@
 
 What changed in each ZumiBot release, newest first. The release notes on GitHub come from here.
 
+## v0.1.3 — 2026-11-26
+
+- While an agent replies, Enter now sends your message into the reply that is running: the agent reads it at its next step and carries on with it, without stopping. Ctrl+Enter (Cmd+Enter on a Mac), or holding Send, lines it up in the Tasks list for after the reply, as Enter did before. If the reply stops before the agent reads your message, it moves to the top of the Tasks list, so nothing is lost. This works in single chats with Claude agents; in group rooms and with other agents, a message sent while the agent works still joins the Tasks list.
+- When an agent makes a git worktree of its own and works there, the git chip and the Changes panel follow it and show that worktree's branch and changes. Since start lists everything since the agent made its branch, so you still see its work after it commits.
+- Suggested replies stay above the message box while you type your own answer, until you send. Choosing one sends only that choice and leaves what you typed, your files and your quote in the box.
+- In the processes panel the dot is green only while a process runs, red when it failed and gray once it ended any other way, so a finished run no longer looks stuck.
+- A forked group room now sits right under the room it came from, in the same section of the left column.
+- On a phone, typing in the browser panel is smoother: tap a field to type in it, the page keeps that field in view above the keyboard, and Enter submits as usual.
+- On a phone, dropdown menus no longer pop the keyboard open, and the status menu stays next to its button when the keyboard opens.
+- On a phone or in a narrow window, the pickers under a new chat's message box stay on one row, and the agent shows only its icon there.
+- docs.zumibot.run links now show a preview picture when you paste them in Slack, X, iMessage or LinkedIn.
+
 ## v0.1.2 — 2026-11-25
 
 - One-line shell commands in an agent's reply get a Run button. Choose it and ZumiBot runs the command in the chat's folder; when it ends, the agent gets the command and its output and carries on. You can follow or stop each run in the processes panel, and every run is in the audit log.

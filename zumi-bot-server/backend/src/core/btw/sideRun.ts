@@ -81,6 +81,8 @@ export function sideArgs(
   return buildArgs({
     // The same reading of a point as a main run's (core/engines/): a point is forked, so the base's own session stays as it was.
     ...base.args,
+    // A side run takes no steers: nothing it would echo has anywhere to go.
+    replayUser: false,
     ...claudeResume(turnStart(point?.session ?? null, point?.at)),
     extraArgs: [
       ...base.args.extraArgs,

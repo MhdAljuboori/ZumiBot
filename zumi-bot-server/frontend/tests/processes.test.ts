@@ -38,7 +38,7 @@ const p = (over: Partial<ProcessInfo>): ProcessInfo => ({
 describe('process rows', () => {
   it("says each state in the panel's words", () => {
     expect(stateLabel(p({}))).toEqual({ text: 'Running', tone: 'running' })
-    expect(stateLabel(p({ state: 'exited', exitCode: 0 }))).toEqual({ text: 'Exited (code 0)', tone: 'ok' })
+    expect(stateLabel(p({ state: 'exited', exitCode: 0 }))).toEqual({ text: 'Exited (code 0)', tone: 'muted' })
     expect(stateLabel(p({ state: 'exited', exitCode: 1 }))).toEqual({ text: 'Exited (code 1)', tone: 'bad' })
     expect(stateLabel(p({ state: 'exited', signal: 'SIGSEGV' })).text).toBe('Ended by SIGSEGV')
     expect(stateLabel(p({ state: 'stopped', stoppedBy: 'user' })).text).toBe('Stopped by you')
@@ -46,6 +46,19 @@ describe('process rows', () => {
     expect(stateLabel(p({ state: 'lost' })).text).toBe('Lost at restart')
     expect(stateLabel(p({ state: 'lost', note: 'ended at start' })).text).toBe('Lost at restart (ended)')
     expect(stateLabel(p({ state: 'failed', note: 'ENOENT' }))).toEqual({ text: 'Failed to start (ENOENT)', tone: 'bad' })
+  })
+
+  it('keeps the running tone (the green dot) for a running process only', () => {
+    const ended: Partial<ProcessInfo>[] = [
+      { state: 'exited', exitCode: 0 },
+      { state: 'exited', exitCode: 2 },
+      { state: 'exited', signal: 'SIGTERM' },
+      { state: 'stopped', stoppedBy: 'user' },
+      { state: 'lost' },
+      { state: 'failed', note: 'ENOENT' }
+    ]
+    for (const e of ended) expect(stateLabel(p(e)).tone).not.toBe('running')
+    expect(new Set(ended.map((e) => stateLabel(p(e)).tone))).toEqual(new Set(['muted', 'bad']))
   })
 
   it("lists running first, then ended newest first, with uptime or age and the agent's display name", () => {

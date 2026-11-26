@@ -12,7 +12,9 @@ export function gitChipView(s: GitStatus, worktree?: ChatWorktree): GitChipView 
   const removed = s.removed === true
   const count = s.changed === 0 ? 'No uncommitted changes' : s.changed === 1 ? '1 uncommitted change' : `${s.changed} uncommitted changes`
   const first = removed ? `Worktree folder removed. Branch ${worktree?.branch ?? s.branch ?? s.head} is kept.` : count
-  const lines = worktree ? [first, `Worktree: ${worktree.root}`] : [first]
+  // The agent made a worktree of its own and works there: the status was read in it, so the chat's root would mislead.
+  const where = s.agentTree ? `In the agent's worktree: ${s.agentTree}` : worktree ? `Worktree: ${worktree.root}` : null
+  const lines = where === null ? [first] : [first, where]
   if (!removed) lines.push('Click to see the changes')
   return { label: s.branch ?? s.head, dirty: !removed && s.changed > 0, muted: removed, title: lines.join('\n') }
 }

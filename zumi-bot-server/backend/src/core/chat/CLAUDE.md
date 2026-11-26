@@ -6,7 +6,8 @@ Before changing a file here, read the doc for its feature (repo-root paths):
 - `limitResumes.ts`: `docs/architecture/usage-limit-waits.md`
 - `versions.ts`, `fork.ts`, `sessionPoints.ts`: `docs/architecture/edit-resend-fork.md`
 - `roomClone.ts`, `roomSummary.ts`: `docs/architecture/room-clone.md`
-- `taskQueue.ts`: `docs/architecture/pause-resume.md`, `docs/architecture/usage-limit-waits.md`, `docs/architecture/edit-resend-fork.md`
+- `taskQueue.ts`: `docs/architecture/pause-resume.md`, `docs/architecture/usage-limit-waits.md`, `docs/architecture/edit-resend-fork.md`, `docs/architecture/mid-turn-messages.md`
+- `steer.ts`, and steers in `chatService.ts`/`claudeRunner.ts`/`streamParser.ts`: `docs/architecture/mid-turn-messages.md`
 - `groupService.ts`: `docs/architecture/pause-resume.md`, `docs/architecture/codex.md`
 - `readMarks.ts`: `docs/architecture/unread-and-archive.md`
 - `thinkingDisplay.ts`, and thinking in `streamParser.ts`/`chatService.ts`: `docs/architecture/thinking.md`

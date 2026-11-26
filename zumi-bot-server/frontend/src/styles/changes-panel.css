@@ -59,6 +59,22 @@
 .changes-sum .change-lines {
   margin-inline-start: auto;
 }
+/* The agent's own worktree, when the list was read there rather than in the chat's folder. */
+.changes-where {
+  flex: none;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.changes-where-path {
+  color: var(--fg);
+  font-family: var(--font-mono);
+}
 .changes-error {
   flex: none;
   padding: 6px 16px;

@@ -23,6 +23,7 @@ import { chatEngine, type CodexInfo } from '@zumibot/shared/engine'
 import { isChatMode, isEffort, type ChatMode, type Effort } from '@zumibot/shared/chatRun'
 import { pauseControl } from '../state/pause'
 import { TRAYS_KEY, tasksHeld, type TrayName } from '../state/tasks'
+import { takesSteers, type SendHow } from '../state/sendKeys'
 import { visibleTasks } from '../state/runBlocks'
 import { newLineItem, sinceOnChange, sinceOnOpen } from '../state/unread'
 import { useDismiss } from '../useDismiss'
@@ -105,7 +106,7 @@ interface Props {
   onViewMemory: (agent: string) => void
   /** Opens the To-dos panel on the reply with this item id. */
   onOpenTodos: (itemId: string) => void
-  onSend: (text: string, pick?: CommandPick, workflowId?: string) => void
+  onSend: (text: string, pick?: CommandPick, workflowId?: string, how?: SendHow) => void
   /** Sends the Continue message after the members paused, leaving the draft as it is. */
   onContinue: () => void
   files: DraftFiles
@@ -175,6 +176,8 @@ interface Props {
   workflowStepName: string | undefined
   /** Sends the continue text after the user allowed a command Auto mode refused. */
   onAllowed?: (text: string) => void
+  /** Sends a suggested reply's text alone: the draft, its files and its reply quote stay in the box. */
+  onPickReply: (text: string) => void
   onOpenWorkflowRun: () => void
   /** What the ask cards in the chat need: the asked chats, their live cards, answering and opening them. */
   asks: AskEnv
@@ -358,6 +361,7 @@ export function ChatView({
   onOpenAskedSource,
   workflowStepName,
   onAllowed,
+  onPickReply,
   onOpenWorkflowRun,
   asks,
   archived,
@@ -454,9 +458,9 @@ export function ChatView({
   }, [chat])
   // Anything the user sends puts them past the line: Edit, Resend and Send now too, or the line would land on the reply
   // they asked for. Switching versions, forking (another chat), compacting and answering a card send nothing.
-  const send = (text: string, pick?: CommandPick, workflowId?: string): void => {
+  const send = (text: string, pick?: CommandPick, workflowId?: string, how?: SendHow): void => {
     if (routeSend(text).kind === 'send') setSince(null)
-    onSend(text, pick, workflowId)
+    onSend(text, pick, workflowId, how)
   }
   const continueChat = (): void => {
     setSince(null)
@@ -481,6 +485,11 @@ export function ChatView({
   const sendTask = (taskId: string): Promise<boolean> => {
     setSince(null)
     return onSendTask(taskId)
+  }
+  // The card shows while the user types, so a pick must not take their draft with it.
+  const pickReply = (text: string): void => {
+    setSince(null)
+    onPickReply(text)
   }
   // What this chat's engine can do: what it cannot (a Codex feature a later probe turned off) is left out. A room's engine is its
   // moderator's (Claude); its controls follow its members' engines (chatCaps).
@@ -584,9 +593,12 @@ export function ChatView({
   // Send now only where the queue holds its tasks (a paused group, or a chat an edit or resend held); everywhere else it sends them itself.
   // A Run's result waiting to go is the agent's, never a row of the user's. Memoized: the tray re-checks focus on a new list.
   const shownTasks = useMemo(() => visibleTasks(chat.tasks), [chat.tasks])
-  const tasksTray = shownTasks.length > 0 && (
+  // Messages written into the running reply that it has not read yet: drawn above the tasks, which go after the reply.
+  const steering = chat.steering ?? []
+  const tasksTray = (shownTasks.length > 0 || steering.length > 0) && (
     <TasksTray
       tasks={shownTasks}
+      steering={steering}
       open={!collapsed.has('tasks')}
       onToggle={() => toggleTray('tasks')}
       onDrop={onDropTask}
@@ -599,7 +611,7 @@ export function ChatView({
       question={offered.question}
       summary={offered.summary}
       disabled={offline || !cliFound}
-      onPick={(text) => send(text)}
+      onPick={pickReply}
     />
   )
 
@@ -726,6 +738,7 @@ export function ChatView({
         cliFound={cliFound}
         blockedReason={offline ? OFFLINE_REASON : missingCli}
         allowSendWhileRunning
+        steers={takesSteers(chat, engine)}
         mentionMembers={askable}
         everyone={false}
         commandAgents={singleAgents}

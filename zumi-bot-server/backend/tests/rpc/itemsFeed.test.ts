@@ -35,6 +35,20 @@ describe('createItemsFeed', () => {
     })
   })
 
+  it('peeks at the held list without loading or numbering one', async () => {
+    const feed = createItemsFeed()
+    expect(feed.peek('c1')).toBeNull()
+    const list = [user('u1'), tool('t1')]
+    feed.wire(itemsPush(list))
+    expect(feed.peek('c1')).toBe(list)
+    // A peek takes no number: the next push still builds on the last one.
+    expect(feed.wire(itemsPush([...list, user('u2')]))).toMatchObject({ seq: 2, base: 1 })
+    await feed.snapshot('c2', async () => [user('x')])
+    expect(feed.peek('c2')).toEqual([user('x')])
+    feed.forget('c1')
+    expect(feed.peek('c1')).toBeNull()
+  })
+
   it('sends a long first list as its latest page', () => {
     const feed = createItemsFeed()
     const list = users(ITEMS_PAGE + 5)

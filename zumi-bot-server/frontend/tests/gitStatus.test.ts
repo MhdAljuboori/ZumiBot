@@ -34,6 +34,14 @@ describe('chip copy', () => {
   it('adds the worktree root line', () => {
     expect(gitChipView(status(2), wt()).title).toBe('2 uncommitted changes\nWorktree: /r-x\nClick to see the changes')
   })
+  it("names the agent's own worktree when the status was read there, in place of the chat's", () => {
+    const v = gitChipView(status(2, { branch: 'feature/x', agentTree: '/tmp/wt-x' }), wt())
+    expect(v.label).toBe('feature/x')
+    expect(v.title).toBe("2 uncommitted changes\nIn the agent's worktree: /tmp/wt-x\nClick to see the changes")
+    expect(gitChipView(status(0, { agentTree: '/tmp/wt-x' })).title).toBe(
+      "No uncommitted changes\nIn the agent's worktree: /tmp/wt-x\nClick to see the changes"
+    )
+  })
   it('a removed worktree is muted and names the kept branch instead of the count', () => {
     const v = gitChipView(status(0, { removed: true }), wt({ removed: true }))
     expect(v.muted).toBe(true)

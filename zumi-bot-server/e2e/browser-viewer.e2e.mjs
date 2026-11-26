@@ -395,12 +395,14 @@ try {
     requests.filter((r) => r.op === 'input' && r.input.type === 'text').map((r) => r.input.text),
     ['d', 'e', 'm', 'o']
   )
+  // An IME edits the text already in the field, so the composed word is added to it, never put in its place.
   await page.getByLabel('Browser page input').evaluate((el) => {
+    const start = el.value
     el.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
-    el.value = 'مرحبا'
+    el.value = start + 'مرحبا'
     el.dispatchEvent(new InputEvent('input', { bubbles: true, data: 'مرحبا', isComposing: true }))
     el.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: 'مرحبا' }))
-    el.value = 'مرحبا'
+    el.value = start + 'مرحبا'
     el.dispatchEvent(new InputEvent('input', { bubbles: true, data: 'مرحبا', inputType: 'insertText' }))
   })
   await page.waitForTimeout(200)
@@ -459,7 +461,7 @@ try {
       const down = new KeyboardEvent('keydown', { ...init, bubbles: true, cancelable: true }),
         allowed = el.dispatchEvent(down)
       if (allowed) {
-        el.value = init.key
+        el.value += init.key
         el.dispatchEvent(new InputEvent('input', { data: init.key, inputType: 'insertText', bubbles: true }))
       }
       el.dispatchEvent(new KeyboardEvent('keyup', { ...init, bubbles: true, cancelable: true }))
@@ -802,6 +804,29 @@ try {
       await m.evaluate(() => navigator.clipboard.writeText('-pasted'))
       await m.getByRole('button', { name: 'Paste', exact: true }).click()
       await until(() => fixtureValues.at(-1) === 'field:typed-pasted', 'phone Paste button')
+      // A phone keyboard: its keys carry no code, and its Backspace mostly edits the field's own text (a 229 key, then
+      // an input event). Neither may cost control, and the field is never rewritten under the keyboard.
+      const input = m.getByLabel('Browser page input')
+      const before = await input.evaluate((el) => el.value)
+      await input.evaluate((el) => {
+        el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Unidentified', keyCode: 229, bubbles: true, cancelable: true }))
+        el.setRangeText('', el.value.length - 1, el.value.length, 'end')
+        el.dispatchEvent(new InputEvent('input', { inputType: 'deleteContentBackward', bubbles: true }))
+        el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Unidentified', keyCode: 229, bubbles: true, cancelable: true }))
+      })
+      await until(() => fixtureValues.at(-1) === 'field:typed-paste', 'phone keyboard Backspace edits the field')
+      assert.equal(await input.evaluate((el) => el.value), before.slice(0, -1), 'the page input is never rewritten while typing')
+      await input.evaluate((el) => {
+        for (const type of ['keydown', 'keyup'])
+          el.dispatchEvent(new KeyboardEvent(type, { key: 'Backspace', code: '', keyCode: 8, bubbles: true, cancelable: true }))
+      })
+      await until(() => fixtureValues.at(-1) === 'field:typed-past', 'phone Backspace key without a code')
+      await input.evaluate((el) => {
+        el.setRangeText('ed', el.value.length, el.value.length, 'end')
+        el.dispatchEvent(new InputEvent('input', { data: 'ed', inputType: 'insertText', bubbles: true }))
+      })
+      await until(() => fixtureValues.at(-1) === 'field:typed-pasted', 'phone keyboard types after Backspace')
+      assert.equal(await m.getByRole('switch', { name: 'Take control' }).isChecked(), true, 'phone keys keep control')
       const cdp = await phone.newCDPSession(m),
         word = await remoteBox(m, `${origin}/fixture-long`, '#word')
       const [wx, wy] = await toScreen(m, word.x + word.width / 2, word.y + word.height / 2)
@@ -820,7 +845,9 @@ try {
       assert.equal(fixtureValues.filter((v) => v.startsWith('field:')).at(-1), 'field:typed-pasted', 'a swipe never clicks or types')
       await m.screenshot({ path: join(out, 'phone-control.png') })
       await m.getByRole('button', { name: 'Close browser', exact: true }).click()
-      evidence.checks.push('Phone viewer: page sized to the phone at 2x, tap and type, Paste button, long-press word select, swipe scroll')
+      evidence.checks.push(
+        'Phone viewer: page sized to the phone at 2x, tap and type, Paste button, keyboard Backspace both ways, long-press word select, swipe scroll'
+      )
       evidence.screenshots.push('phone-control.png')
     } finally {
       await phone.close()

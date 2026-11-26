@@ -279,6 +279,44 @@ export class ChatStore {
     })
   }
 
+  /** A steer written into the running reply, unread until the CLI echoes it (docs/architecture/mid-turn-messages.md). */
+  addSteer(id: string, task: QueuedTask): Promise<ChatMeta> {
+    return this.run(async () => {
+      const cur = await this.mustGet(id)
+      return this.updateLocked(id, { steering: [...(cur.steering ?? []), task], updatedAt: cur.updatedAt })
+    })
+  }
+
+  /** The steer is read (now a bubble) or never went in; no write when it is not there. */
+  dropSteer(id: string, taskId: string): Promise<ChatMeta> {
+    return this.run(async () => {
+      const cur = await this.mustGet(id)
+      if (!cur.steering?.some((t) => t.id === taskId)) return cur
+      const rest = cur.steering.filter((t) => t.id !== taskId)
+      // A hold only this steer kept goes with it, as the last task out clears one (tasksPatch).
+      const unheld = cur.held && !holdsVisibleTask([...rest, ...(cur.tasks ?? [])]) ? { held: undefined } : {}
+      return this.updateLocked(id, { steering: rest.length > 0 ? rest : undefined, ...unheld, updatedAt: cur.updatedAt })
+    })
+  }
+
+  /**
+   * Steers the reply ended without reading go to the front of the tray, in the order they were sent: the user wrote them
+   * before anything queued. `held` stays as it is, so they follow whatever the tray does next.
+   */
+  returnSteers(id: string, taskIds: readonly string[]): Promise<ChatMeta> {
+    return this.run(async () => {
+      const cur = await this.mustGet(id)
+      const back = (cur.steering ?? []).filter((t) => taskIds.includes(t.id))
+      if (back.length === 0) return cur
+      const rest = (cur.steering ?? []).filter((t) => !taskIds.includes(t.id))
+      return this.updateLocked(id, {
+        tasks: [...back, ...(cur.tasks ?? [])],
+        steering: rest.length > 0 ? rest : undefined,
+        updatedAt: cur.updatedAt
+      })
+    })
+  }
+
   /** Removes and returns the oldest task, or null when there is none. */
   takeTask(id: string): Promise<{ task: QueuedTask | null; meta: ChatMeta }> {
     return this.run(async () => {
@@ -289,11 +327,14 @@ export class ChatStore {
     })
   }
 
-  /** Marks the queued tasks as held (they wait for the user); no-op without a task the user can see (holdsVisibleTask). */
+  /**
+   * Marks the queued tasks as held (they wait for the user); no-op without a task the user can see (holdsVisibleTask). An unread
+   * steer counts: a stop hands it back to the tray, where it must wait too.
+   */
   holdTasks(id: string): Promise<ChatMeta> {
     return this.run(async () => {
       const cur = await this.mustGet(id)
-      if (!holdsVisibleTask(cur.tasks) || cur.held) return cur
+      if (!holdsVisibleTask([...(cur.steering ?? []), ...(cur.tasks ?? [])]) || cur.held) return cur
       return this.updateLocked(id, { held: true, updatedAt: cur.updatedAt })
     })
   }
@@ -726,8 +767,13 @@ export class ChatStore {
           text: chat.pauseCap ? capPausedText(chat.pauseCap) : NOTICE_TEXT.userPaused,
           ts: this.now()
         })
+        // Steers the crash left unread go to the front of the tray: the reply that would have read them is gone.
+        const steersBack: Partial<Omit<ChatMeta, 'id'>> = chat.steering?.length
+          ? { tasks: [...chat.steering, ...(chat.tasks ?? [])], steering: undefined }
+          : {}
         // Held as the landing does (holdTasks): only a tray with a task the user can see has anything to hold.
-        const heldPatch = (): Partial<Omit<ChatMeta, 'id'>> => (holdsVisibleTask(chat.tasks) ? { held: true } : {})
+        const heldPatch = (): Partial<Omit<ChatMeta, 'id'>> =>
+          holdsVisibleTask([...(chat.steering ?? []), ...(chat.tasks ?? [])]) ? { held: true } : {}
         if (!chat.inFlight) {
           const base = items.map((it): ChatItem =>
             it.type === 'browser-action' && it.handoff.status === 'pending'
@@ -751,8 +797,8 @@ export class ChatStore {
           if (changed) await this.saveItemsRaw(chat.id, pausing || unmarked ? [...base, userPaused()] : base)
           if (pausing) {
             // The reply ended but the landing never ran; the order in the list stays.
-            await this.updateLocked(chat.id, { pause: 'paused', ...heldPatch(), updatedAt: chat.updatedAt })
-          }
+            await this.updateLocked(chat.id, { pause: 'paused', ...heldPatch(), ...steersBack, updatedAt: chat.updatedAt })
+          } else if (chat.steering?.length) await this.updateLocked(chat.id, { ...steersBack, updatedAt: chat.updatedAt })
           if (pausing || unmarked) ids.push(chat.id)
           continue
         }
@@ -795,6 +841,7 @@ export class ChatStore {
         await this.updateLocked(chat.id, {
           inFlight: false,
           compacting: undefined,
+          ...steersBack,
           ...(pausing ? { pause: 'paused' as const, ...heldPatch() } : {}),
           ...(chat.group ? { group: { ...chat.group, queue: [], active: [], ...(paused ? { paused } : {}) } } : {})
         })

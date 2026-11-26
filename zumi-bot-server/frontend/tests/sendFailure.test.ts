@@ -71,3 +71,10 @@ describe('quietRejection', () => {
     expect(quietRejection('lost', false)).toBe(false)
   })
 })
+
+describe('rejectedSendState with steers', () => {
+  it('treats a message still waiting in the running reply as queued', () => {
+    expect(rejectedSendState([], 's-1', [], [{ id: 's-1', text: 'x', ts: 1 }])).toBe('queued')
+    expect(rejectedSendState([], 's-2', [], [{ id: 's-1', text: 'x', ts: 1 }])).toBe('lost')
+  })
+})

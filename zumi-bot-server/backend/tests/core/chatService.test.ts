@@ -46,7 +46,7 @@ import {
   SKIPPED_BY_USER
 } from '../../src/core/chat/controlProtocol'
 import { buildArgs, type RunHandle, type RunOptions, type RunOutcome } from '../../src/core/chat/claudeRunner'
-import { NOTICE_TEXT, type AgentRule, type Attachment, type ChatItem, type ChatPush } from '@zumibot/shared/types'
+import { NOTICE_TEXT, type AgentRule, type Attachment, type ChatItem, type ChatPush, type QueuedTask } from '@zumibot/shared/types'
 import { RUN_ITEM_FIXED } from '@zumibot/shared/runBlocks'
 import type { TurnEnd } from '@zumibot/shared/notify'
 import { applyPush, emptyChatView } from '../support/chatView'
@@ -147,6 +147,8 @@ let files: AttachmentStore
 let sent: object[]
 let sentVia: RunOptions[] // the run whose handle sent each message in `sent`
 let sendOk: boolean
+let steered: { content: unknown; uuid: string }[] // mid-turn steers the fake handle took
+let steerOk: boolean
 let emit: (e: RunEvent) => void
 let mode: 'auto' | 'manual'
 let idled: [string, boolean][]
@@ -202,6 +204,10 @@ const makeService = (extra: Partial<ChatServiceDeps> = {}) =>
           }
           return sendOk
         },
+        steer: (content: unknown, uuid: string) => {
+          if (steerOk) steered.push({ content, uuid })
+          return steerOk
+        },
         done
       } as RunHandle
     },
@@ -228,6 +234,8 @@ beforeEach(async () => {
   sent = []
   sentVia = []
   sendOk = true
+  steered = []
+  steerOk = true
   mode = 'auto'
   idled = []
   style = false
@@ -3658,8 +3666,16 @@ describe('desktop turns', () => {
     dispose: async () => {},
     ...extra
   })
+  // A turn the user started echoes steers back (--replay-user-messages, docs/architecture/mid-turn-messages.md).
   const plain = () =>
-    buildArgs({ agentName: 'helper', effort: 'medium', resumeSessionId: null, permissionMode: 'auto', appendSystemPrompt: RUN_SYSTEM })
+    buildArgs({
+      agentName: 'helper',
+      effort: 'medium',
+      resumeSessionId: null,
+      permissionMode: 'auto',
+      appendSystemPrompt: RUN_SYSTEM,
+      replayUser: true
+    })
 
   it('agent without computerUse gets no desktop args', async () => {
     const turns = { plan: vi.fn(async () => 'off' as const), create: vi.fn() }
@@ -3763,7 +3779,8 @@ describe('desktop turns', () => {
         effort: 'medium',
         resumeSessionId: null,
         permissionMode: 'auto',
-        appendSystemPrompt: [RUN_SYSTEM, desktopUnavailablePrompt].join('\n\n')
+        appendSystemPrompt: [RUN_SYSTEM, desktopUnavailablePrompt].join('\n\n'),
+        replayUser: true
       })
     )
     expect(calls[0].env ?? {}).toEqual({})
@@ -7381,7 +7398,8 @@ describe('agent run config', () => {
           permissionMode: 'auto',
           disallowedTools: [],
           extraArgs: ['--mcp-config', BROWSER, '--mcp-config', TODO, '--settings', GUARD],
-          appendSystemPrompt: args[args.indexOf('--append-system-prompt') + 1]
+          appendSystemPrompt: args[args.indexOf('--append-system-prompt') + 1],
+          replayUser: true
         })
       )
       expect(args).not.toContain('--disallowedTools')
@@ -12477,5 +12495,263 @@ describe('ack line', () => {
     expect(await itemsOf(c.id)).toEqual(before)
     expect(calls).toHaveLength(runs)
     expect(svc.isRunning(c.id)).toBe(false)
+  })
+})
+
+// ---- mid-turn steers (docs/architecture/mid-turn-messages.md) ----
+
+describe('mid-turn steers', () => {
+  const task = (id: string, o: Partial<QueuedTask> = {}): QueuedTask => ({ id, text: `detail ${id}`, ts: 5, ...o })
+  // A run that stays open until the test ends it, so events can arrive while the test steers.
+  const hanging = (events: RunEvent[]) => {
+    const s: Script = { hang: true, events }
+    const ready = new Promise<void>((r) => {
+      s.ready = r
+    })
+    scripts.push(s)
+    return { s, ready }
+  }
+  const tagged = (items: ChatItem[]) =>
+    items.map((i) => (i.type === 'user' ? `user:${i.steered ? i.id : 'own'}` : i.type === 'assistant' ? `assistant:${i.text}` : i.type))
+
+  it('a steer during a tool step becomes a steered user item where the CLI took it in', async () => {
+    const c = await store.create('helper', dir)
+    const { s, ready } = hanging([
+      { kind: 'init', sessionId: 's1' },
+      { kind: 'toolUse', id: 't1', name: 'Bash', input: {} }
+    ])
+    const sending = svc.send(c.id, 'do it')
+    await ready
+    expect(calls[0].args).toContain('--replay-user-messages')
+    expect(await svc.steer(c.id, task('s-1'))).toBe(true)
+    expect(steered).toEqual([{ content: 'detail s-1', uuid: 's-1' }])
+    expect((await store.get(c.id))?.steering?.map((t) => t.id)).toEqual(['s-1'])
+    emit({ kind: 'toolResult', toolUseId: 't1', content: 'ok', isError: false })
+    emit({ kind: 'userReplay', uuid: 's-1' })
+    emit({ kind: 'assistantText', text: 'done' })
+    emit(okResult)
+    s.end!()
+    await sending
+    const items = await itemsOf(c.id)
+    expect(tagged(items)).toEqual(['user:own', 'tool', 'user:s-1', 'assistant:done'])
+    expect(items[2]).toMatchObject({ type: 'user', id: 's-1', text: 'detail s-1', steered: true })
+    expect((await store.get(c.id))?.steering).toBeUndefined()
+  })
+
+  it('a late steer runs as a second CLI turn in the same process, its cost counted once', async () => {
+    const costs: RunCostEvent[] = []
+    svc = makeService({ onRunCost: (e) => costs.push(e) })
+    const usd = (totalUsd: number, uuid: string): RunEvent =>
+      ({
+        ...(okResult as object),
+        uuid,
+        cost: { totalUsd, models: { m: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, costUsd: totalUsd } } }
+      }) as unknown as RunEvent
+    const c = await store.create('helper', dir)
+    const { s, ready } = hanging([
+      { kind: 'init', sessionId: 's1' },
+      { kind: 'assistantText', text: 'first' }
+    ])
+    const sending = svc.send(c.id, 'go')
+    await ready
+    expect(await svc.steer(c.id, task('s-1'))).toBe(true)
+    emit(usd(0.0057, 'r1'))
+    emit({ kind: 'init', sessionId: 's1' })
+    emit({ kind: 'userReplay', uuid: 's-1' })
+    emit({ kind: 'assistantText', text: 'second' })
+    emit(usd(0.0094, 'r2'))
+    s.end!()
+    await sending
+    expect(tagged(await itemsOf(c.id))).toEqual(['user:own', 'assistant:first', 'user:s-1', 'assistant:second'])
+    expect(costs.map((e) => e.cost.totalUsd)).toEqual([0.0057, expect.closeTo(0.0037, 6)])
+  })
+
+  it('a steer sent before the run is up goes in once it starts, not to the tray', async () => {
+    let release: (bin: string) => void = () => {}
+    const gate = new Promise<string>((r) => {
+      release = r
+    })
+    svc = makeService({ locate: () => gate })
+    const c = await store.create('helper', dir)
+    const { s, ready } = hanging([{ kind: 'init', sessionId: 's1' }])
+    const sending = svc.send(c.id, 'go')
+    await tick()
+    expect(calls).toHaveLength(0) // the CLI is not spawned yet
+    expect(await svc.steer(c.id, task('s-early'))).toBe(true)
+    expect(steered).toEqual([])
+    expect((await store.get(c.id))?.steering?.map((t) => t.id)).toEqual(['s-early'])
+    release('/bin/claude')
+    await ready
+    expect(steered.map((x) => x.uuid)).toEqual(['s-early'])
+    emit({ kind: 'userReplay', uuid: 's-early' })
+    emit(okResult)
+    s.end!()
+    await sending
+    expect(tagged(await itemsOf(c.id))).toEqual(['user:own', 'user:s-early'])
+    expect((await store.get(c.id))?.tasks).toBeUndefined()
+  })
+
+  it('a steer the turn never got to write goes back to the tray when the turn ends', async () => {
+    let release: (bin: string | null) => void = () => {}
+    const gate = new Promise<string | null>((r) => {
+      release = r
+    })
+    svc = makeService({ locate: () => gate })
+    const c = await store.create('helper', dir)
+    const sending = svc.send(c.id, 'go')
+    await tick()
+    expect(await svc.steer(c.id, task('s-lost'))).toBe(true)
+    release(null) // no claude: the turn ends before any run
+    await sending.catch(() => {})
+    const meta = await store.get(c.id)
+    expect(meta?.tasks?.map((t) => t.id)).toEqual(['s-lost'])
+    expect(meta?.steering).toBeUndefined()
+  })
+
+  it("a late steer's second turn on a resumed session reports what it added, the session's restored cost taken off once", async () => {
+    const costs: RunCostEvent[] = []
+    const m = (usd: number, out: number) => ({ m: { input: 1, output: out, cacheRead: 0, cacheWrite: 0, costUsd: usd } })
+    svc = makeService({ onRunCost: (e) => costs.push(e), costBaseline: async () => m(2, 10) })
+    const usd = (totalUsd: number, out: number, uuid: string): RunEvent =>
+      ({ ...(okResult as object), uuid, cost: { totalUsd, models: m(totalUsd, out) } }) as unknown as RunEvent
+    const c = await store.create('helper', dir)
+    await store.update(c.id, { sessionId: 's1' })
+    const { s, ready } = hanging([
+      { kind: 'init', sessionId: 's1' },
+      { kind: 'assistantText', text: 'first' }
+    ])
+    const sending = svc.send(c.id, 'go')
+    await ready
+    expect(await svc.steer(c.id, task('s-1'))).toBe(true)
+    emit(usd(2.05, 15, 'r1'))
+    emit({ kind: 'init', sessionId: 's1' })
+    emit({ kind: 'userReplay', uuid: 's-1' })
+    emit({ kind: 'assistantText', text: 'second' })
+    emit(usd(2.08, 18, 'r2'))
+    s.end!()
+    await sending
+    expect(costs.map((e) => e.cost.totalUsd)).toEqual([expect.closeTo(0.05, 6), expect.closeTo(0.03, 6)])
+    expect(costs.map((e) => e.cost.models.m?.output)).toEqual([5, 3])
+  })
+
+  it('two steers land in order', async () => {
+    const c = await store.create('helper', dir)
+    const { s, ready } = hanging([{ kind: 'init', sessionId: 's1' }])
+    const sending = svc.send(c.id, 'go')
+    await ready
+    expect(await svc.steer(c.id, task('s-1'))).toBe(true)
+    expect(await svc.steer(c.id, task('s-2'))).toBe(true)
+    expect((await store.get(c.id))?.steering?.map((t) => t.id)).toEqual(['s-1', 's-2'])
+    emit({ kind: 'userReplay', uuid: 's-1' })
+    emit({ kind: 'assistantText', text: 'one' })
+    emit({ kind: 'userReplay', uuid: 's-2' })
+    emit(okResult)
+    s.end!()
+    await sending
+    expect(tagged(await itemsOf(c.id))).toEqual(['user:own', 'user:s-1', 'assistant:one', 'user:s-2'])
+    expect((await store.get(c.id))?.steering).toBeUndefined()
+  })
+
+  it('stop hands unread steers back to the front of the tray, held left as it was', async () => {
+    const c = await store.create('helper', dir)
+    await store.addTask(c.id, task('t1'))
+    const { ready } = hanging([{ kind: 'init', sessionId: 's1' }])
+    const sending = svc.send(c.id, 'go')
+    await ready
+    expect(await svc.steer(c.id, task('s-1'))).toBe(true)
+    svc.stop(c.id)
+    await sending
+    const meta = await store.get(c.id)
+    expect(meta?.tasks?.map((t) => t.id)).toEqual(['s-1', 't1'])
+    expect(meta?.steering).toBeUndefined()
+    expect(meta?.held).toBeUndefined()
+    expect((await itemsOf(c.id)).some((i) => i.id === 's-1')).toBe(false)
+  })
+
+  it('a steer the run can no longer take is refused and leaves nothing behind', async () => {
+    const c = await store.create('helper', dir)
+    const { s, ready } = hanging([{ kind: 'init', sessionId: 's1' }])
+    const sending = svc.send(c.id, 'go')
+    await ready
+    steerOk = false
+    expect(await svc.steer(c.id, task('s-1'))).toBe(false)
+    expect((await store.get(c.id))?.steering).toBeUndefined()
+    s.end!()
+    await sending
+    expect(await svc.steer(c.id, task('s-2'))).toBe(false) // nothing runs
+  })
+
+  it('only turns the user started take a steer: not a routine, workflow step or asked chat', async () => {
+    const refused = async (setup: (id: string) => Promise<unknown>, start: (id: string) => Promise<void>) => {
+      const c = await store.create('helper', dir)
+      await setup(c.id)
+      const { s, ready } = hanging([{ kind: 'init', sessionId: 's1' }])
+      const sending = start(c.id)
+      await ready
+      const ok = await svc.steer(c.id, task(`s-${c.id}`))
+      s.end!()
+      await sending
+      return ok
+    }
+    const none = async () => {}
+    expect(await refused(none, (id) => svc.send(id, 'tick', [], undefined, undefined, undefined, undefined, true))).toBe(false)
+    expect(
+      await refused(
+        (id) => store.update(id, { workflow: { workflowId: 'w', runId: 'r', stepId: 'st', name: 'Flow' } }),
+        (id) => svc.send(id, 'step')
+      )
+    ).toBe(false)
+    expect(
+      await refused(
+        (id) => store.update(id, { asked: { by: 'other', from: 'c0', fromTitle: 'T', chain: [] } }),
+        (id) => svc.send(id, 'asked')
+      )
+    ).toBe(false)
+    expect(await refused(none, (id) => svc.send(id, 'typed'))).toBe(true)
+    expect(steered).toHaveLength(1)
+  })
+
+  it('a file steers only when the run has the attachments folder; an image always', async () => {
+    const c = await store.create('helper', dir)
+    const { s, ready } = hanging([{ kind: 'init', sessionId: 's1' }])
+    const sending = svc.send(c.id, 'go')
+    await ready
+    const file: Attachment = { id: 'f1', name: 'a.txt', mime: 'text/plain', size: 1, kind: 'file' }
+    const image: Attachment = { id: 'i1', name: 'a.png', mime: 'image/png', size: 1, kind: 'image' }
+    expect(await svc.steer(c.id, task('s-file', { attachments: [file] }))).toBe(false)
+    expect(await svc.steer(c.id, task('s-image', { attachments: [image] }))).toBe(true)
+    expect(steered.map((x) => x.uuid)).toEqual(['s-image'])
+    s.end!()
+    await sending
+  })
+
+  it('editing the message a steer followed cuts before both, with no dropped turn declared', async () => {
+    svc = makeService({ dropsTurn: async () => true })
+    const c = await store.create('helper', dir)
+    scripts.push({
+      events: [{ kind: 'init', sessionId: 's1' }, { kind: 'entry', uuid: 'e1' }, { kind: 'assistantText', text: 'A1' }, okResult]
+    })
+    await svc.send(c.id, 'one')
+    const { s, ready } = hanging([
+      { kind: 'init', sessionId: 's1' },
+      { kind: 'entry', uuid: 'e2a' }
+    ])
+    const sending = svc.send(c.id, 'two')
+    await ready
+    expect(await svc.steer(c.id, task('s-1'))).toBe(true)
+    emit({ kind: 'userReplay', uuid: 's-1' })
+    emit({ kind: 'entry', uuid: 'e2b' })
+    emit({ kind: 'assistantText', text: 'A2' })
+    emit(okResult)
+    s.end!()
+    await sending
+    const second = (await itemsOf(c.id)).find((i) => i.type === 'user' && i.text === 'two')!
+    calls.length = 0
+    scripts.push({ events: [{ kind: 'init', sessionId: 's2' }, { kind: 'assistantText', text: 'B2' }, okResult] })
+    await svc.rerun(c.id, second.id, 'two, edited')
+    const spawn = calls[calls.length - 1]
+    expect(spawn.args[spawn.args.indexOf('--resume-session-at') + 1]).toBe('e1')
+    expect(spawn.args).not.toContain('--resume-drops-turn')
+    expect((await itemsOf(c.id)).some((i) => i.id === 's-1')).toBe(false)
   })
 })

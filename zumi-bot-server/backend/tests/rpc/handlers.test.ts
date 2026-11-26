@@ -1460,6 +1460,11 @@ describe('createHandlers', () => {
     await h['agents:save']('/a/old.md', 'raw')
     expect(approvals.has('new', 'Bash:ls')).toBe(true)
     expect(approvals.has('old', 'Bash:ls')).toBe(false)
+    // The save starts the rules' file write without waiting for it (they must move before its first await). Wait for it, or
+    // on a slow disk (macOS CI) the temp folder is removed while the write's temp file appears in it (ENOTEMPTY).
+    await vi.waitFor(async () =>
+      expect(Object.keys(JSON.parse(await fs.readFile(join(dir, 'approvals.json'), 'utf8')))).toEqual(['new'])
+    )
   })
 
   it('rejects a non-string chatId', async () => {
@@ -1709,7 +1714,8 @@ describe('createHandlers', () => {
     it("chats:gitStatus returns the service's answer, null without the dep", async () => {
       const c = await store.create('alpha', '/repo')
       expect(await hw['chats:gitStatus'](c.id)).toEqual({ branch: 'zumibot/alpha-a1b2c3', head: 'abc1234', changed: 2 })
-      expect(fake.status).toHaveBeenCalledWith(expect.objectContaining({ id: c.id }))
+      // With a loader for the chat's items, so the chip can follow the agent into a worktree of its own.
+      expect(fake.status).toHaveBeenCalledWith(expect.objectContaining({ id: c.id }), expect.any(Function))
       expect(await h['chats:gitStatus'](c.id)).toBeNull()
       await expect(hw['chats:gitStatus']('nope')).rejects.toThrow('Chat not found: nope')
       await expect(h['chats:gitStatus']('nope')).rejects.toThrow('Chat not found: nope')
@@ -1722,16 +1728,24 @@ describe('createHandlers', () => {
       const hg = createHandlers({ ...handlerDeps, gitChanges: svc as unknown as HandlerDeps['gitChanges'] })
       const c = await store.create('alpha', '/repo')
       expect(await hg['chats:gitChanges'](c.id)).toEqual(changes)
-      expect(svc.list).toHaveBeenCalledWith(expect.objectContaining({ id: c.id }), 'uncommitted')
+      expect(svc.list).toHaveBeenCalledWith(expect.objectContaining({ id: c.id }), 'uncommitted', expect.any(Function))
+      // The loader reads the stored items, or the list the feed holds (the open chat, with the running turn's calls).
+      const load = (svc.list.mock.calls[0] as unknown[])[2] as () => Promise<ChatItem[]>
+      const stored: ChatItem = { type: 'user', id: 'u1', text: 'hi', ts: 1 }
+      await store.saveItems(c.id, [stored])
+      expect(await load()).toEqual([stored])
+      const live: ChatItem[] = [stored, { type: 'user', id: 'u2', text: 'more', ts: 2 }]
+      handlerDeps.feed.wire({ chatId: c.id, kind: 'items', items: live, clearStreaming: false })
+      expect(await load()).toBe(live)
       expect(await hg['chats:gitDiff'](c.id, 'a.ts')).toEqual(got)
-      expect(svc.diff).toHaveBeenCalledWith(expect.objectContaining({ id: c.id }), 'a.ts', 'uncommitted')
+      expect(svc.diff).toHaveBeenCalledWith(expect.objectContaining({ id: c.id }), 'a.ts', 'uncommitted', expect.any(Function))
       // An omitted scope (null over the wire) is the uncommitted diff, as before base diffs.
       await hg['chats:gitChanges'](c.id, null)
-      expect(svc.list).toHaveBeenLastCalledWith(expect.objectContaining({ id: c.id }), 'uncommitted')
+      expect(svc.list).toHaveBeenLastCalledWith(expect.objectContaining({ id: c.id }), 'uncommitted', expect.any(Function))
       await hg['chats:gitChanges'](c.id, 'base')
-      expect(svc.list).toHaveBeenLastCalledWith(expect.objectContaining({ id: c.id }), 'base')
+      expect(svc.list).toHaveBeenLastCalledWith(expect.objectContaining({ id: c.id }), 'base', expect.any(Function))
       await hg['chats:gitDiff'](c.id, 'a.ts', 'base')
-      expect(svc.diff).toHaveBeenLastCalledWith(expect.objectContaining({ id: c.id }), 'a.ts', 'base')
+      expect(svc.diff).toHaveBeenLastCalledWith(expect.objectContaining({ id: c.id }), 'a.ts', 'base', expect.any(Function))
       await expect(hg['chats:gitChanges'](c.id, 'HEAD~1')).rejects.toThrow(TypeError)
       await expect(hg['chats:gitDiff'](c.id, 'a.ts', 'staged')).rejects.toThrow(TypeError)
       await expect(hg['chats:gitDiff'](c.id, 5)).rejects.toThrow(TypeError)
@@ -1950,6 +1964,16 @@ describe('createHandlers', () => {
     await h['chats:send']('c1', '/todos x', null, null, 'm-2', null)
     expect(forSend).toHaveBeenLastCalledWith('c1', '/todos x', undefined)
     expect(submit).toHaveBeenLastCalledWith('c1', '/todos x', [], undefined, 'm-2', undefined)
+  })
+
+  it('chats:send passes the steer option only for a true seventh argument', async () => {
+    const submit = vi.spyOn(tasks, 'submit').mockResolvedValue('steered')
+    await expect(h['chats:send']('c1', 'more', null, null, 'm-1', null, true)).resolves.toBe('steered')
+    expect(submit).toHaveBeenLastCalledWith('c1', 'more', [], undefined, 'm-1', undefined, undefined, 'user', undefined, { steer: true })
+    await h['chats:send']('c1', 'later', null, null, 'm-2', null, null)
+    expect(submit).toHaveBeenLastCalledWith('c1', 'later', [], undefined, 'm-2', undefined)
+    await expect(h['chats:send']('c1', 'x', null, null, 'm-3', null, 'yes')).rejects.toThrow(TypeError)
+    expect(submit).toHaveBeenCalledTimes(2)
   })
 
   it('chats:send: a flagged command sets todo by itself', async () => {

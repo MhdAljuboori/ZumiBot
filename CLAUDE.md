@@ -30,12 +30,12 @@ E2E suites, probes and the Codex smoke run: [docs/architecture/e2e.md](docs/arch
 - `zumi-bot-server/frontend` – React 19 UI (Tiptap composer, react-markdown with KaTeX math and Mermaid diagrams). Markdown rendering: see [App shell UI](docs/architecture/ui.md). Same UI for browser and desktop. A second Vite build (`vite.sw.config.ts`) makes the service worker `dist/sw.js`, because a worker must be one classic file at an unhashed URL.
 - `zumi-bot-desktop` – Electron shell (package name `zumibot`). It never bundles the UI; it loads pages from the connected server.
 - `zumi-bot-docs` – Astro Starlight site: the end-user docs for `https://docs.zumibot.run`.
-- `docs/superpowers/` – design spec, implementation plan and handoff notes. The spec explains the why of most decisions; its phone/tablet non-goal is out of date.
+- `docs/superpowers/` – specs, plans and handoff notes. The spec explains the why of most decisions; its phone/tablet non-goal is out of date.
 - `docs/architecture/` – one doc per feature area, moved out of this file; see Docs by area.
 
 ## Architecture
 
-**Transport.** One WebSocket per tab at `/ws`. The frontend's `net/api.ts` implements `ZumiBotApi` on top of `net/rpc.ts`, which sends `{id, method, args}` (`shared/src/rpc.ts`). The backend's `rpc/hub.ts` sends each call to a handler in `rpc/handlers.ts` keyed by `'area:verb'` (`chats:send`, `agents:save`, ...). Handlers check every argument themselves (`str()`, `strings()`, ...), since args arrive as untyped JSON. Server events (`chats:push`, `agents:changed`) are broadcast to every connected tab. `chats:send` settles only when its turn ends, so a dropped socket rejects it while the turn runs on (a phone closing the PWA while a card waits): when its message is already stored that rejection is quiet (`quietRejection` in `state/sendFailure.ts`), since the reply or its error item arrives after the reconnect (`e2e:resilience` checks it). A new API method touches three places: `ZumiBotApi` in `shared/src/types.ts`, the handler in `rpc/handlers.ts`, and the mapping in `frontend/src/net/api.ts`. Uploads (`/api/attachments/stage`) and attachment downloads are plain HTTP routes in `http/server.ts`.
+**Transport.** One WebSocket per tab at `/ws`. The frontend's `net/api.ts` implements `ZumiBotApi` on top of `net/rpc.ts`, which sends `{id, method, args}` (`shared/src/rpc.ts`). The backend's `rpc/hub.ts` sends each call to a handler in `rpc/handlers.ts` keyed by `'area:verb'` (`chats:send`, `agents:save`, ...). Handlers check every argument themselves (`str()`, `strings()`, ...), since args arrive as untyped JSON. Server events (`chats:push`, `agents:changed`) are broadcast to every connected tab. `chats:send` settles only when its turn ends, so a dropped socket rejects it while the turn runs on: when its message is already stored that rejection is quiet (`quietRejection` in `state/sendFailure.ts`), since the reply or its error item arrives after the reconnect (`e2e:resilience` checks it). A new API method touches three places: `ZumiBotApi` in `shared/src/types.ts`, the handler in `rpc/handlers.ts`, and the mapping in `frontend/src/net/api.ts`. Uploads (`/api/attachments/stage`) and attachment downloads are plain HTTP routes in `http/server.ts`.
 
 **Chat items as deltas.** `rpc/itemsFeed.ts` keeps each chat's last pushed item list and sends only the items past the shared prefix, with a `seq`. The client (`frontend/src/state/itemSync.ts`, `resync.ts`) splices the deltas in and reloads when it sees a gap. Pages load newest-first (`ITEMS_PAGE`), and older pages load on scroll up. A jump to an old message loads in one request (`until`, see [Message search](docs/architecture/message-search.md)). After stored items are rewritten without a push (for example an agent rename), call `feed.reset()`.
 
@@ -47,7 +47,7 @@ E2E suites, probes and the Codex smoke run: [docs/architecture/e2e.md](docs/arch
 
 **Dev/test hooks.** Read them through `devEnv()` (`backend/src/devEnv.ts`), which ignores them when `NODE_ENV=production`: `ZUMIBOT_PERMISSION_MODE=manual`, `ZUMIBOT_TEST_PICK_FOLDER`, and so on. `ZUMIBOT_TEST_VOICE_URL` and `ZUMIBOT_TEST_WAIT_SCALE`: see [E2E](docs/architecture/e2e.md). The packaged desktop sets `NODE_ENV=production`. `ZUMIBOT_VAULT_KEY_FILE` is not a dev hook (production reads it too), but every test that starts a server points it at a temp folder, as the e2e harness does, so nothing touches the real `~/.config/zumibot-vault`.
 
-**Data.** `ZUMIBOT_DATA_DIR`, default `~/.local/share/zumibot`. [data.md](docs/architecture/data.md) lists its files; a few per-chat files (such as `chats/<id>.dispatch.json`) are described only in their feature's doc.
+**Data.** `ZUMIBOT_DATA_DIR`, default `~/.local/share/zumibot`. [data.md](docs/architecture/data.md) lists its files; a few per-chat files are described only in their feature's doc.
 
 ## Docs by area
 
@@ -64,6 +64,7 @@ Feature detail lives in `docs/architecture/`, one doc per area. Before changing 
 - [Git worktrees and the git chip](docs/architecture/worktrees.md): `core/git/`, `shared/src/worktree.ts`, `GitChip.tsx`, `GitChangesPanel.tsx`, `useGitStatus.ts`, `state/gitStatus.ts`
 - [Review loop](docs/architecture/review-loop.md): `core/attempts/`, `core/github/`
 - [Edit, Resend, Fork](docs/architecture/edit-resend-fork.md): `versions.ts`, `fork.ts`, `sessionPoints.ts`, version switcher
+- [Mid-turn messages](docs/architecture/mid-turn-messages.md): `steer.ts`, `sendKeys.ts`
 - [Room clone](docs/architecture/room-clone.md): `roomClone.ts`, `roomSummary.ts`, `CloneRoomDialog.tsx`
 - [Agent commands](docs/architecture/agent-commands.md): `shared/src/commands.ts`, `commandResolver.ts`, `/` menu, `ModelPicker.tsx`
 - [Chat mode and effort](docs/architecture/chat-mode-and-effort.md): `shared/src/chatRun.ts`, `runPickers.ts`, `ChoicePicker.tsx`, Plan mode's approval

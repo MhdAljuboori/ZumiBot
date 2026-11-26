@@ -160,6 +160,7 @@ import { CONTINUE_TEXT, findAgent, memberAgents, workingMembers } from './state/
 import { barTitle, pendingElsewhere } from './state/mobileBar'
 import { settingsLabel, shownSection, visibleSections } from './state/settings'
 import { sendsAsTask } from './state/tasks'
+import type { SendHow } from './state/sendKeys'
 import { explainText } from './state/reply'
 import { explainFileText, filesCount, withFileQuote } from './state/filesPanel'
 import {
@@ -1489,13 +1490,15 @@ export default function App() {
     replyTo?: string,
     fromComposer = true,
     command?: CommandPick,
-    messageId?: string
+    messageId?: string,
+    how?: SendHow
   ): Promise<void> => {
     const at = latest.current
     const chat = at.chats.find((c) => c.id === chatId)
     const before = at.chatViews[chatId]?.items ?? []
     const startIndex = before.length
-    // Sent while the chat runs, it waits as a task, which its row shows from the meta push: no bubble, or it shows twice.
+    // Sent while the chat runs, it waits as a task or goes into the running reply (a steer), which a row shows from the meta
+    // push until its bubble lands: no bubble now, or it shows twice.
     const asTask = chat !== undefined && sendsAsTask(chat, before, unconfirmed(before, at.pendingSends[chatId] ?? []))
     const attachments = files.files.flatMap((f) => (f.status === 'ready' ? [f.attachment] : []))
     // Shown as sent at once, under the id the server stores it with; sending a failed text again replaces the failed copy.
@@ -1520,12 +1523,13 @@ export default function App() {
     const drop = (list: PendingSend[]) => list.filter((p) => p.item.id !== item.id)
     try {
       // Either way the bubble goes: 'queued' means one drawn in a race became a task, which its row now shows.
-      await api.chats.send(chatId, text, ids.length > 0 ? ids : undefined, replyTo, item.id, command)
+      await api.chats.send(chatId, text, ids.length > 0 ? ids : undefined, replyTo, item.id, command, how === 'steer' ? true : undefined)
       updatePending(chatId, drop)
     } catch (e) {
       const { chats: cs, chatViews: views, drafts: ds } = latest.current
       const items = views[chatId]?.items ?? []
-      const where = rejectedSendState(items, item.id, cs.find((c) => c.id === chatId)?.tasks)
+      const sentTo = cs.find((c) => c.id === chatId)
+      const where = rejectedSendState(items, item.id, sentTo?.tasks, sentTo?.steering)
       // Only the reply was lost (queued, or stored when the socket dropped mid-turn): nothing to restore or report.
       if (quietRejection(where, isNotConnected(e))) {
         updatePending(chatId, drop)
@@ -1603,11 +1607,12 @@ export default function App() {
     text: string,
     pick?: CommandPick,
     messageId?: string,
-    workflowId?: string
+    workflowId?: string,
+    how?: SendHow
   ): Promise<void> => {
     const route = routeSend(text)
     if (route.kind === 'send') {
-      await sendMessage(chatId, text, filesRef.current[chatId], replies[chatId], true, pick, messageId)
+      await sendMessage(chatId, text, filesRef.current[chatId], replies[chatId], true, pick, messageId, how)
       return
     }
     if (route.kind === 'workflow') {
@@ -1790,6 +1795,16 @@ export default function App() {
   const compactChat = (chatId: string, note: string, agent?: string): Promise<void> =>
     settled(chatId, api.chats.compact(chatId, note, agent))
 
+  // A room made from another (a clone, a fork) goes right under its source in the sidebar, in the same section. Rooms
+  // never placed have no stored spot, so the order the user sees is written out first (placeAfter does that); a failed
+  // save is reported by the hook and leaves the new room as is.
+  const placeUnder = (sourceId: string, meta: ChatMeta): void => {
+    const { agents: listed, layout } = placing.current
+    if (layout === null) return
+    const next = placeAfter(layout, itemKeys(listed, upsertChat(latest.current.chats, meta)), groupKey(meta.id), groupKey(sourceId))
+    if (next !== layout) sidebarLayout.save(next)
+  }
+
   // A user message's fork puts its text and files back in the new chat's composer, where the fork can send them again.
   const forkFrom = async (chatId: string, itemId: string): Promise<void> => {
     try {
@@ -1802,22 +1817,18 @@ export default function App() {
         }))
       }
       setChats((prev) => upsertChat(prev, chat))
+      // A single chat's fork lists under its agent; only a room has a sidebar spot of its own.
+      if (chat.group) placeUnder(chatId, chat)
       openChat(chat.id)
     } catch (e) {
       failChat(chatId, errorMessage(e))
     }
   }
 
-  // The clone goes right under its source in the sidebar. Rooms never placed have no stored spot, so the order the user
-  // sees is written out first (placeAfter does that); a failed save is reported by the hook and leaves the clone as is.
   const roomCloned = (sourceId: string, meta: ChatMeta): void => {
     setCloneSource(null)
     setChats((prev) => upsertChat(prev, meta))
-    const { agents: listed, layout } = placing.current
-    if (layout !== null) {
-      const next = placeAfter(layout, itemKeys(listed, upsertChat(latest.current.chats, meta)), groupKey(meta.id), groupKey(sourceId))
-      if (next !== layout) sidebarLayout.save(next)
-    }
+    placeUnder(sourceId, meta)
     navigate(() => openChat(meta.id))
   }
 
@@ -2435,7 +2446,7 @@ export default function App() {
       onToolsOpenChange: (open) => setToolsOpen((prev) => ({ ...prev, [id]: open })),
       onViewMemory: fromNav(openAgentMemory),
       onOpenTodos: (itemId) => openTodosAt(id, itemId),
-      onSend: (text, pick, workflowId) => void sendFromComposer(id, text, pick, undefined, workflowId),
+      onSend: (text, pick, workflowId, how) => void sendFromComposer(id, text, pick, undefined, workflowId, how),
       onContinue: () => void sendMessage(id, CONTINUE_TEXT, emptyDraftFiles, undefined, false),
       files: draftFiles[id] ?? emptyDraftFiles,
       onAddFiles: (files, origin) => addFiles(id, files, origin),
@@ -2488,6 +2499,7 @@ export default function App() {
         : undefined,
       // Sent like a typed message but not from the box: the draft stays as it is.
       onAllowed: (text) => void sendMessage(id, text, emptyDraftFiles, undefined, false),
+      onPickReply: (text) => void sendMessage(id, text, emptyDraftFiles, undefined, false),
       onOpenWorkflowRun: () => {
         const link = chat.workflow
         if (link) openWorkflowRun(link.workflowId, link.runId)

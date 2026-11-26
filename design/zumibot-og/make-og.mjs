@@ -1,5 +1,6 @@
-// Renders the site's link-preview card, zumi-bot-site/public/og-image.png (1200x630, what Slack, X, iMessage and
-// LinkedIn show for a zumibot.run link). Run `npm run og-image` after changing the Z, the cast, the colours or the line.
+// Renders the link-preview cards (1200x630, what Slack, X, iMessage and LinkedIn show for a link): the site's
+// zumi-bot-site/public/og-image.png and the docs' zumi-bot-docs/public/og-image.png. Run `npm run og-image` after changing
+// the Z, the cast, the colours or a card's words.
 // Unlike make-icons.mjs it needs a browser, for the text: it draws the card in headless Chrome (the e2e suites' own
 // playwright-core, channel 'chrome') and screenshots it. The layout is centred so a square crop (Slack's thumbnail,
 // Discord) still shows the Z and the name.
@@ -12,7 +13,6 @@ import { chromium } from 'playwright-core'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(HERE, '..', '..')
 const SHAPES = join(ROOT, 'design', 'zumibot-icon', 'zumibot-svg')
-const OUT = join(ROOT, 'zumi-bot-site', 'public', 'og-image.png')
 const [W, H] = [1200, 630]
 
 // The site's dark palette (zumi-bot-site/src/styles.css, from the app's tokens.css).
@@ -34,7 +34,20 @@ const CAST = [
   ['chat', '#f55baa'],
   ['folder', '#ffc53d']
 ]
-const LINE = 'Chat with your Claude Code agents, alone or together.'
+// Both cards carry the slogan, its last part in the accent colour; each names its own host.
+const SLOGAN = { lead: 'Your agents. Your workspace.', accent: 'Your rules.' }
+const CARDS = [
+  {
+    out: 'zumi-bot-site/public/og-image.png',
+    name: 'ZumiBot',
+    host: 'zumibot.run'
+  },
+  {
+    out: 'zumi-bot-docs/public/og-image.png',
+    name: 'ZumiBot Docs',
+    host: 'docs.zumibot.run'
+  }
+]
 
 const require = createRequire(import.meta.url)
 const font = readFileSync(require.resolve('@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-wght-normal.woff2'))
@@ -53,7 +66,7 @@ const right = CAST.slice(3)
   .map(([s, c], i) => shape(s, c, 58, fade[2 - i]))
   .join('')
 
-const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+const html = ({ name, host }, { lead, accent } = SLOGAN) => `<!doctype html><html><head><meta charset="utf-8"><style>
 @font-face { font-family: 'Bricolage'; src: url(data:font/woff2;base64,${font.toString('base64')}) format('woff2'); font-weight: 200 800; }
 * { margin: 0; box-sizing: border-box; }
 html, body { width: ${W}px; height: ${H}px; }
@@ -82,18 +95,21 @@ p b { color: ${C.accentText}; font-weight: 600; }
   <div class="tile">${shape('zumi-z', C.zumi, 108)}</div>
   <div class="side">${right}</div>
 </div>
-<h1>ZumiBot</h1>
-<p>${LINE.replace('alone or together.', '<b>alone or together.</b>')}</p>
-<div class="url">zumibot.run</div>
+<h1>${name}</h1>
+<p>${lead} <b>${accent}</b></p>
+<div class="url">${host}</div>
 </body></html>`
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true })
 try {
   const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 })
-  await page.setContent(html, { waitUntil: 'load' })
-  await page.evaluate(() => document.fonts.ready)
-  await page.screenshot({ path: OUT, type: 'png' })
+  for (const card of CARDS) {
+    const out = join(ROOT, card.out)
+    await page.setContent(html(card), { waitUntil: 'load' })
+    await page.evaluate(() => document.fonts.ready)
+    await page.screenshot({ path: out, type: 'png' })
+    console.log(`${card.out} (${Math.round(statSync(out).size / 1024)} KB)`)
+  }
 } finally {
   await browser.close()
 }
-console.log(`${OUT} (${Math.round(statSync(OUT).size / 1024)} KB)`)

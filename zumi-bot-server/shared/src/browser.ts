@@ -294,6 +294,41 @@ export function parseBrowserCommand(value: unknown): BrowserCommand {
   return c as BrowserCommand
 }
 
+const NAMED_KEYS = new Set([
+  'Backspace',
+  'Tab',
+  'Enter',
+  'Escape',
+  'Delete',
+  'Insert',
+  'Home',
+  'End',
+  'PageUp',
+  'PageDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'ArrowUp',
+  'ArrowDown',
+  'CapsLock',
+  'NumLock',
+  'ScrollLock',
+  'Pause',
+  'PrintScreen',
+  'ContextMenu'
+])
+/**
+ * The physical key a key event stands for. A phone keyboard's events have an empty `code`, and Chrome acts on a key's
+ * code (Backspace deletes, Enter submits) only when it has one, so it is named from the key where that is unambiguous.
+ */
+export function browserKeyCode(key: string, code: string): string {
+  if (code) return code
+  if (/^[a-z]$/i.test(key)) return `Key${key.toUpperCase()}`
+  if (/^[0-9]$/.test(key)) return `Digit${key}`
+  if (key === ' ') return 'Space'
+  if (['Shift', 'Control', 'Alt', 'Meta'].includes(key)) return `${key}Left`
+  return NAMED_KEYS.has(key) || /^F([1-9]|1[0-9]|2[0-4])$/.test(key) ? key : ''
+}
+
 export function parseBrowserInput(value: unknown): BrowserInput {
   const c = object(value)
   id(c.generation)
@@ -332,7 +367,8 @@ export function parseBrowserInput(value: unknown): BrowserInput {
     case 'keyDown':
     case 'keyUp':
       string(c.key, 128)
-      string(c.code, 128)
+      // A phone keyboard's keys come from no physical key, so their code is empty; browserKeyCode names them.
+      string(c.code, 128, true)
       if (
         c.modifiers !== undefined &&
         (!Array.isArray(c.modifiers) || c.modifiers.length > 4 || c.modifiers.some((m) => !['Alt', 'Control', 'Meta', 'Shift'].includes(m)))

@@ -11,6 +11,7 @@ import { homedir } from 'node:os'
 import type { AgentStore } from '../core/agents/agentStore'
 import type { AttachmentStore } from '../core/attachments/attachmentStore'
 import type { SideQuestions } from '../core/btw/sideQuestions'
+import type { ItemsLoader } from '../core/git/agentTree'
 import type { GitChangesService } from '../core/git/changes'
 import type { WorktreeService } from '../core/git/worktrees'
 import type { ChatService } from '../core/chat/chatService'
@@ -992,6 +993,12 @@ export function createHandlers(d: HandlerDeps): Handlers {
   const told = (l: SidebarLayout | null): void => {
     if (l) d.sidebarChanged(l)
   }
+  // Where the agent worked, for the git chip and Changes: the open chat's list is held by the feed, with the running
+  // turn's calls; any other chat is read from disk.
+  const itemsOf =
+    (id: string): ItemsLoader =>
+    async () =>
+      feed.peek(id) ?? (await chats.loadItems(id))
   const reveals = createRevealLimiter()
   const needChannels = (p: ChannelPlatform): ChannelService => {
     if (!d.channels) throw new Error('Channels are not available on this server')
@@ -1486,13 +1493,15 @@ export function createHandlers(d: HandlerDeps): Handlers {
     },
     // Deliberately not caught: a rejected send must reach the client so the user sees it.
     // TaskQueue decides: send now (single chat or group room), or queue while the chat runs.
-    'chats:send': async (chatId, text, ids, reply, mid, cmd) => {
+    'chats:send': async (chatId, text, ids, reply, mid, cmd, steerArg) => {
       const id = str(chatId, 'chatId')
       const body = str(text, 'text')
       const staged = attachmentIds(ids)
       const quoted = replyTo(reply)
       const picked = messageId(mid)
       const pick = commandPick(cmd)
+      // The composer's Enter: true or absent (JSON turns an omitted one into null).
+      const steer = steerArg === undefined || steerArg === null ? false : bool(steerArg, 'steer')
       await writable(id)
       // Resolved before queueing, so what a queued message will send is fixed now and a refusal reaches the client.
       // /todo is the handler's: the command, if any, is whatever follows it. A command with the flag asks for a list too.
@@ -1501,6 +1510,9 @@ export function createHandlers(d: HandlerDeps): Handlers {
       const command = await commands.forSend(id, rest, pick)
       if (command?.todos === true) await refuseTodo(id)
       // No trailing undefined: without a to-do the queue sees the call as before.
+      // Into the running reply where one takes it (docs/architecture/mid-turn-messages.md); submit queues a command or /todo itself.
+      if (steer && !todo && command?.todos !== true)
+        return tasks.submit(id, body, staged, quoted, picked, command, undefined, 'user', undefined, { steer: true })
       return todo || command?.todos === true
         ? tasks.submit(id, body, staged, quoted, picked, command, true)
         : tasks.submit(id, body, staged, quoted, picked, command)
@@ -1777,14 +1789,14 @@ export function createHandlers(d: HandlerDeps): Handlers {
       const id = str(chatId, 'chatId')
       const meta = await chats.get(id)
       if (!meta) throw new Error(`Chat not found: ${id}`)
-      return d.worktrees ? d.worktrees.status(meta) : null
+      return d.worktrees ? d.worktrees.status(meta, itemsOf(id)) : null
     },
     'chats:gitChanges': async (chatId, scope) => {
       const id = str(chatId, 'chatId')
       const want = gitScope(scope)
       const meta = await chats.get(id)
       if (!meta) throw new Error(`Chat not found: ${id}`)
-      return d.gitChanges ? d.gitChanges.list(meta, want) : null
+      return d.gitChanges ? d.gitChanges.list(meta, want, itemsOf(id)) : null
     },
     'chats:gitDiff': async (chatId, path, scope) => {
       const id = str(chatId, 'chatId')
@@ -1794,7 +1806,7 @@ export function createHandlers(d: HandlerDeps): Handlers {
       if (!meta) throw new Error(`Chat not found: ${id}`)
       // The service reads only a path the scope lists as changed, so a made-up path never reaches the disk.
       if (!d.gitChanges) throw new Error('Not in a git repository')
-      return d.gitChanges.diff(meta, p, want)
+      return d.gitChanges.diff(meta, p, want, itemsOf(id))
     },
     'chats:remove': async (chatId) => {
       const id = str(chatId, 'chatId')

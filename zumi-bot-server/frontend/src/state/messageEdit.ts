@@ -10,8 +10,12 @@ export function resendTarget(items: readonly ChatItem[], agentItemId: string): s
   let i = items.length - 1
   while (i >= 0 && items[i].type !== 'assistant') i--
   if (i < 0 || items[i].id !== agentItemId) return null
-  // A run message is the agent's own result, not the user's: there is nothing of theirs to send again.
-  for (i--; i >= 0; i--) if (items[i].type === 'user') return isRunItem(items[i]) ? null : items[i].id
+  // A run message is the agent's own result, not the user's: there is nothing of theirs to send again. A message sent into the
+  // running reply (steered) is part of that turn: the turn's own message is the one sent again.
+  for (i--; i >= 0; i--) {
+    const it = items[i]
+    if (it.type === 'user' && !it.steered) return isRunItem(it) ? null : it.id
+  }
   return null
 }
 

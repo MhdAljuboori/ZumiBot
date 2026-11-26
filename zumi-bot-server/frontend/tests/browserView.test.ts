@@ -9,7 +9,11 @@ import {
   browserPasteShortcut,
   browserScale,
   nextClickCount,
-  createBrowserTouch
+  createBrowserTouch,
+  browserTyping,
+  browserImeKey,
+  BROWSER_INPUT_PAD,
+  BROWSER_BACKSPACES_MAX
 } from '../src/state/browserView'
 import type { BrowserStatus, BrowserFrame } from '@zumibot/shared/browser'
 const ready: BrowserStatus = {
@@ -189,5 +193,61 @@ describe('browser pointer gestures', () => {
     t.down(20, 30)
     expect(t.cancel()).toEqual([])
     expect(t.mode).toBe('idle')
+  })
+})
+
+describe('browser typing from the page input', () => {
+  const pad = BROWSER_INPUT_PAD
+  const back = { type: 'keyDown', key: 'Backspace', code: 'Backspace' }
+  const backUp = { type: 'keyUp', key: 'Backspace', code: 'Backspace' }
+  it('starts with text a phone keyboard can delete', () => expect(pad.length).toBeGreaterThan(0))
+  it('sends what a keystroke added, never the whole field again', () => {
+    expect(browserTyping(pad, pad + 'm')).toEqual([{ type: 'text', text: 'm' }])
+    expect(browserTyping(pad + 'm', pad + 'mo')).toEqual([{ type: 'text', text: 'o' }])
+    expect(browserTyping(pad + 'mo', pad + 'mo')).toEqual([])
+  })
+  it('turns a deletion into Backspace presses, a held key letting go once', () => {
+    expect(browserTyping(pad + 'mo', pad + 'm')).toEqual([back, backUp])
+    expect(browserTyping(pad, pad.slice(1))).toEqual([back, backUp])
+    expect(browserTyping(pad + 'word', pad)).toEqual([back, back, back, back, backUp])
+  })
+  it('replays a correction or a mid-text edit from where the texts part', () => {
+    expect(browserTyping(pad + 'teh', pad + 'the ')).toEqual([back, back, backUp, { type: 'text', text: 'he ' }])
+    expect(browserTyping(pad + 'hello', pad + 'helXlo')).toEqual([back, back, backUp, { type: 'text', text: 'Xlo' }])
+  })
+  it('presses Enter for a line break a keyboard commits as text', () => {
+    expect(browserTyping(pad, pad + 'ab\ncd\n')).toEqual([
+      { type: 'text', text: 'ab' },
+      { type: 'keyDown', key: 'Enter', code: 'Enter' },
+      { type: 'keyUp', key: 'Enter', code: 'Enter' },
+      { type: 'text', text: 'cd' },
+      { type: 'keyDown', key: 'Enter', code: 'Enter' },
+      { type: 'keyUp', key: 'Enter', code: 'Enter' }
+    ])
+  })
+  it('deletes a character outside the BMP with one press', () => {
+    expect(browserTyping(pad + 'a😀', pad + 'a')).toEqual([back, backUp])
+    expect(browserTyping(pad + '😀', pad + '😁')).toEqual([back, backUp, { type: 'text', text: '😁' }])
+  })
+  it('bounds the presses one edit sends', () => {
+    const sent = browserTyping('x'.repeat(500), '')
+    expect(sent.filter((i) => i.type === 'keyDown')).toHaveLength(BROWSER_BACKSPACES_MAX)
+    expect(sent.at(-1)).toEqual(backUp)
+  })
+  it('leaves keys the keyboard turns into text to the input event', () => {
+    for (const e of [
+      { key: 'Unidentified', keyCode: 229, isComposing: false },
+      { key: 'Backspace', keyCode: 229, isComposing: false },
+      { key: 'Process', keyCode: 229, isComposing: false },
+      { key: 'Dead', keyCode: 222, isComposing: false },
+      { key: 'a', keyCode: 65, isComposing: true }
+    ])
+      expect(browserImeKey(e)).toBe(true)
+    for (const e of [
+      { key: 'Backspace', keyCode: 8, isComposing: false },
+      { key: 'Enter', keyCode: 13, isComposing: false },
+      { key: 'a', keyCode: 65, isComposing: false }
+    ])
+      expect(browserImeKey(e)).toBe(false)
   })
 })

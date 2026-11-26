@@ -20,6 +20,9 @@ import type { GroupService } from './groupService'
 
 export const TASKS_MAX = 50
 
+// A message sent into a running reply sits inside that turn: the session has no cut point before it alone.
+export const STEERED_ITEM_FIXED = 'A message sent into a running reply cannot be edited or sent again'
+
 // A build without the hook could only wait for the reply's own end, which would look like a Pause that does nothing.
 export const PAUSE_UNAVAILABLE = 'Pause is unavailable: the pause hook is missing from this build'
 
@@ -41,7 +44,17 @@ export interface TaskQueueDeps {
   store: Pick<ChatStore, 'get' | 'list' | 'loadItems' | 'addTask' | 'takeTask' | 'dropTask' | 'holdTasks' | 'patchInPlace'>
   chats: Pick<
     ChatService,
-    'isRunning' | 'send' | 'rerun' | 'stop' | 'whenIdle' | 'switchVersion' | 'compact' | 'canPause' | 'setPauseFlag' | 'finishPause'
+    | 'isRunning'
+    | 'send'
+    | 'rerun'
+    | 'stop'
+    | 'whenIdle'
+    | 'switchVersion'
+    | 'compact'
+    | 'canPause'
+    | 'setPauseFlag'
+    | 'finishPause'
+    | 'steer'
   >
   groups: Pick<GroupService, 'send' | 'rerun' | 'compact' | 'requestPause' | 'resume'>
   files: Pick<AttachmentStore, 'commit' | 'removeFiles'>
@@ -147,6 +160,8 @@ export interface SubmitOptions {
   cardAsk?: CardAsk
   // The mark of a Run result (from 'run'): travels with the message onto the user item.
   run?: RunMark
+  // The composer's Enter: into the chat's running reply where one takes it (docs/architecture/mid-turn-messages.md), else as without.
+  steer?: true
   committed?: (r: SendResult | 'duplicate') => void
 }
 
@@ -184,7 +199,7 @@ export class TaskQueue {
     if (text.trim() === '' && stagedIds.length === 0) throw new Error('Message is empty')
     // Late triggers (a webhook, a scheduler tick) must not start a run after stopAll has finished.
     if (this.down) throw new Error('Server is shutting down')
-    const out = await this.serial(chatId, async (): Promise<Started | { idle: boolean } | { duplicate: true }> => {
+    const out = await this.serial(chatId, async (): Promise<Started | { idle: boolean } | { duplicate: true } | { steered: true }> => {
       const meta = await store.get(chatId)
       if (!meta) throw new Error(`Chat not found: ${chatId}`) // before any commit: no orphan attachment folder
       // Under the lock, so a redelivered channel update racing its first delivery is still seen.
@@ -215,8 +230,9 @@ export class TaskQueue {
         if (opts?.once && messageId !== undefined) this.recent.add(messageId)
         return this.launch(meta, text, attachments, replyTo, messageId, command, todo, autoFor(from), workflowSent, opts?.cardAsk, opts?.run)
       }
-      // Before commit, so a send that is bound to fail moves no files.
-      if ((meta.tasks?.length ?? 0) >= TASKS_MAX) throw new Error(`A chat can hold at most ${TASKS_MAX} queued messages`)
+      // Before commit, so a send that is bound to fail moves no files. Unread steers wait too, so they count.
+      if ((meta.tasks?.length ?? 0) + (meta.steering?.length ?? 0) >= TASKS_MAX)
+        throw new Error(`A chat can hold at most ${TASKS_MAX} queued messages`)
       // Committed now: staged files are cleared on server start, so they can't wait in staging.
       const attachments = await files.commit(chatId, stagedIds)
       const task: QueuedTask = {
@@ -232,6 +248,24 @@ export class TaskQueue {
         ...(opts?.run ? { run: opts.run } : {}),
         ts: now()
       }
+      // Only the user's own plain message goes into a running reply: a command or /todo is read only at a turn's start (a typed
+      // `/name` the menu did not resolve, a skill or a built-in, too: mid-turn the CLI would read it as plain text), and a
+      // routine's, a card's or a Run result's message is not one they typed. The service says no where its turn takes none.
+      const steers =
+        opts?.steer === true &&
+        from === 'user' &&
+        !text.trimStart().startsWith('/') &&
+        !idle &&
+        !paused &&
+        !isGroup(meta) &&
+        !meta.compacting &&
+        meta.resume === undefined &&
+        !command &&
+        !todo &&
+        !opts.once &&
+        !opts.cardAsk &&
+        !opts.run
+      if (steers && (await this.d.chats.steer(chatId, task))) return { steered: true as const }
       // A paused chat's tray is held in the same write, also after the user emptied it (the last task out clears held); a
       // Run result's never is.
       push({ chatId, kind: 'meta', meta: await store.addTask(chatId, task, paused) })
@@ -240,6 +274,10 @@ export class TaskQueue {
     if ('duplicate' in out) {
       opts?.committed?.('duplicate')
       return 'duplicate'
+    }
+    if ('steered' in out) {
+      opts?.committed?.('steered')
+      return 'steered'
     }
     if (!('run' in out)) {
       opts?.committed?.('queued')
@@ -304,6 +342,7 @@ export class TaskQueue {
       const old = (await store.loadItems(chatId)).find((i) => i.type === 'user' && i.id === userId)
       if (old?.type !== 'user') throw new Error('Message not found')
       if (old.run) throw new Error(RUN_ITEM_FIXED)
+      if (old.steered) throw new Error(STEERED_ITEM_FIXED)
       if ((text ?? old.text).trim() === '' && !old.attachments?.length) throw new Error('Message is empty')
       await this.newTurn(chatId)
       // Only an edit that stops a reply holds the tray; on an idle chat the tasks are left as they are. Held BEFORE the

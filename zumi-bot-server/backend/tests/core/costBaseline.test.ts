@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from 'vitest'
-import { createCostBaseline, lastCostState, minusBaseline } from '../../src/core/usage/costBaseline'
+import { costSince, createCostBaseline, lastCostState, minusBaseline } from '../../src/core/usage/costBaseline'
 
 const costState = (cr: number, cw: number, out: number, usd: number) =>
   JSON.stringify({
@@ -72,4 +72,12 @@ test('minusBaseline drops a model the run did not use again and never goes below
     models: {}
   })
   expect(minusBaseline(run, null)).toBe(run)
+})
+
+test('costSince counts only what a later result of the same process added (its total is cumulative)', () => {
+  const a = { totalUsd: 0.0057, models: { m: { input: 10, output: 20, cacheRead: 0, cacheWrite: 0, costUsd: 0.0057 } } }
+  const b = { totalUsd: 0.0094, models: { m: { input: 15, output: 30, cacheRead: 0, cacheWrite: 0, costUsd: 0.0094 } } }
+  expect(costSince(b, a).totalUsd).toBeCloseTo(0.0037)
+  expect(costSince(b, a).models.m.output).toBe(10)
+  expect(costSince(b, null)).toEqual(b)
 })

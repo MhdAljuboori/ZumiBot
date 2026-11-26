@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { SHOT_BYTES_MAX, SHOT_NAME_RE, SHOTS_PER_CHAT_MAX, parseBrowserCommand, parseBrowserInput, safeBrowserSite } from '../src/browser'
+import {
+  SHOT_BYTES_MAX,
+  SHOT_NAME_RE,
+  SHOTS_PER_CHAT_MAX,
+  browserKeyCode,
+  parseBrowserCommand,
+  parseBrowserInput,
+  safeBrowserSite
+} from '../src/browser'
 
 const stamp = { generation: 'g1', tabId: 't1', observationId: 'o1' }
 describe('browser command boundary', () => {
@@ -134,6 +142,8 @@ describe('browser viewer input boundary', () => {
     { type: 'wheel', x: 10, y: 20, deltaX: 0, deltaY: 30 },
     { type: 'keyDown', key: 'Enter', code: 'Enter', modifiers: ['Shift'] },
     { type: 'keyUp', key: 'Enter', code: 'Enter' },
+    // A phone keyboard's keys have no physical key, so no code.
+    { type: 'keyDown', key: 'Backspace', code: '' },
     { type: 'text', text: 'مرحبا' }
   ])('accepts committed event %j', (event) => {
     const value = { ...target, ...event }
@@ -151,6 +161,32 @@ describe('browser viewer input boundary', () => {
     { type: 'text', text: 'ok', capability: 'secret' }
   ])('rejects invalid input %j', (event) => expect(() => parseBrowserInput({ ...target, ...event })).toThrow())
   it('requires generation and tab identity', () => expect(() => parseBrowserInput({ type: 'text', text: 'ok' })).toThrow())
+})
+
+describe('browserKeyCode', () => {
+  it('keeps a physical key code', () => {
+    expect(browserKeyCode('a', 'KeyQ')).toBe('KeyQ')
+    expect(browserKeyCode('Enter', 'NumpadEnter')).toBe('NumpadEnter')
+  })
+  it.each([
+    ['Backspace', 'Backspace'],
+    ['Enter', 'Enter'],
+    ['Delete', 'Delete'],
+    ['ArrowLeft', 'ArrowLeft'],
+    ['Home', 'Home'],
+    ['F5', 'F5'],
+    ['a', 'KeyA'],
+    ['Z', 'KeyZ'],
+    ['7', 'Digit7'],
+    [' ', 'Space'],
+    ['Shift', 'ShiftLeft'],
+    ['Control', 'ControlLeft']
+  ])('names a phone keyboard key %j by what it is', (key, code) => expect(browserKeyCode(key, '')).toBe(code))
+  it('leaves a key with no physical counterpart unnamed', () => {
+    expect(browserKeyCode('@', '')).toBe('')
+    expect(browserKeyCode('Unidentified', '')).toBe('')
+    expect(browserKeyCode('é', '')).toBe('')
+  })
 })
 
 it('uses only the safe origin for handoff metadata', () => {

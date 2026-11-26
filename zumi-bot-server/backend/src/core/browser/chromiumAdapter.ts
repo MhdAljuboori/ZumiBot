@@ -806,15 +806,32 @@ class ChromiumInstance implements BrowserInstance {
     if (!this.closed && !page.isClosed() && (size?.width !== width || size?.height !== height))
       await page.setViewportSize({ width, height }).catch(() => {})
   }
+  /**
+   * A phone keyboard opening shortens the viewer and so the page: the field being typed in comes back into view, as in a
+   * phone's own browser. Not awaited, and skipped under a dialog: a page runs no script until its dialog is answered.
+   */
+  private revealFocus(): void {
+    const page = this.activeTabId ? this.pages.get(this.activeTabId) : null
+    if (this.closed || this.dialog || !page || page.isClosed()) return
+    void page
+      .evaluate(() => {
+        const el = document.activeElement
+        if (el instanceof HTMLElement && (el.isContentEditable || el.matches('input, textarea, select')))
+          el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      })
+      .catch(() => {})
+  }
   /** Latest wins: a burst of resizes applies only the last one still wanted. */
   setViewport(viewport: BrowserViewport): Promise<void> {
     this.wantedViewport = viewport
     const work = this.viewportWork.then(async () => {
       const wanted = this.wantedViewport
       if (this.closed || sameBrowserViewport(wanted, this.viewport)) return
+      const shorter = wanted.height < this.viewport.height
       this.viewport = wanted
       this.quality = 80
       await Promise.all([...this.pages.values()].map((page) => this.fitPage(page)))
+      if (shorter) this.revealFocus()
       // The screencast's maximum size is fixed when it starts.
       await this.refreshCapture()
     })

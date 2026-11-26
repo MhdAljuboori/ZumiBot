@@ -82,8 +82,10 @@ export function createApi(
       pending: () => call('chats:pending'),
       search: (query, offset) => call('chats:search', query, offset),
       // Settles when the whole agent turn ends, so it is returned untouched (no timeout, no wrapping).
-      send: (chatId, text, attachmentIds, replyTo, messageId, command) =>
-        call('chats:send', chatId, text, attachmentIds, replyTo, messageId, command),
+      send: (chatId, text, attachmentIds, replyTo, messageId, command, steer) =>
+        steer
+          ? call('chats:send', chatId, text, attachmentIds, replyTo, messageId, command, steer)
+          : call('chats:send', chatId, text, attachmentIds, replyTo, messageId, command),
       sendTask: (chatId, taskId) => call('chats:sendTask', chatId, taskId),
       dropTask: (chatId, taskId) => call('chats:dropTask', chatId, taskId),
       edit: (chatId, itemId, text, command) => call('chats:edit', chatId, itemId, text, command),

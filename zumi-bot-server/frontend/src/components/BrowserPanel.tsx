@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
-import type { BrowserModifier } from '@zumibot/shared/browser'
+import { browserKeyCode, type BrowserModifier } from '@zumibot/shared/browser'
 import { displayName } from '@zumibot/shared/frontmatter'
 import {
+  BROWSER_INPUT_MAX,
+  BROWSER_INPUT_PAD,
   BROWSER_LONG_PRESS_MS,
+  browserImeKey,
   browserKeyText,
   browserPasteShortcut,
   browserPoint,
   browserScale,
+  browserTyping,
   createBrowserTouch,
   nextClickCount,
   type BrowserClick,
@@ -22,8 +26,14 @@ export function BrowserPanel({ inline = false, onBack }: { inline?: boolean; onB
   const browser = useBrowser()
   const [url, setUrl] = useState('')
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const composing = useRef(false)
-  const committed = useRef<string | null>(null)
+  // What the page input held after the last edit sent to the page.
+  const typed = useRef(BROWSER_INPUT_PAD)
+  /** Back to the padding, caret at the end. Only while no keyboard is up, or rarely: it restarts a phone keyboard. */
+  const refill = (el: HTMLTextAreaElement): void => {
+    if (el.value !== BROWSER_INPUT_PAD) el.value = BROWSER_INPUT_PAD
+    el.setSelectionRange(BROWSER_INPUT_PAD.length, BROWSER_INPUT_PAD.length)
+    typed.current = BROWSER_INPUT_PAD
+  }
   const lastMove = useRef(0),
     lastWheel = useRef(0)
   const lastPoint = useRef<{ x: number; y: number } | null>(null)
@@ -47,13 +57,14 @@ export function BrowserPanel({ inline = false, onBack }: { inline?: boolean; onB
   }, [tab?.url])
   useEffect(() => {
     held.current.clear()
-    composing.current = false
-    committed.current = null
     touch.current.cancel()
     clearTimeout(longPress.current)
     scroll.current = null
     lastClick.current = null
-    if (inputRef.current) inputRef.current.value = ''
+    const el = inputRef.current
+    // Rewriting a focused input restarts a phone keyboard, so it only starts counting from what is there.
+    if (el && document.activeElement === el) typed.current = el.value
+    else if (el) refill(el)
   }, [state?.epoch, state?.control])
   useEffect(() => {
     if (!state?.control) {
@@ -115,11 +126,11 @@ export function BrowserPanel({ inline = false, onBack }: { inline?: boolean; onB
     if (e.ctrlKey) modifiers.push('Control')
     if (e.metaKey) modifiers.push('Meta')
     if (e.shiftKey) modifiers.push('Shift')
-    if (e.nativeEvent.isComposing || composing.current || e.key === 'Process' || e.key === 'Unidentified') return
-    const raw = { key: e.key, code: e.code, modifiers }
+    if (browserImeKey(e.nativeEvent)) return
+    const raw = { key: e.key, code: browserKeyCode(e.key, e.code), modifiers }
     browser.input({ type: down ? 'keyDown' : 'keyUp', ...raw })
-    if (down) held.current.set(e.code, raw)
-    else held.current.delete(e.code)
+    if (down) held.current.set(raw.code, raw)
+    else held.current.delete(raw.code)
     // Printable keys go through textarea input, which also supports mobile keyboards and IME.
     if (browserKeyText(e.nativeEvent) === null) e.preventDefault()
   }
@@ -380,41 +391,35 @@ export function BrowserPanel({ inline = false, onBack }: { inline?: boolean; onB
           aria-label="Browser page input"
           aria-description="Take control to interact. Tab leaves the page. Escape releases keyboard focus."
           readOnly={!owned}
+          defaultValue={BROWSER_INPUT_PAD}
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="off"
           spellCheck={false}
           onKeyDown={(e) => key(e, true)}
           onKeyUp={(e) => key(e, false)}
-          onCompositionStart={() => {
-            composing.current = true
-            committed.current = null
-          }}
-          onCompositionEnd={(e) => {
-            composing.current = false
-            if (owned && e.data) browser.input({ type: 'text', text: e.data })
-            committed.current = e.data
-            e.currentTarget.value = ''
+          onFocus={(e) => {
+            // Before the keyboard comes up, so no keyboard sees the field rewritten.
+            refill(e.currentTarget)
           }}
           onInput={(e) => {
-            if (composing.current || (e.nativeEvent as InputEvent).isComposing) return
-            const text = e.currentTarget.value,
-              data = (e.nativeEvent as InputEvent).data
-            if (owned && text && !(committed.current !== null && data === committed.current)) browser.input({ type: 'text', text })
-            committed.current = null
-            e.currentTarget.value = ''
+            // Every change, composing or not, goes to the page as it happens: a phone keyboard composes whole words,
+            // and a tap on another field must not carry a half-typed word there.
+            const el = e.currentTarget,
+              value = el.value
+            if (owned) for (const input of browserTyping(typed.current, value)) browser.input(input)
+            typed.current = value
+            if (value.length > BROWSER_INPUT_MAX && !(e.nativeEvent as InputEvent).isComposing) refill(el)
           }}
           onPaste={(e) => {
             e.preventDefault()
             const text = e.clipboardData.getData('text/plain')
             if (owned && text) browser.input({ type: 'text', text: text.slice(0, 16384) })
           }}
-          onBlur={() => {
+          onBlur={(e) => {
             for (const raw of held.current.values()) browser.input({ type: 'keyUp', ...raw })
             held.current.clear()
-            composing.current = false
-            committed.current = null
-            if (inputRef.current) inputRef.current.value = ''
+            refill(e.currentTarget)
           }}
           onPointerDown={(e) => {
             if (!owned) return

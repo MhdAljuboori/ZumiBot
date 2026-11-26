@@ -13,7 +13,7 @@
 //   new-chat-agent-option (+ data-agent-name), new-chat-folder, new-chat-folder-option (+ data-cwd), new-chat-worktree,
 //   new-chat-folder-worktree, changes-panel, change-row (+ data-path, data-kind), changes-count, changes-scope-uncommitted,
 //   changes-scope-base, diff-row (+ data-kind, data-row), selection-menu, selection-comment, review-form-text, review-add,
-//   review-bar, review-toggle, review-row, review-edit, review-delete, review-send, review-dot.
+//   review-bar, review-toggle, review-row, review-edit, review-delete, review-send, review-dot, changes-agent-tree.
 // Stored state read: <dataDir>/chats.json (worktree: root, kept, removed), <dataDir>/chats/<id>.json (items).
 
 import { execFile } from 'node:child_process'
@@ -365,6 +365,60 @@ async function main() {
   assert((await toggle.getAttribute('data-tip')) === 'Not a git repository', `tooltip reads ${await toggle.getAttribute('data-tip')}`)
   assert((await page.locator(tid('new-chat-folder-worktree')).count()) === 0, 'the branch mark shows for a non-repo folder')
   ok('8b new-chat: a non-repo folder disables the toggle ("Not a git repository")')
+
+  // 8c. an agent that makes a worktree of its own: the chip and Changes follow it, not the checkout the chat opened in
+  const repo2 = join(base, 'repo2')
+  await mkdir(repo2)
+  await writeFile(join(repo2, 'README.md'), 'hello\n')
+  await git(repo2, 'init', '-b', 'main')
+  await git(repo2, 'add', '.')
+  await git(repo2, '-c', 'user.email=e2e@example.test', '-c', 'user.name=e2e', 'commit', '-m', 'first')
+  const own = join(base, 'repo2-agent-own')
+  await git(repo2, 'worktree', 'add', '-b', 'agent-own', own)
+  await writeFile(join(repo2, 'mine.txt'), 'the user\n') // the user's own change in the chat's checkout
+  await writeFile(join(own, 'agent.ts'), 'export const x = 1\n')
+  const C = (await rpc(page, 'chats:create', AGENT, repo2)).id
+  assert((await metaOf(C)).worktree === undefined, 'a chat in a repo without the toggle got a worktree')
+  // What a turn stores when the agent ran a shell line in its worktree; the chat is not open yet, so it is read from disk.
+  const call = { type: 'tool', id: 'toolu_e2e_own', name: 'Bash', input: { command: `cd ${own} && git status` } }
+  await writeFile(
+    join(dataDir, 'chats', `${C}.json`),
+    JSON.stringify([{ ...call, result: '', isError: false, blocked: false, ts: Date.now() }])
+  )
+  await page.goto(`${h.origin}/chat/${C}`)
+  await chip.waitFor({ timeout: T })
+  await waitFor(async () => (await chip.textContent()).includes('agent-own'), T, 'the chip to read the agent worktree branch')
+  assert(
+    (await chip.getAttribute('data-tip')).includes(`In the agent's worktree: ${own}`),
+    `chip tip reads ${await chip.getAttribute('data-tip')}`
+  )
+  await chip.click()
+  await panel.waitFor({ timeout: T })
+  await waitFor(async () => (await rows.count()) === 1, T, "only the agent's file listed")
+  assert((await rows.first().getAttribute('data-path')) === 'agent.ts', `the row is ${await rows.first().getAttribute('data-path')}`)
+  assert((await panel.locator(tid('changes-agent-tree')).textContent()).includes(own), 'the panel does not name the agent worktree')
+  await chip.click()
+  await panel.waitFor({ state: 'detached', timeout: T })
+  ok(`8c a plain chat whose agent worked in ${own}: the chip reads agent-own and Changes lists agent.ts, not mine.txt`)
+
+  // 8d. the agent commits: Uncommitted empties, and Since start shows it all from where its branch was made
+  await git(own, 'add', 'agent.ts')
+  await git(own, '-c', 'user.email=e2e@example.test', '-c', 'user.name=e2e', 'commit', '-m', 'agent work')
+  await writeFile(join(own, 'later.ts'), 'export const y = 2\n')
+  await page.dispatchEvent('body', 'focus')
+  await chip.click()
+  await panel.waitFor({ timeout: T })
+  await waitFor(async () => (await rows.count()) === 1, T, 'only later.ts left uncommitted')
+  await panel.locator(tid('changes-scope-base')).click()
+  await waitFor(async () => (await rows.count()) === 2, T, 'agent.ts and later.ts since the branch started')
+  const ownSince = await rows.evaluateAll((els) => els.map((e) => `${e.getAttribute('data-kind')} ${e.getAttribute('data-path')}`))
+  assert(
+    JSON.stringify(ownSince) === JSON.stringify(['added agent.ts', 'untracked later.ts']),
+    `Since start reads ${JSON.stringify(ownSince)}`
+  )
+  await chip.click()
+  await panel.waitFor({ state: 'detached', timeout: T })
+  ok("8d the agent's commit: Since start in its worktree lists agent.ts as added and later.ts, still not mine.txt")
 
   // 9. nothing unexpected
   const bad = unexpectedErrors(h.errors, [])

@@ -78,6 +78,11 @@ export interface EngineAdapter<Config> {
 export interface RunHandle {
   stop(): void
   send(message: object): boolean
+  /**
+   * Claude's CLI run only: a user message into the running turn (a mid-turn steer), taken in at the agent's next step and
+   * echoed back as `userReplay` under `uuid`. False when it can no longer go in. Absent: this engine takes none.
+   */
+  steer?(content: UserContent, uuid: string): boolean
   done: Promise<RunOutcome>
 }
 

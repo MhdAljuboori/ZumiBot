@@ -207,6 +207,14 @@ export async function browserSite() {
       <div style="height:1500px"></div>`)
       return
     }
+    // A form a viewer submits with Enter, its field low enough that a short viewport hides it.
+    if (req.url === '/form') {
+      res.end(`<!doctype html><title>Form fixture</title><style>body{margin:0}</style>
+      <form style="padding-top:700px" onsubmit="event.preventDefault();document.querySelector('#result').textContent='Submitted '+this.q.value">
+        <input name="q" aria-label="Query" value="abc"><textarea aria-label="Notes"></textarea>
+      </form><div id="result"></div><div style="height:1500px"></div>`)
+      return
+    }
     // Random pixels a PNG can't compress, taller than the viewport: a whole-page shot passes 5 MiB, the viewport alone does not.
     // The canvas has a role so an observation lists it, for an element shot of it.
     if (req.url === '/noise') {

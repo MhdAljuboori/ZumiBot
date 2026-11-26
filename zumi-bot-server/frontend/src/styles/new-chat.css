@@ -41,10 +41,16 @@
 .pickers.one-line.compact > :not(.run-picker, .git-chip) {
   flex: none;
 }
-/* The new-chat row, compact on a wide window: it wraps as on a phone, since its agent and folder are picked there. */
-.pickers.compact:not(.one-line) {
-  flex-wrap: wrap;
-  row-gap: 2px;
+/* The new-chat row when compact (a phone, or a pane too narrow for the full row) keeps to one line too: each chip gets
+   an equal share of the room, capped at its own width, so a short label stays whole and only the longest ones give up
+   letters to an ellipsis. The Role chip keeps its size. */
+.pickers.compact:not(.one-line) > .picker:not(.role-chip) {
+  flex: 1 1 0;
+  max-width: max-content;
+}
+/* An agent's start screen names the agent above the row, so its compact chip is the icon alone (NewChatView). */
+.picker.icon-only .picker-text {
+  display: none;
 }
 .picker {
   display: inline-flex;

@@ -20,6 +20,8 @@ export interface ItemsFeed {
    * is ignored.
    */
   page(chatId: string, load: () => Promise<ChatItem[]>, before?: string, until?: string): Promise<ItemsPage>
+  /** The chat's last pushed or loaded list, if one is held; nothing is loaded or renumbered. */
+  peek(chatId: string): readonly ChatItem[] | null
   /** The chat is gone: its last list is dropped. */
   forget(chatId: string): void
   /** Stored items were rewritten without a push (an agent rename): every chat's next push goes whole. */
@@ -96,6 +98,7 @@ export function createItemsFeed(maxChats = 20): ItemsFeed {
       const reach = until === undefined ? -1 : items.findIndex((i) => i.id === until)
       return { ...pageOf(items, end, reach), seq }
     },
+    peek: (chatId) => last.get(chatId)?.items ?? null,
     forget: (chatId) => void last.delete(chatId),
     reset: () => last.clear()
   }
