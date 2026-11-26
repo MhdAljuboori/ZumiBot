@@ -3,7 +3,8 @@ import { spanText, type ProcessInfo, type ProcessLogRead, type ProcessWake } fro
 
 // Pure view rules of the Processes panel, its log view and the chat header's mark (docs/architecture/processes.md).
 
-export type ProcessTone = 'running' | 'ok' | 'bad' | 'muted'
+// Green is for a live process only, as in Dispatched agents: a green dot on a process that exited fine reads as still running.
+export type ProcessTone = 'running' | 'bad' | 'muted'
 
 export interface ProcessRow {
   id: string
@@ -28,7 +29,7 @@ export function stateLabel(p: Pick<ProcessInfo, 'state' | 'exitCode' | 'signal' 
       return { text: 'Running', tone: 'running' }
     case 'exited':
       return p.exitCode === 0
-        ? { text: 'Exited (code 0)', tone: 'ok' }
+        ? { text: 'Exited (code 0)', tone: 'muted' }
         : { text: p.exitCode !== null ? `Exited (code ${p.exitCode})` : `Ended by ${p.signal ?? 'a signal'}`, tone: 'bad' }
     case 'stopped': {
       const by =

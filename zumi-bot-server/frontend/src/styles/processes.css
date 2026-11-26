@@ -13,9 +13,6 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent);
   animation: dispatch-pulse 1.6s ease-in-out infinite;
 }
-.process-dot.ok {
-  background: var(--success);
-}
 .process-dot.bad {
   background: var(--error);
 }
