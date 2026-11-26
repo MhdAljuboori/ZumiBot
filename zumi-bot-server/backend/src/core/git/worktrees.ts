@@ -4,6 +4,7 @@ import { isArchived } from '@zumibot/shared/archive'
 import type { ChatMeta, ChatWorktree, GitStatus, WorktreeKeep } from '@zumibot/shared/types'
 import { gitStatusOf, parseStatusV2, releaseBlock, worktreeBranch, worktreePath, worktreeSlug } from '@zumibot/shared/worktree'
 import type { ChatStore } from '../store/chatStore'
+import { agentTreeOf, type ItemsLoader } from './agentTree'
 import { GitError, type Git } from './git'
 
 export interface WorktreeDeps {
@@ -86,16 +87,20 @@ export class WorktreeService {
     return /^[0-9a-f]{40,64}$/.test(sha) ? sha : null
   }
 
-  async status(meta: ChatMeta): Promise<GitStatus | null> {
+  /** `items` given: read in the other worktree the agent last worked in, when there is one (see `agentTreeOf`). */
+  async status(meta: ChatMeta, items?: ItemsLoader): Promise<GitStatus | null> {
     const wt = meta.worktree
     if (wt?.removed) return { branch: wt.branch, head: '', changed: 0, removed: true }
     try {
+      const agent = items ? await agentTreeOf(this.d.git, meta, items) : null
       const { stdout } = await this.d.git(
         ['--no-optional-locks', '-c', 'core.quotePath=false', 'status', '--porcelain=v2', '--branch', '--untracked-files=normal'],
-        meta.cwd,
+        agent?.path ?? meta.cwd,
         { timeoutMs: STATUS_TIMEOUT_MS }
       )
-      return gitStatusOf(parseStatusV2(stdout), wt?.links ?? [])
+      // ZumiBot's links belong to the chat's own worktree only.
+      const status = gitStatusOf(parseStatusV2(stdout), agent ? [] : (wt?.links ?? []))
+      return agent ? { ...status, agentTree: agent.path } : status
     } catch (e) {
       if (e instanceof GitError) return null
       throw e

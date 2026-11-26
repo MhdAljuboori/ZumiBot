@@ -13,6 +13,7 @@ import {
   type StatusZ
 } from '@zumibot/shared/gitChanges'
 import type { ChatMeta, GitChanges, GitDiffScope, GitFileDiff, GitSide } from '@zumibot/shared/types'
+import { agentTreeOf, branchStart, type ItemsLoader } from './agentTree'
 import { GitError, type Git } from './git'
 
 const TIMEOUT_MS = 10_000
@@ -41,6 +42,16 @@ const inside = (top: string, p: string): boolean => {
 
 const textSide = (buf: Buffer): GitSide => (buf.subarray(0, SNIFF).includes(0) ? { miss: 'binary' } : { text: buf.toString('utf8') })
 
+/**
+ * The repo top a list or diff reads, whether it is the agent's own worktree rather than the chat's folder, and the commit
+ * Since start compares against there (null: none).
+ */
+interface Where {
+  top: string
+  agent: boolean
+  base: string | null
+}
+
 /** What one scope compares against: the entries it lists and the ref its "before" side is read from. */
 interface Scoped {
   entries: StatusEntry[]
@@ -57,23 +68,26 @@ export class GitChangesService {
   constructor(private readonly git: Git) {}
 
   /**
-   * null outside a repo, without git, once the chat's worktree folder was removed, or for the base scope on a chat
-   * with no base commit; another git failure throws its line.
+   * null outside a repo, without git, once the chat's worktree folder was removed, or for the base scope where there is
+   * no base commit; another git failure throws its line. `items` given: both scopes read the other worktree the agent
+   * last worked in, when there is one (see `agentTreeOf`), and Since start measures from where its branch started.
    */
-  async list(meta: ChatMeta, scope: GitDiffScope = 'uncommitted'): Promise<GitChanges | null> {
-    const top = await this.topOf(meta)
-    if (top === null) return null
-    const scoped = await this.scoped(meta, top, scope)
+  async list(meta: ChatMeta, scope: GitDiffScope = 'uncommitted', items?: ItemsLoader): Promise<GitChanges | null> {
+    const at = await this.where(meta, items, true)
+    if (at === null) return null
+    const scoped = await this.scoped(meta, at, scope)
     if (scoped === null) return null
-    const counts = await this.counts(top, scoped.entries, scoped.ref)
-    return gitChangesOf(top, scoped.status, scoped.entries, scoped.more, counts)
+    const counts = await this.counts(at.top, scoped.entries, scoped.ref)
+    const changes = gitChangesOf(at.top, scoped.status, scoped.entries, scoped.more, counts)
+    return { ...changes, ...(at.agent ? { agentTree: at.top } : {}), ...(at.base !== null ? { base: at.base } : {}) }
   }
 
   /** The listed file at the scope's ref (its old path for a rename) and on disk. Only a path the scope lists now is read. */
-  async diff(meta: ChatMeta, path: string, scope: GitDiffScope = 'uncommitted'): Promise<GitFileDiff> {
-    const top = await this.topOf(meta)
-    if (top === null) throw new Error('Not in a git repository')
-    const scoped = await this.scoped(meta, top, scope, Infinity)
+  async diff(meta: ChatMeta, path: string, scope: GitDiffScope = 'uncommitted', items?: ItemsLoader): Promise<GitFileDiff> {
+    const at = await this.where(meta, items, scope === 'base')
+    if (at === null) throw new Error('Not in a git repository')
+    const { top } = at
+    const scoped = await this.scoped(meta, at, scope, Infinity)
     if (scoped === null) throw new Error('This chat has no base commit to compare against.')
     const entry = scoped.entries.find((e) => e.path === path)
     if (!entry) throw new Error(scope === 'base' ? NO_BASE_CHANGE : NO_CHANGE)
@@ -88,18 +102,29 @@ export class GitChangesService {
    * The scope's entries and its ref. `uncommitted` is the status alone; `base` is `git diff <base>` (so a change the
    * agent already committed shows) plus the status's untracked files, and its before side comes from the base commit.
    */
-  private async scoped(meta: ChatMeta, top: string, scope: GitDiffScope, max?: number): Promise<Scoped | null> {
-    const links = meta.worktree?.links ?? []
+  private async scoped(meta: ChatMeta, { top, agent, base }: Where, scope: GitDiffScope, max?: number): Promise<Scoped | null> {
+    // ZumiBot's links belong to the chat's own worktree only.
+    const links = agent ? [] : (meta.worktree?.links ?? [])
     const status = parseStatusZ((await this.git(STATUS, top, { timeoutMs: TIMEOUT_MS })).stdout)
     if (scope === 'uncommitted') {
       const { entries, more } = listedOf(status.entries, links, max)
       return { entries, more, ref: 'HEAD', status }
     }
-    const base = meta.worktree?.base
-    if (!base) return null
+    if (base === null) return null
     const named = parseNameStatusZ((await this.git([...DIFF, '--name-status', base, '--'], top, { timeoutMs: TIMEOUT_MS })).stdout)
     const { entries, more } = listedOf(baseEntries(named, status), links, max)
     return { entries, more, ref: base, status }
+  }
+
+  /**
+   * The folder to read: the agent's own worktree when it works in one, else the chat's. `withBase`: also find the
+   * commit Since start compares against (the chat worktree's recorded base, or where the agent's branch started).
+   */
+  private async where(meta: ChatMeta, items: ItemsLoader | undefined, withBase: boolean): Promise<Where | null> {
+    const agent = items ? await agentTreeOf(this.git, meta, items) : null
+    if (agent !== null) return { top: agent.path, agent: true, base: withBase ? await branchStart(this.git, agent) : null }
+    const top = await this.topOf(meta)
+    return top === null ? null : { top, agent: false, base: meta.worktree?.base ?? null }
   }
 
   private async topOf(meta: ChatMeta): Promise<string | null> {

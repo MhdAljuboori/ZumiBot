@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { GitChangedFile, GitChanges, GitFileDiff } from '@zumibot/shared/types'
-import { changeRows, copyText, filesLine, lineTotals, pathLine, shownPath } from '../src/state/gitChanges'
+import type { ChatWorktree, GitChangedFile, GitChanges, GitFileDiff } from '@zumibot/shared/types'
+import { changeRows, copyText, filesLine, lineTotals, pathLine, shownPath, sinceStart } from '../src/state/gitChanges'
 
 const diff = (before: GitFileDiff['before'], after: GitFileDiff['after']): GitFileDiff => ({ path: 'a.ts', before, after })
 const file = (path: string, extra: Partial<GitChangedFile> = {}): GitChangedFile => ({
@@ -77,5 +77,46 @@ describe('list helpers', () => {
   it("names a rename's old path", () => {
     expect(pathLine(file('new.ts', { kind: 'renamed', from: 'old.ts' }))).toBe('old.ts → new.ts')
     expect(pathLine(file('a.ts'))).toBe('a.ts')
+  })
+})
+
+describe('sinceStart', () => {
+  const wt = (base?: string): ChatWorktree => ({
+    root: '/r-x',
+    branch: 'zumibot/x',
+    source: '/r',
+    folder: '/r',
+    links: [],
+    ...(base ? { base } : {})
+  })
+  const listed = (extra: Partial<GitChanges> = {}): GitChanges => ({
+    top: '/r',
+    branch: 'main',
+    head: 'abc1234',
+    files: [],
+    more: 0,
+    ...extra
+  })
+
+  it("shows on the chat's worktree, measuring from its base", () => {
+    expect(sinceStart(wt('b1'), undefined)).toMatchObject({ show: true, base: 'b1' })
+    expect(sinceStart(wt('b1'), listed({ base: 'b1' }))).toMatchObject({ show: true, base: 'b1' })
+    expect(sinceStart(wt(), listed())).toMatchObject({ show: true, base: undefined, missing: expect.stringContaining('before base diffs') })
+  })
+
+  it('hides on a plain chat', () => {
+    expect(sinceStart(undefined, undefined).show).toBe(false)
+    expect(sinceStart(undefined, listed()).show).toBe(false)
+    expect(sinceStart(undefined, null).show).toBe(false)
+  })
+
+  it("shows on the agent's own worktree, measuring from where its branch started, even in a plain chat", () => {
+    expect(sinceStart(undefined, listed({ agentTree: '/tmp/wt', base: 's1' }))).toMatchObject({ show: true, base: 's1' })
+    // The chat worktree's base belongs to another folder.
+    expect(sinceStart(wt('b1'), listed({ agentTree: '/tmp/wt' }))).toMatchObject({
+      show: true,
+      base: undefined,
+      missing: expect.stringContaining("agent's worktree")
+    })
   })
 })

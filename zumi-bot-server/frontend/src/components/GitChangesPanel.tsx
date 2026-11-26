@@ -14,7 +14,7 @@ import {
 import { api } from '../api'
 import { errorMessage } from '../errors'
 import { splitPath, type FileView } from '../state/filesPanel'
-import { changeRows, copyText, filesLine, KIND, lineTotals, pathLine, shownPath } from '../state/gitChanges'
+import { changeRows, copyText, filesLine, KIND, lineTotals, pathLine, shownPath, sinceStart } from '../state/gitChanges'
 import { commentRow, draftCount, loadDraft, saveDraft } from '../state/reviewDraft'
 import { languageOf } from '../state/syntax'
 import { canOpenPr } from '../state/pullRequest'
@@ -247,9 +247,14 @@ export function GitChangesPanel({ chat, onBack, onClose, onQuote, onExplain, onS
   const path = shownPath(files, picked)
   const file = files.find((f) => f.path === path)
   const totals = lineTotals(files)
-  // Only a worktree has a start to measure from, and only one made since base diffs recorded its commit.
-  const base = chat.worktree?.base
-  const canBase = chat.worktree !== undefined
+  // Only a worktree has a start to measure from: the chat's (made since base diffs recorded its commit) or the agent's own.
+  const start = sinceStart(chat.worktree, changes)
+  const base = start.base
+  const canBase = start.show
+  // The agent left its worktree, or it has no start any more: back to what the switch can still offer.
+  useEffect(() => {
+    if (scope === 'base' && (!canBase || base === undefined)) setScope('uncommitted')
+  }, [scope, canBase, base])
   const save = (text: string): void => {
     if (!writing) return
     try {
@@ -308,6 +313,11 @@ export function GitChangesPanel({ chat, onBack, onClose, onQuote, onExplain, onS
           <Counts added={totals.added} removed={totals.removed} />
         </div>
       )}
+      {changes?.agentTree && (
+        <div className="changes-where" data-testid="changes-agent-tree" data-tip="The agent made this worktree and works in it">
+          In the agent's worktree: <span className="changes-where-path">{changes.agentTree}</span>
+        </div>
+      )}
       {canBase && (
         <div className="seg changes-scope" role="group" aria-label="Which changes" data-testid="changes-scope">
           <button
@@ -324,11 +334,7 @@ export function GitChangesPanel({ chat, onBack, onClose, onQuote, onExplain, onS
             data-testid="changes-scope-base"
             aria-pressed={scope === 'base'}
             disabled={base === undefined}
-            data-tip={
-              base === undefined
-                ? 'This worktree was made before base diffs, so there is no commit to compare against'
-                : `Everything since ${base.slice(0, 7)}, committed or not`
-            }
+            data-tip={base === undefined ? start.missing : `Everything since ${base.slice(0, 7)}, committed or not`}
             onClick={() => setScope('base')}
           >
             Since start

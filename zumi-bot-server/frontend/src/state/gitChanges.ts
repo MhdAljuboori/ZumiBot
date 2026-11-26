@@ -1,4 +1,4 @@
-import type { GitChangedFile, GitChangeKind, GitChanges, GitFileDiff, GitSide, GitSideMiss } from '@zumibot/shared/types'
+import type { ChatWorktree, GitChangedFile, GitChangeKind, GitChanges, GitFileDiff, GitSide, GitSideMiss } from '@zumibot/shared/types'
 import { rowsFromTexts, rowsOfText, type FileView, type Row } from './filesPanel'
 
 /** The letter in a Changes row's badge and the word its tooltip says, as source-control panels write them. */
@@ -74,4 +74,29 @@ export function shownPath(files: readonly GitChangedFile[], picked: string | nul
 /** The path line over the preview; a rename or copy names where it came from. */
 export function pathLine(f: GitChangedFile): string {
   return f.from !== undefined ? `${f.from} → ${f.path}` : f.path
+}
+
+/** The Uncommitted / Since start switch: whether it shows, the commit Since start measures from, and why it is off. */
+export interface SinceStart {
+  show: boolean
+  base: string | undefined
+  missing: string
+}
+
+/**
+ * The switch shows on the chat's own worktree and on one the agent made itself (the list says so); Since start needs a
+ * commit to measure from: the chat worktree's recorded base, or where the agent's branch started.
+ */
+export function sinceStart(worktree: ChatWorktree | undefined, changes: GitChanges | null | undefined): SinceStart {
+  if (changes?.agentTree !== undefined)
+    return {
+      show: true,
+      base: changes.base,
+      missing: "The agent's worktree is not on a branch it made, so there is no start to compare against"
+    }
+  return {
+    show: worktree !== undefined,
+    base: changes?.base ?? worktree?.base,
+    missing: 'This worktree was made before base diffs, so there is no commit to compare against'
+  }
 }
