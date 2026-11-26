@@ -45,6 +45,7 @@ import { mentionOptionName, mentionOptions, type MentionOption } from '../state/
 import { isStaging, readyIds, type DraftFiles } from '../state/draftFiles'
 import { newer, older, type Browse } from '../state/promptHistory'
 import { replySnippet } from '../state/reply'
+import { sendKeyAction, type SendHow } from '../state/sendKeys'
 import { btwRefusal, routeSend, workflowRefusal } from '../state/sideQuestions'
 import { spaceDictation } from '../state/voice'
 import { useDictation, useVoiceOn } from '../useDictation'
@@ -72,7 +73,10 @@ interface Props {
    * `pick` is the `/` menu's command when the text still starts with it, so the server knows whose command it is;
    * `workflowId` is the Workflows list's pick while the text still starts with `/run-workflow <its name>`.
    */
-  onSend: (text: string, pick?: CommandPick, workflowId?: string) => void
+  // `how`: into the running reply (Enter, a click on Send) or queued for after it (Ctrl/Cmd+Enter, a long press on Send).
+  onSend: (text: string, pick?: CommandPick, workflowId?: string, how?: SendHow) => void
+  /** Enter can send into the running reply here (takesSteers): Send's tip says so, and a long press on it queues. */
+  steers?: boolean
   onStop: () => void
   /** The Pause button beside Stop, shown only while Stop is: null or absent hides it; pausing shows it held. */
   pause?: 'pause' | 'pausing' | null
@@ -127,6 +131,10 @@ function editorWorkflow(state: EditorState, pick: WorkflowPick | null): EditorQu
   return q === null ? null : { from: $from.pos - q.length, to: $from.pos, query: q }
 }
 
+// While a reply runs, Send goes into it; holding Send (or Ctrl+Enter) queues for after it (docs/architecture/mid-turn-messages.md).
+const LONG_PRESS_MS = 500
+const STEER_TIP = 'Send into this reply (Enter) · Hold or Ctrl+Enter to queue'
+
 const quoteTint = (agent: AgentSummary): CSSProperties | undefined => {
   const tint = agent.error === null ? agentInk(agent.color) : null
   return tint ? ({ '--quote': tint } as CSSProperties) : undefined
@@ -142,6 +150,7 @@ export function Composer({
   blockedReason = null,
   onDraftChange,
   onSend,
+  steers = false,
   onStop,
   pause = null,
   onPause,
@@ -196,6 +205,8 @@ export function Composer({
 
   const voiceOn = useVoiceOn()
   // Called whether or not the mic shows, so hook order never changes when voice is switched on or off.
+  // How the pending send goes: a dictation holds the send for its text, which then goes the way the user sent it.
+  const sendHow = useRef<SendHow>('steer')
   const dictation = useDictation({ insert: (text) => insertDictation(text), send: () => submitText(latestText()) })
   // A dictation is content: Send waits for its text, so the button must not turn into Stop.
   const dictating = holdsSend(dictation.state)
@@ -226,14 +237,33 @@ export function Composer({
     setPick(null)
     // The workflow pick stays: a started run clears the box (the draft effect drops it then), a failed one leaves the
     // text there, and a second Send must still name the picked workflow.
-    onSend(text, sent ?? undefined, workflow?.id)
+    onSend(text, sent ?? undefined, workflow?.id, sendHow.current)
     setSends((n) => n + 1)
   }
-  /** The user's Send (button or Enter): while dictating, it waits for the text instead. */
-  const submit = (): void => {
+  /** The user's Send (button or a key): while dictating, it waits for the text instead. */
+  const submit = (how: SendHow = 'steer'): void => {
+    sendHow.current = how
     if (dictation.requestSend()) return
     submitText(latestText())
   }
+  // A long press on Send queues instead: the click that ends the press must not send a second time.
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pressed = useRef(false)
+  const endPress = (): void => {
+    if (pressTimer.current) clearTimeout(pressTimer.current)
+    pressTimer.current = null
+  }
+  const startPress = (): void => {
+    endPress()
+    pressed.current = false
+    if (!steers || !inFlight || showStop) return
+    pressTimer.current = setTimeout(() => {
+      pressTimer.current = null
+      pressed.current = true
+      submit('queue')
+    }, LONG_PRESS_MS)
+  }
+  useEffect(() => endPress, [])
 
   /** The transcript at the caret (replacing a selection), as plain text. No focus: the phone keyboard stays as it was. */
   const insertDictation = (text: string): void => {
@@ -364,8 +394,9 @@ export function Composer({
     if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.isComposing && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
       if (recall(e.key === 'ArrowUp')) return true
     }
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && (e.metaKey || e.ctrlKey || !coarsePointer())) {
-      submit()
+    const how = sendKeyAction(e, coarsePointer())
+    if (how !== null) {
+      submit(how)
       return true
     }
     if (e.key === 'Escape' && reply && onCancelReply) {
@@ -656,11 +687,27 @@ export function Composer({
           className={showStop ? 'send-btn stop' : 'send-btn'}
           data-testid="send-button"
           aria-label={showStop ? 'Stop' : 'Send'}
-          data-tip={showStop ? 'Stop' : (blockedReason ?? 'Send')}
+          data-tip={showStop ? 'Stop' : (blockedReason ?? (steers && inFlight && canSend ? STEER_TIP : 'Send'))}
           // Held for a dictation's text: a second press must not send twice.
           disabled={showStop ? false : !canSend || dictation.state.sendAfter}
           onMouseDown={keepFocus}
-          onClick={() => (showStop ? onStop() : submit())}
+          onPointerDown={startPress}
+          onPointerUp={endPress}
+          onPointerLeave={endPress}
+          onPointerCancel={endPress}
+          // A long press's menu would cover the button on a phone.
+          onContextMenu={(e) => {
+            if (steers && inFlight && !showStop) e.preventDefault()
+          }}
+          onClick={() => {
+            endPress()
+            if (pressed.current) {
+              pressed.current = false
+              return
+            }
+            if (showStop) onStop()
+            else submit('steer')
+          }}
         >
           <svg viewBox="0 0 16 16" aria-hidden="true">
             {showStop ? (

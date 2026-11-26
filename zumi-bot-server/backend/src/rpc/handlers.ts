@@ -1486,13 +1486,15 @@ export function createHandlers(d: HandlerDeps): Handlers {
     },
     // Deliberately not caught: a rejected send must reach the client so the user sees it.
     // TaskQueue decides: send now (single chat or group room), or queue while the chat runs.
-    'chats:send': async (chatId, text, ids, reply, mid, cmd) => {
+    'chats:send': async (chatId, text, ids, reply, mid, cmd, steerArg) => {
       const id = str(chatId, 'chatId')
       const body = str(text, 'text')
       const staged = attachmentIds(ids)
       const quoted = replyTo(reply)
       const picked = messageId(mid)
       const pick = commandPick(cmd)
+      // The composer's Enter: true or absent (JSON turns an omitted one into null).
+      const steer = steerArg === undefined || steerArg === null ? false : bool(steerArg, 'steer')
       await writable(id)
       // Resolved before queueing, so what a queued message will send is fixed now and a refusal reaches the client.
       // /todo is the handler's: the command, if any, is whatever follows it. A command with the flag asks for a list too.
@@ -1501,6 +1503,9 @@ export function createHandlers(d: HandlerDeps): Handlers {
       const command = await commands.forSend(id, rest, pick)
       if (command?.todos === true) await refuseTodo(id)
       // No trailing undefined: without a to-do the queue sees the call as before.
+      // Into the running reply where one takes it (docs/architecture/mid-turn-messages.md); submit queues a command or /todo itself.
+      if (steer && !todo && command?.todos !== true)
+        return tasks.submit(id, body, staged, quoted, picked, command, undefined, 'user', undefined, { steer: true })
       return todo || command?.todos === true
         ? tasks.submit(id, body, staged, quoted, picked, command, true)
         : tasks.submit(id, body, staged, quoted, picked, command)

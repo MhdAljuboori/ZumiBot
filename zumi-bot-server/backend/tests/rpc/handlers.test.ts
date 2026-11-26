@@ -1952,6 +1952,16 @@ describe('createHandlers', () => {
     expect(submit).toHaveBeenLastCalledWith('c1', '/todos x', [], undefined, 'm-2', undefined)
   })
 
+  it('chats:send passes the steer option only for a true seventh argument', async () => {
+    const submit = vi.spyOn(tasks, 'submit').mockResolvedValue('steered')
+    await expect(h['chats:send']('c1', 'more', null, null, 'm-1', null, true)).resolves.toBe('steered')
+    expect(submit).toHaveBeenLastCalledWith('c1', 'more', [], undefined, 'm-1', undefined, undefined, 'user', undefined, { steer: true })
+    await h['chats:send']('c1', 'later', null, null, 'm-2', null, null)
+    expect(submit).toHaveBeenLastCalledWith('c1', 'later', [], undefined, 'm-2', undefined)
+    await expect(h['chats:send']('c1', 'x', null, null, 'm-3', null, 'yes')).rejects.toThrow(TypeError)
+    expect(submit).toHaveBeenCalledTimes(2)
+  })
+
   it('chats:send: a flagged command sets todo by itself', async () => {
     const found = { agent: 'helper', name: 'day', prompt: 'Plan', todos: true }
     forSend.mockResolvedValueOnce(found)

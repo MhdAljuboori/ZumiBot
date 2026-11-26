@@ -1238,3 +1238,9 @@ describe('a Codex side run', () => {
     expect(f.run).not.toHaveBeenCalled()
   })
 })
+
+test('a side run never asks the CLI to echo stdin messages, even from a base whose main run did', () => {
+  const steering: SideBase = { ...base, args: { ...base.args, replayUser: true } }
+  expect(sideArgs(steering, steering.live, null)).not.toContain('--replay-user-messages')
+  expect(sideArgs(steering, steering.live, null)).toEqual(sideArgs(base, base.live, null))
+})

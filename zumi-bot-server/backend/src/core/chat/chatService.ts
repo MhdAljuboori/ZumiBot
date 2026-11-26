@@ -13,7 +13,7 @@ import type {
   SessionCut,
   WorkflowSent
 } from '@zumibot/shared/types'
-import { isGroup, NOTICE_TEXT } from '@zumibot/shared/types'
+import { isGroup, NOTICE_TEXT, type QueuedTask } from '@zumibot/shared/types'
 import type { SentCommand } from '@zumibot/shared/commands'
 import { RUN_ITEM_FIXED, type RunMark } from '@zumibot/shared/runBlocks'
 import { withoutComment, type CardAsk } from '@zumibot/shared/todos'
@@ -84,6 +84,7 @@ import type { DesktopPlan } from '../desktop/desktopApplication'
 import { desktopUnavailablePrompt } from '../desktop/desktopPrompt'
 import { asksTodos, readAs, withCommands } from './commandText'
 import { repliedItem, withReplies, withReply } from './reply'
+import { messagePrompt, needsAttachmentDir, steeredItem } from './steer'
 import { buildSeedPrompt, makeTitle } from './seedPrompt'
 import { droppedTurn, engineField, enginesAfter, memberStartsBefore, startBefore, withSessionEngines } from './sessionPoints'
 import { branch, switchTo, type UserItem, type Versions } from './versions'
@@ -136,7 +137,7 @@ import { PROCESS_REFUSALS } from '@zumibot/shared/processes'
 import { askedSystem, askSystem, QUESTIONS_DENIED } from '../asks/askPrompt'
 import { workflowSystem } from '../workflows/workflowPrompt'
 import type { AskedOutcome } from '../asks/askService'
-import { minusBaseline, type CostBaseline } from '../usage/costBaseline'
+import { costSince, minusBaseline, type CostBaseline } from '../usage/costBaseline'
 import type { ChatTmp } from './chatTmp'
 import { PAUSE_BLOCK_CAP, PAUSE_MARKER, lostNote } from '@zumibot/shared/pause'
 import { CONNECTORS_ALL_OFF, NO_RUN_CONFIG, type AgentRunConfig } from '../extensions/agentRunConfig'
@@ -188,6 +189,7 @@ export interface SideBase {
     extraArgs: string[]
     appendSystemPrompt: string
     thinking?: boolean
+    replayUser?: boolean // the main run's echo of steers: kept so the base mirrors it, dropped by every side run (sideArgs)
   }
   browser: boolean
   desktop?: boolean // absent: the agent's runs had no desktop part (not even the unavailable prompt)
@@ -558,6 +560,8 @@ export interface TurnSlot {
   answerPlan: ((requestId: string, approve: boolean, feedback: string | null) => void) | null
   // Called by stop() before the CLI is told to stop, so the turn can note what was running at that moment.
   onStop?: () => void
+  // A user message into this running turn (docs/architecture/mid-turn-messages.md); absent where the turn takes none.
+  steer?: (task: QueuedTask) => Promise<boolean>
 }
 
 export interface Running {
@@ -619,6 +623,7 @@ export interface TurnSpec {
   saveLost?(descriptions: string[] | null): Promise<unknown> // stores what this turn's stop killed; null clears it
   engine?: Engine // absent = Claude; 'codex' runs the turn on codex app-server, with what Codex cannot do left out
   skills?: CodexSkillRef[] // Codex only: the skills the message runs, sent as skill items beside its prompt
+  steerable?: true // a single chat's turn the user started: Enter can send into it (docs/architecture/mid-turn-messages.md)
 }
 
 /** text is this turn's assistant text, joined with blank lines. */
@@ -1095,6 +1100,20 @@ export class ChatService {
 
   isRunning(chatId: string): boolean {
     return this.running.has(chatId)
+  }
+
+  /**
+   * A user message into the chat's running reply, read at the agent's next step (docs/architecture/mid-turn-messages.md).
+   * False, with nothing stored, when no single turn that takes one is running: the caller queues it instead.
+   */
+  async steer(chatId: string, task: QueuedTask): Promise<boolean> {
+    const r = this.running.get(chatId)
+    if (!r || r.reason !== null || r.slots.size !== 1) return false
+    const [slot] = r.slots
+    if (!slot.steer) return false
+    const meta = await this.d.store.get(chatId)
+    if (!meta || isGroup(meta) || meta.pause !== undefined || meta.compacting) return false
+    return slot.steer(task)
   }
 
   runningCount(): number {
@@ -1774,7 +1793,6 @@ export class ChatService {
     const ackStop = new AbortController()
     try {
       const pathOf = (a: Attachment) => this.d.files.pathOf(chatId, a)
-      const refs = refsOf(user.attachments ?? [], pathOf)
       // Read before anything is stored, so the refusal below stores nothing. An agent list that can't be read is still the
       // turn's error after its message, which is kept with its title (a rerun keeps the list it had), as before the refusal.
       const engine = await this.engineOf(meta.agentName).catch((e: unknown) => {
@@ -1795,12 +1813,8 @@ export class ChatService {
         if (!skill) throw new Error(`Codex has no $${user.command.name} skill any more`)
         skills = [skill]
       }
-      // A Claude command reads as one only at the start of the message, so a reply's quote goes after it.
-      const noted = withNote(
-        withReply(readAs(user, meta.agentName, bridges), repliedItem(history, user.replyTo), user.command?.engine === 'claude'),
-        refs
-      )
-      const blocks = await imageBlocks(refs)
+      // A Claude command reads as one only at the start of the message, so a reply's quote goes after it (messagePrompt).
+      const { noted, blocks } = await messagePrompt(user, history, meta.agentName, bridges, pathOf)
       // Versions first: a failure or crash between the two writes leaves the old tail stored twice, never lost, and
       // the next edit or switch reads the shown item's index (an unmarked original counts as slot 0) and reuses or drops
       // the empty slot this left.
@@ -1890,6 +1904,11 @@ export class ChatService {
         // A task's chat: the questions go on its card (ask_user), where the user answers whenever they like.
         ...(meta.task ? { questionsDenied: TASK_QUESTIONS_DENIED } : {}),
         saveLost: (lost) => this.saveLost(chatId, lost),
+        // Only a turn the user started: a routine's, a workflow step's, an asked chat's or a card comment's reply is data
+        // that flows elsewhere, and a Run result is no message they typed.
+        ...(engine === 'claude' && !t.extra?.auto && !meta.workflow && !meta.asked && !user.cardAsk && !user.run && user.from === undefined
+          ? { steerable: true as const }
+          : {}),
         ...t.extra
       }
       started = true
@@ -1987,6 +2006,56 @@ export class ChatService {
       answer: null,
       answerQuestions: null,
       answerPlan: null
+    }
+    // Mid-turn steers (docs/architecture/mid-turn-messages.md): only a Claude turn the user started, never a compaction.
+    const steering = spec.steerable === true && engine === 'claude' && !spec.compact
+    // Accepted steers the CLI has not echoed back yet; handed back to the front of the tray when a run ends without them.
+    const unreadSteers = new Map<string, QueuedTask>()
+    // Accepted while no run was up (the turn still preparing it, or between attempts): written as the next run starts.
+    const unsentSteers = new Map<string, UserContent>()
+    let steersClosed = false // the turn is ending: a steer now would have no run to read it
+    const giveBack = async (ids: string[]): Promise<void> => {
+      await store
+        .returnSteers(chatId, ids)
+        .then((meta) => push({ chatId, kind: 'meta', meta }))
+        .catch((err: unknown) => {
+          if (!(err instanceof Error && err.message.startsWith('Chat not found'))) console.error('steers not handed back:', errorText(err))
+        })
+    }
+    const writeUnsent = (h: RunHandle): void => {
+      if (unsentSteers.size === 0) return
+      const back = [...unsentSteers].flatMap(([id, content]) => (h.steer?.(content, id) ? [] : [id]))
+      unsentSteers.clear()
+      if (back.length === 0) return
+      for (const id of back) unreadSteers.delete(id)
+      later(() => giveBack(back))
+    }
+    if (steering) {
+      // A file is read by its path: the running CLI reaches the attachments folder only when it started with it.
+      const dir = this.d.files.dirOf(chatId)
+      const hasDir = spec.extraArgs.some((a, i) => a === '--add-dir' && spec.extraArgs[i + 1] === dir)
+      slot.steer = async (task) => {
+        if (steersClosed || forkIgnored !== undefined || r.reason !== null) return false
+        if (needsAttachmentDir(task.attachments) && !hasDir) return false
+        const user = steeredItem(task, task.ts)
+        const { noted, blocks } = await messagePrompt(user, ref.get(), spec.agentName, caps.bridges, (a) => this.d.files.pathOf(chatId, a))
+        const content = withImages(noted, blocks)
+        if (steersClosed || r.reason !== null) return false
+        // Stored before it is written: the CLI may echo it back before this resolves.
+        push({ chatId, kind: 'meta', meta: await store.addSteer(chatId, task) })
+        const h = slot.handle
+        if (!steersClosed && r.reason === null) {
+          unreadSteers.set(task.id, task)
+          if (h === null) {
+            unsentSteers.set(task.id, content)
+            return true
+          }
+          if (h.steer?.(content, task.id)) return true
+          unreadSteers.delete(task.id)
+        }
+        push({ chatId, kind: 'meta', meta: await store.dropSteer(chatId, task.id) })
+        return false
+      }
     }
     // The run's audit tap, made once the meta is read (before any spawn); every answer below tells it why a call ran or not.
     let tap: AuditTap | null = null
@@ -2126,6 +2195,7 @@ export class ChatService {
     // Per attempt: when its run started, and whether a result with a cost came back (else the usage log is searched).
     let attemptStart = 0
     let costSeen = false
+    let lastCost: RunCost | null = null // this attempt's previous result: a late steer's second turn reports a total of both
     let baseline: Promise<ModelSpends | null> | null = null // read before the run starts: the run appends its own cost-state
     let costReport: Promise<void> = Promise.resolve()
     let spendKey = '' // this attempt's key for its live spend
@@ -2490,6 +2560,16 @@ export class ChatService {
         case 'entry':
           tip = e.uuid
           break
+        case 'userReplay': {
+          // The CLI took a steer in: its bubble goes here, between what the agent did before and after reading it.
+          const task = unreadSteers.get(e.uuid)
+          if (!task) break // the turn's own prompt, echoed too
+          unreadSteers.delete(e.uuid)
+          add(steeredItem(task, now()))
+          saveAndPush(false)
+          later(async () => push({ chatId, kind: 'meta', meta: await store.dropSteer(chatId, task.id) }))
+          break
+        }
         case 'textDelta':
           partial += e.text
           push({ chatId, kind: 'delta', text: e.text, ...by() })
@@ -2793,7 +2873,14 @@ export class ChatService {
               }
             }
             const cost = e.cost
-            if (baseline) costReport = baseline.then((b) => report(minusBaseline(cost, b)))
+            const prev = lastCost
+            lastCost = cost
+            // A later result of the same process (a late steer's turn): what it added since the previous one, which already
+            // had the session's restored cost taken off. After that report, so the two land in order.
+            if (prev !== null) {
+              const grown = costSince(cost, prev)
+              costReport = costReport.then(() => report(grown))
+            } else if (baseline) costReport = baseline.then((b) => report(minusBaseline(cost, b)))
             else report(cost)
           }
           const denied = new Set(e.denials.map((x) => x.toolUseId))
@@ -2948,6 +3035,7 @@ export class ChatService {
       tip = null
       clean = new CleanPoint()
       costSeen = false
+      lastCost = null
       baseline = null
       costReport = Promise.resolve()
       spendKey = `${chatId}:${++this.spendSeq}` // not newId(): ids of items stay as they were
@@ -3232,7 +3320,8 @@ export class ChatService {
                 disallowedTools: [...spec.disallowedTools, ...own.disallowedTools],
                 extraArgs: [...spec.extraArgs, ...own.extraArgs],
                 appendSystemPrompt: system,
-                ...(thinking ? { thinking } : {})
+                ...(thinking ? { thinking } : {}),
+                ...(steering ? { replayUser: true } : {})
               }
             }
             this.sideBases.set(`${chatId}\n${spec.agentName}`, sideBase)
@@ -3392,7 +3481,8 @@ export class ChatService {
               ...(sandboxSettings ? ['--settings', sandboxSettings] : [])
             ],
             appendSystemPrompt: [system, browser?.prompt, desktop?.prompt].filter(Boolean).join('\n\n'),
-            thinking
+            thinking,
+            ...(steering ? { replayUser: true } : {})
           })
         // The agent file's body, then the turn's system text (no bridge paragraphs: it has no bridges), as `systemPrompt`. Always an
         // env object, so the adapter never falls back to this process's own: the caller lays the run env under it.
@@ -3444,6 +3534,7 @@ export class ChatService {
             handle = assertNever(engine)
         }
         slot.handle = handle
+        writeUnsent(handle)
         let outcome = await handle.done
         slot.handle = null
         // Hooks codex did not trust ended their run before any thread, so nothing ran with the keys and no guard. Once more with
@@ -3470,6 +3561,13 @@ export class ChatService {
         }
         flushDeltas()
         await costReport
+        // Steers this run never read go back to the front of the tray, before the turn ends and the queue looks at it.
+        if (unreadSteers.size > 0) {
+          const back = [...unreadSteers.keys()]
+          unreadSteers.clear()
+          unsentSteers.clear()
+          await giveBack(back)
+        }
         // A Codex prompt goes out only on a thread: a run that ended before one (an untrusted guard, a Stop during its check) read no note.
         let promptReached: boolean
         switch (engine) {
@@ -3774,6 +3872,14 @@ export class ChatService {
       this.liveTurns.delete(live)
       slot.handle = null
       r.slots.delete(slot)
+      // Steers taken after the last run ended, or for a turn that never started one, have nothing left to read them.
+      steersClosed = true
+      if (unreadSteers.size > 0) {
+        const back = [...unreadSteers.keys()]
+        unreadSteers.clear()
+        unsentSteers.clear()
+        await giveBack(back)
+      }
       endPending()
       await pending
       // Each finish step runs even if an earlier one fails; the first real error is rethrown.

@@ -73,6 +73,7 @@ export function buildArgs(o: {
   extraArgs?: string[]
   appendSystemPrompt?: string
   thinking?: boolean // the CLI takes --thinking-display (see thinkingDisplay.ts)
+  replayUser?: boolean // echo stdin user messages back, so a mid-turn steer shows where the CLI took it in
 }): string[] {
   return [
     '-p',
@@ -99,6 +100,7 @@ export function buildArgs(o: {
     'stream-json',
     '--verbose',
     '--include-partial-messages',
+    ...(o.replayUser ? ['--replay-user-messages'] : []),
     // The thinking summaries the chat shows. Every run on a session passes it alike (side runs and keep-warm pings copy these
     // args), since a change in the request's thinking settings may cost the session its prompt cache.
     ...(o.thinking ? THINKING_DISPLAY_ARGS : []),
@@ -123,6 +125,8 @@ export interface RunOptions {
   wrap?(s: { bin: string; args: string[]; env: NodeJS.ProcessEnv }): { bin: string; args: string[]; env: NodeJS.ProcessEnv }
   killGraceMs?: number
   killForceMs?: number
+  /** How long stdin stays open after a result while a steer is unread and the CLI starts no turn for it. */
+  steerGraceMs?: number
   onEvent(e: RunEvent): void
 }
 // Both engines' result shape; it lives with the engine interface (core/engines/engine.ts) and is re-exported here, where every
@@ -131,6 +135,7 @@ export type { RunHandle, RunOutcome }
 
 const STDERR_MAX = 64 * 1024
 const DRAIN_MS = 2000
+const STEER_GRACE_MS = 5000
 
 export function runClaude(o: RunOptions): RunHandle {
   const outcome: RunOutcome = { exitCode: null, signal: null, stderr: '', spawnError: null, result: null, stopped: false }
@@ -138,6 +143,12 @@ export function runClaude(o: RunOptions): RunHandle {
   let earlyStop = false
   let finished = false
   let sendFn: (message: object) => boolean = () => false
+  // Steers sent before the process is up (the folder check and the spawn are async): written right after the prompt.
+  const early: { content: UserContent; uuid: string }[] = []
+  let steerFn: (content: UserContent, uuid: string) => boolean = (content, uuid) => {
+    early.push({ content, uuid })
+    return true
+  }
 
   const done = (async (): Promise<RunOutcome> => {
     try {
@@ -157,12 +168,20 @@ export function runClaude(o: RunOptions): RunHandle {
         let settled = false
         let timer: NodeJS.Timeout | null = null
         let drainTimer: NodeJS.Timeout | null = null
+        // Steers written but not yet echoed back (--replay-user-messages): the CLI still owes them a turn.
+        const unread = new Set<string>()
+        let steerGrace: NodeJS.Timeout | null = null
+        const clearGrace = () => {
+          if (steerGrace) clearTimeout(steerGrace)
+          steerGrace = null
+        }
         const finish = () => {
           if (settled) return
           settled = true
           finished = true
           if (timer) clearTimeout(timer)
           if (drainTimer) clearTimeout(drainTimer)
+          clearGrace()
           resolve(outcome)
         }
         const env = claudeRunEnv(o.env ?? process.env)
@@ -198,8 +217,19 @@ export function runClaude(o: RunOptions): RunHandle {
               } catch (err) {
                 console.error('run event failed:', err instanceof Error ? err.message : String(err))
               }
-              // The CLI stays alive while stdin is open; the result is its last word.
-              if (e.kind === 'result') endStdin()
+              if (e.kind === 'userReplay') unread.delete(e.uuid)
+              // The CLI took a steer in or started its turn: no grace needed now.
+              if (e.kind === 'userReplay' || e.kind === 'init') clearGrace()
+              // The CLI stays alive while stdin is open; the result is its last word, unless a steer is unread. That one runs as
+              // the CLI's next turn, whose cards are answered over stdin, so stdin waits for that turn's result. The grace keeps a
+              // steer the CLI never reads from keeping the process (and the chat) running.
+              if (e.kind === 'result') {
+                if (unread.size === 0) endStdin()
+                else {
+                  clearGrace()
+                  steerGrace = setTimeout(endStdin, o.steerGraceMs ?? STEER_GRACE_MS)
+                }
+              }
             }
         }
         out.on('data', (c: string) => handle(split.push(c)))
@@ -264,7 +294,19 @@ export function runClaude(o: RunOptions): RunHandle {
             return false
           }
         }
+        steerFn = (content, uuid) => {
+          if (exited || settled || outcome.stopped || inp.destroyed || inp.writableEnded) return false
+          try {
+            unread.add(uuid)
+            inp.write(encodeUserMessage(content, uuid))
+            return true
+          } catch {
+            unread.delete(uuid)
+            return false
+          }
+        }
         inp.write(encodeUserMessage(o.stdin, o.stdinUuid))
+        for (const e of early.splice(0)) steerFn(e.content, e.uuid)
       })
     } catch (e) {
       outcome.spawnError = e instanceof Error ? e.message : String(e)
@@ -276,6 +318,7 @@ export function runClaude(o: RunOptions): RunHandle {
   return {
     done,
     send: (message) => !finished && !earlyStop && sendFn(message),
+    steer: (content, uuid) => !finished && !earlyStop && steerFn(content, uuid),
     stop: () => {
       if (finished) return
       earlyStop = true

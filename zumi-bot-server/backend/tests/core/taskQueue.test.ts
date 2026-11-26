@@ -23,7 +23,7 @@ import { LimitResumes } from '../../src/core/chat/limitResumes'
 import type { RunHandle, RunOptions, RunOutcome } from '../../src/core/chat/claudeRunner'
 import type { RunEvent } from '../../src/core/chat/streamParser'
 import type { SentCommand } from '@zumibot/shared/commands'
-import { PAUSE_UNAVAILABLE, TASKS_MAX, TaskQueue, type TaskQueueDeps } from '../../src/core/chat/taskQueue'
+import { PAUSE_UNAVAILABLE, STEERED_ITEM_FIXED, TASKS_MAX, TaskQueue, type TaskQueueDeps } from '../../src/core/chat/taskQueue'
 
 interface Deferred {
   promise: Promise<void>
@@ -58,6 +58,7 @@ let errors: MockInstance<typeof console.error>
 let enders: Map<string, Deferred> // the turn of each fake claim, ended by the test or by stop
 let dones: Map<string, Promise<void>> // what whenIdle waits for: the claim's end, release included
 let stopped: Set<string> // claims ended by stop: those fire idle, like a real release
+let steerTakes: boolean // whether the running reply takes a steer (ChatService.steer's answer)
 
 // Claims at once, like ChatService.send/rerun (and refuses a second claim, so an overlap fails the test).
 // It fires no idle unless stop ended it: tests call idle() themselves.
@@ -80,6 +81,7 @@ const claim = (chatId: string): Promise<void> => {
 const fakes = () => ({
   chats: {
     isRunning: (id: string) => running.has(id),
+    steer: vi.fn(async (_chatId: string, _task: QueuedTask) => steerTakes),
     send: vi.fn(
       (
         chatId: string,
@@ -230,6 +232,7 @@ beforeEach(async () => {
   enders = new Map()
   dones = new Map()
   stopped = new Set()
+  steerTakes = true
   f = fakes()
   q = new TaskQueue({
     store: tracked(store),
@@ -810,6 +813,25 @@ describe('TaskQueue.rerun', () => {
     await flush()
     expect(f.chats.send).toHaveBeenCalledTimes(1)
     expect(await taskIds(c.id)).toEqual(['m2'])
+  })
+
+  it('rerun holds an unread steer too: handed back by the stop, the edited reply never sends it by itself', async () => {
+    const c = await single()
+    await store.saveItems(c.id, [said('u1')])
+    const first = q.submit(c.id, 'hi', [], undefined, 'm1')
+    await flush()
+    await store.addSteer(c.id, { id: 's1', text: 'also use tabs', ts: 1 })
+    const redo = q.rerun(c.id, 'u1', 'edited')
+    await flush()
+    await first
+    expect((await store.get(c.id))?.held).toBe(true)
+    await store.returnSteers(c.id, ['s1']) // what the stopped turn does with a steer it never read
+    turns[1].resolve()
+    await redo
+    q.idle(c.id)
+    await flush()
+    expect(f.chats.send).toHaveBeenCalledTimes(1)
+    expect(await taskIds(c.id)).toEqual(['s1'])
   })
 
   it('rerun in a room waits for the post in flight, stops the room, then reruns through GroupService', async () => {
@@ -2666,5 +2688,104 @@ describe('Run results are never held', () => {
     expect(f.chats.stop).not.toHaveBeenCalled()
     expect(f.chats.rerun).not.toHaveBeenCalled()
     turns[0].resolve()
+  })
+})
+
+// ---- mid-turn steers (docs/architecture/mid-turn-messages.md) ----
+
+describe('TaskQueue.submit with steer', () => {
+  const steer = { steer: true as const }
+
+  it("a user's steer into a running single chat goes into the reply and resolves 'steered'", async () => {
+    const c = await single()
+    running.add(c.id)
+    const committed: string[] = []
+    const out = await q.submit(c.id, 'more', ['a1'], 'r1', 'm1', undefined, undefined, 'user', undefined, {
+      ...steer,
+      committed: (r) => committed.push(r)
+    })
+    expect(out).toBe('steered')
+    expect(committed).toEqual(['steered'])
+    expect(f.chats.steer).toHaveBeenCalledWith(c.id, { id: 'm1', text: 'more', attachments: [att('a1')], replyTo: 'r1', ts: 5000 })
+    expect(await taskIds(c.id)).toEqual([])
+  })
+
+  it('a steer the reply cannot take queues as a task, its files committed once', async () => {
+    const c = await single()
+    running.add(c.id)
+    steerTakes = false
+    const out = await q.submit(c.id, 'more', ['a1'], undefined, 'm1', undefined, undefined, 'user', undefined, steer)
+    expect(out).toBe('queued')
+    expect(await taskIds(c.id)).toEqual(['m1'])
+    expect(f.files.commit).toHaveBeenCalledTimes(1)
+  })
+
+  it('command and todo messages queue', async () => {
+    const c = await single()
+    running.add(c.id)
+    const command = { agent: 'alpha', name: 'review', prompt: 'Review it' } as unknown as SentCommand
+    expect(await q.submit(c.id, '/review', [], undefined, 'm1', command, undefined, 'user', undefined, steer)).toBe('queued')
+    expect(await q.submit(c.id, '/todo x', [], undefined, 'm2', undefined, true, 'user', undefined, steer)).toBe('queued')
+    expect(f.chats.steer).not.toHaveBeenCalled()
+  })
+
+  it('a typed slash command the menu did not resolve queues too: mid-turn it would reach the CLI as plain text', async () => {
+    const c = await single()
+    running.add(c.id)
+    expect(await q.submit(c.id, '/simplify the parser', [], undefined, 'm1', undefined, undefined, 'user', undefined, steer)).toBe('queued')
+    expect(await q.submit(c.id, '  /compact', [], undefined, 'm2', undefined, undefined, 'user', undefined, steer)).toBe('queued')
+    expect(f.chats.steer).not.toHaveBeenCalled()
+    expect(await q.submit(c.id, 'use a/b paths', [], undefined, 'm3', undefined, undefined, 'user', undefined, steer)).toBe('steered')
+  })
+
+  it('without the steer option a busy chat queues as before, and a routine never steers', async () => {
+    const c = await single()
+    running.add(c.id)
+    expect(await q.submit(c.id, 'typed', [], undefined, 'm1')).toBe('queued')
+    expect(await q.submit(c.id, 'tick', [], undefined, 'm2', undefined, undefined, 'routine', undefined, steer)).toBe('queued')
+    expect(f.chats.steer).not.toHaveBeenCalled()
+  })
+
+  it('groups and paused chats never steer', async () => {
+    const g = await group()
+    running.add(g.id)
+    expect(await q.submit(g.id, 'hi all', [], undefined, 'm1', undefined, undefined, 'user', undefined, steer)).toBe('queued')
+    const c = await single()
+    running.add(c.id)
+    await store.update(c.id, { pause: 'pausing' })
+    expect(await q.submit(c.id, 'wait', [], undefined, 'm2', undefined, undefined, 'user', undefined, steer)).toBe('queued')
+    expect(f.chats.steer).not.toHaveBeenCalled()
+  })
+
+  it('an idle chat sends a steer as a normal message', async () => {
+    const c = await single()
+    const sent = q.submit(c.id, 'hi', [], undefined, 'm1', undefined, undefined, 'user', undefined, steer)
+    await flush()
+    expect(f.chats.send).toHaveBeenCalledTimes(1)
+    expect(f.chats.steer).not.toHaveBeenCalled()
+    turns[0].resolve()
+    await expect(sent).resolves.toBe('sent')
+  })
+
+  it('unread steers count toward the queue limit', async () => {
+    const c = await single()
+    running.add(c.id)
+    for (let i = 0; i < TASKS_MAX; i++) await store.addSteer(c.id, { id: `s${i}`, text: 'x', ts: 1 })
+    await expect(q.submit(c.id, 'one more', [], undefined, 'm1', undefined, undefined, 'user', undefined, steer)).rejects.toThrow(
+      `A chat can hold at most ${TASKS_MAX} queued messages`
+    )
+    await expect(q.submit(c.id, 'one more', [], undefined, 'm2')).rejects.toThrow(`A chat can hold at most ${TASKS_MAX} queued messages`)
+  })
+})
+
+describe('TaskQueue.rerun of a mid-turn message', () => {
+  it('refuses an edit or resend of a message sent into a running reply, before anything stops', async () => {
+    const c = await single()
+    await store.saveItems(c.id, [said('u1'), { type: 'user', id: 's1', text: 'more', ts: 2, steered: true }])
+    running.add(c.id)
+    await expect(q.rerun(c.id, 's1', 'edited')).rejects.toThrow(STEERED_ITEM_FIXED)
+    await expect(q.rerun(c.id, 's1', null)).rejects.toThrow(STEERED_ITEM_FIXED)
+    expect(f.chats.stop).not.toHaveBeenCalled()
+    expect(f.chats.rerun).not.toHaveBeenCalled()
   })
 })

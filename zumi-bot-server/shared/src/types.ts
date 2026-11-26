@@ -161,7 +161,8 @@ export interface QueuedTask {
   ts: number
 }
 
-export type SendResult = 'sent' | 'queued'
+// steered: written into the chat's running reply, which reads it at its next step (see docs/architecture/mid-turn-messages.md).
+export type SendResult = 'sent' | 'queued' | 'steered'
 
 export interface ChatMeta {
   id: string
@@ -176,6 +177,7 @@ export interface ChatMeta {
   group?: GroupInfo // absent for single chats; group chats have agentName ''
   reactions?: Record<string, string[]> // emoji per agent message id, in the order added; absent = none
   tasks?: QueuedTask[] // messages sent while the chat ran, oldest first; absent = none
+  steering?: QueuedTask[] // messages written into the running reply that the agent has not read yet, oldest first; absent = none
   next?: NextStart // how a single chat's next turn starts; absent = resume the session's end
   held?: boolean
   pause?: PauseState // the chat's or room's pause (see pause.ts); absent = not paused
@@ -466,6 +468,7 @@ export type ChatItem = (
       run?: RunMark // hidden from the user: the agent's result of a Run
       engine?: 'ag-ui'
       ack?: string // ZumiBot's line on what the agent is about to do (acknowledge.ts), drawn as the reply's first bubble; no agent reads it
+      steered?: true // sent into a running reply, which read it mid-turn: no Edit, Resend or Fork (it sits inside that reply)
     } // attachments absent = none; replyTo = the agent message's id; from = the asking agent's name when another agent asked this one; engine = a remote agent's turn ran on it, saved before its first request so a turn a crash cut short still reads as AG-UI's (foreignHistory); no other engine writes it
   | { type: 'assistant'; id: string; text: string; ts: number; agent?: string; turn?: string; cut?: SessionCut }
   // One thinking block, as the CLI's summary of it (`--thinking-display summarized`); ts: when it began, doneTs: when it ended.
@@ -674,7 +677,8 @@ export interface ZumiBotApi {
       attachmentIds?: string[],
       replyTo?: string,
       messageId?: string,
-      command?: CommandPick
+      command?: CommandPick,
+      steer?: true // the composer's Enter: into the running reply where it can go, else queued as without it
     ): Promise<SendResult>
     sendTask(chatId: string, taskId: string): Promise<SendResult>
     dropTask(chatId: string, taskId: string): Promise<void>

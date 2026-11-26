@@ -615,3 +615,139 @@ test('buildArgs adds resume-at and fork after --resume', () => {
   expect(none).not.toContain('--resume-session-at')
   expect(none).not.toContain('--fork-session')
 })
+
+test('buildArgs asks the CLI to echo stdin user messages only when told', () => {
+  const on = buildArgs({ agentName: 'a', resumeSessionId: null, permissionMode: 'auto', replayUser: true })
+  expect(on).toContain('--replay-user-messages')
+  expect(on.indexOf('--replay-user-messages')).toBe(on.indexOf('--include-partial-messages') + 1)
+  expect(buildArgs({ agentName: 'a', resumeSessionId: null, permissionMode: 'auto' })).toEqual(args)
+  expect(buildArgs({ agentName: 'a', resumeSessionId: null, permissionMode: 'auto', replayUser: false })).toEqual(args)
+})
+
+// ---- mid-turn steers (docs/architecture/mid-turn-messages.md) ----
+
+const line = (o: object) => JSON.stringify(o)
+const INIT = line({ type: 'system', subtype: 'init', session_id: 'sid-steer' })
+const RESULT = line({ type: 'result', subtype: 'success', is_error: false })
+const TEXT = (t: string) => line({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: t }] } })
+
+/** done, or a failed test (the fake hangs until stdin closes) instead of an orphaned process. */
+async function settles(h: ReturnType<typeof runClaude>, ms = 4000) {
+  let timer: NodeJS.Timeout | undefined
+  try {
+    return await Promise.race([
+      h.done,
+      new Promise<never>((_, rej) => {
+        timer = setTimeout(() => {
+          h.stop()
+          rej(new Error('run did not end'))
+        }, ms)
+      })
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+test('steer writes a stream-json user line under the given uuid', async () => {
+  const f = join(tmp, 'steer-stdin.txt')
+  const script = join(tmp, 'steer-mid.jsonl')
+  writeFileSync(script, [INIT, '#STEER_REPLAY', TEXT('ok'), RESULT].join('\n') + '\n')
+  let steered: boolean | null = null
+  const events: RunEvent[] = []
+  const h: ReturnType<typeof runClaude> = runClaude({
+    bin: process.execPath,
+    args: [fake, ...args],
+    cwd: tmp,
+    stdin: 'hello',
+    env: { ...process.env, FAKE_STDOUT_FILE: script, FAKE_STDIN_OUT: f },
+    onEvent: (e) => {
+      events.push(e)
+      if (e.kind === 'init') steered = h.steer!('more detail', 's-1')
+    }
+  })
+  await settles(h)
+  expect(steered).toBe(true)
+  const lines = readFileSync(f, 'utf8')
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l))
+  expect(lines[1]).toEqual({ type: 'user', message: { role: 'user', content: 'more detail' }, uuid: 's-1' })
+  expect(events.filter((e) => e.kind === 'userReplay')).toEqual([{ kind: 'userReplay', uuid: 's-1' }])
+})
+
+test('steer returns false once the result closed stdin', async () => {
+  const script = join(tmp, 'steer-late.jsonl')
+  writeFileSync(script, [INIT, RESULT].join('\n') + '\n')
+  const { h } = run({ FAKE_STDOUT_FILE: script })
+  await settles(h)
+  expect(h.steer!('too late', 's-2')).toBe(false)
+})
+
+test('keeps stdin open past a result while a steer is unread, then closes at the next result', async () => {
+  const script = join(tmp, 'steer-second-turn.jsonl')
+  writeFileSync(script, [INIT, TEXT('first'), RESULT, '#STEER_REPLAY', INIT, TEXT('second'), RESULT].join('\n') + '\n')
+  const events: RunEvent[] = []
+  let steered = false
+  const h: ReturnType<typeof runClaude> = runClaude({
+    bin: process.execPath,
+    args: [fake, ...args],
+    cwd: tmp,
+    stdin: 'hello',
+    env: { ...process.env, FAKE_STDOUT_FILE: script, FAKE_HANG: '1', FAKE_EXIT_ON_STDIN_END: '1' },
+    onEvent: (e) => {
+      events.push(e)
+      // Handled before the result that follows in the same read: the steer is unread when the result comes.
+      if (e.kind === 'assistantText' && e.text === 'first') steered = h.steer!('late detail', 's-3')
+    }
+  })
+  const out = await settles(h)
+  expect(steered).toBe(true)
+  expect(out.exitCode).toBe(0)
+  expect(events.filter((e) => e.kind === 'result')).toHaveLength(2)
+  expect(events.some((e) => e.kind === 'userReplay' && e.uuid === 's-3')).toBe(true)
+}, 10_000)
+
+test('closes stdin after the grace when an unread steer never comes back', async () => {
+  const script = join(tmp, 'steer-lost.jsonl')
+  writeFileSync(script, [INIT, RESULT].join('\n') + '\n')
+  let steered = false
+  const h: ReturnType<typeof runClaude> = runClaude({
+    bin: process.execPath,
+    args: [fake, ...args],
+    cwd: tmp,
+    stdin: 'hello',
+    steerGraceMs: 50,
+    env: { ...process.env, FAKE_STDOUT_FILE: script, FAKE_HANG: '1', FAKE_EXIT_ON_STDIN_END: '1' },
+    onEvent: (e) => {
+      if (e.kind === 'init') steered = h.steer!('never read', 's-4')
+    }
+  })
+  const out = await settles(h)
+  expect(steered).toBe(true)
+  expect(out.exitCode).toBe(0)
+}, 10_000)
+
+test('a steer before the process is up goes in right after the prompt', async () => {
+  const f = join(tmp, 'steer-early-stdin.txt')
+  const script = join(tmp, 'steer-early.jsonl')
+  writeFileSync(script, [INIT, '#STEER_REPLAY', TEXT('ok'), RESULT].join('\n') + '\n')
+  const events: RunEvent[] = []
+  const h = runClaude({
+    bin: process.execPath,
+    args: [fake, ...args],
+    cwd: tmp,
+    stdin: 'hello',
+    env: { ...process.env, FAKE_STDOUT_FILE: script, FAKE_STDIN_OUT: f },
+    onEvent: (e) => events.push(e)
+  })
+  // Synchronously, before the folder check and the spawn.
+  expect(h.steer!('right away', 's-5')).toBe(true)
+  await settles(h)
+  const lines = readFileSync(f, 'utf8')
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l))
+  expect(lines.map((l) => l.message.content)).toEqual(['hello', 'right away'])
+  expect(events.some((e) => e.kind === 'userReplay' && e.uuid === 's-5')).toBe(true)
+})
