@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { coarsePointer } from '../media'
 import { matchesSearch, stepFocus } from '../state/menuSearch'
 
 const ITEMS = '[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="option"]'
 
 /**
- * The search box at the top of a dropdown menu. It takes focus when the menu opens and hides the menu's items (and a
+ * The search box at the top of a dropdown menu. It takes focus when the menu opens (not on a touch screen) and hides the menu's items (and a
  * group whose items are all hidden) that do not match. It works on the menu's DOM rather than its options, so each menu
  * keeps its own rows; a MutationObserver filters rows that render later. The arrow keys move between the box and the
  * shown items, Enter in the box picks the first one, and typing on an item goes back to the box. With `onQuery` the
@@ -63,7 +64,9 @@ export function MenuSearch({
       const top = on.getBoundingClientRect().top - menu.getBoundingClientRect().top + menu.scrollTop
       if (top + on.offsetHeight > menu.scrollTop + menu.clientHeight) menu.scrollTop = top + on.offsetHeight - menu.clientHeight
     }
-    box.focus({ preventScroll: true })
+    // On a touch screen the box waits for a tap: focusing it would bring up the keyboard, which covers the list and
+    // shifts the page under the menu, and most picks need no typing.
+    if (!coarsePointer()) box.focus({ preventScroll: true })
     const shown = (): HTMLElement[] =>
       [...menu.querySelectorAll<HTMLElement>(ITEMS)].filter(
         (el) =>
