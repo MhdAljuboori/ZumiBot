@@ -175,6 +175,8 @@ interface Props {
   workflowStepName: string | undefined
   /** Sends the continue text after the user allowed a command Auto mode refused. */
   onAllowed?: (text: string) => void
+  /** Sends a suggested reply's text alone: the draft, its files and its reply quote stay in the box. */
+  onPickReply: (text: string) => void
   onOpenWorkflowRun: () => void
   /** What the ask cards in the chat need: the asked chats, their live cards, answering and opening them. */
   asks: AskEnv
@@ -358,6 +360,7 @@ export function ChatView({
   onOpenAskedSource,
   workflowStepName,
   onAllowed,
+  onPickReply,
   onOpenWorkflowRun,
   asks,
   archived,
@@ -482,6 +485,11 @@ export function ChatView({
     setSince(null)
     return onSendTask(taskId)
   }
+  // The card shows while the user types, so a pick must not take their draft with it.
+  const pickReply = (text: string): void => {
+    setSince(null)
+    onPickReply(text)
+  }
   // What this chat's engine can do: what it cannot (a Codex feature a later probe turned off) is left out. A room's engine is its
   // moderator's (Claude); its controls follow its members' engines (chatCaps).
   const engine = chatEngine(chat, agents)
@@ -599,7 +607,7 @@ export function ChatView({
       question={offered.question}
       summary={offered.summary}
       disabled={offline || !cliFound}
-      onPick={(text) => send(text)}
+      onPick={pickReply}
     />
   )
 

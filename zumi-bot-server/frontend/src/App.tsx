@@ -2488,6 +2488,7 @@ export default function App() {
         : undefined,
       // Sent like a typed message but not from the box: the draft stays as it is.
       onAllowed: (text) => void sendMessage(id, text, emptyDraftFiles, undefined, false),
+      onPickReply: (text) => void sendMessage(id, text, emptyDraftFiles, undefined, false),
       onOpenWorkflowRun: () => {
         const link = chat.workflow
         if (link) openWorkflowRun(link.workflowId, link.runId)

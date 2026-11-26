@@ -49,8 +49,11 @@ describe('replyOptionsOf', () => {
     expect(replyOptionsOf({ ...o, suggested: { after: 'a1', options: ['A', 'B', 'C', 'D'] } })).toBeNull()
   })
 
-  it('nothing once the user starts a message of their own', () => {
-    expect(replyOptionsOf({ ...o, draftEmpty: false })).toBeNull()
+  it('the buttons stay while the user types, until a message is sent', () => {
+    expect(replyOptionsOf({ ...o, draftEmpty: false })).toEqual({ buttons: ['Native', 'Subagent-driven'] })
+  })
+
+  it('the placeholder goes once the user starts a message of their own', () => {
     expect(replyOptionsOf({ ...one, draftEmpty: false })).toBeNull()
   })
 })

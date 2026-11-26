@@ -11,9 +11,10 @@ export function replyOptionsOf(o: {
   draftEmpty: boolean // no text, no file and no reply quote
 }): ReplyOptionsView {
   // Stored options outlive their reply (a send from another tab, an edit, a version switch): shown only while it is last.
-  if (!o.on || o.running || !o.draftEmpty || !o.suggested || o.suggested.after !== o.lastItemId) return null
+  if (!o.on || o.running || !o.suggested || o.suggested.after !== o.lastItemId) return null
   const { options, question, summary } = o.suggested
-  if (options.length === 1) return { placeholder: options[0] }
+  // The card stays while the user types, so its question can be read while answering it; a placeholder only fits an empty box.
+  if (options.length === 1) return o.draftEmpty ? { placeholder: options[0] } : null
   if (options.length !== 2 && options.length !== 3) return null
   return { buttons: options, ...(question ? { question } : {}), ...(summary ? { summary } : {}) }
 }
