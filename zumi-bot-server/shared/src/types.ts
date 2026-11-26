@@ -280,6 +280,7 @@ export interface GitStatus {
   head: string // short sha, shown when detached
   changed: number // uncommitted entries (staged, unstaged, untracked), ZumiBot's links left out
   removed?: true // the worktree folder is gone (cleanup); the branch is kept
+  agentTree?: string // read in another worktree of the repo, the one the agent last worked in (it made its own)
 }
 
 /** How an uncommitted file differs from HEAD, from `git status --porcelain=v2`. */
@@ -303,6 +304,8 @@ export interface GitChanges {
   head: string // short sha
   files: GitChangedFile[] // sorted by path, at most GIT_CHANGES_MAX
   more: number // files past the cap, not listed
+  agentTree?: string // set when `top` is another worktree of the repo, the one the agent last worked in
+  base?: string // the commit Since start compares against in `top`: the chat worktree's base, or where the agent's branch started
 }
 
 /** Whether the GitHub CLI can be used here. ZumiBot stores no token: gh holds its own credentials. */

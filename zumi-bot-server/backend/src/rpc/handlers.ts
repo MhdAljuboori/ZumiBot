@@ -11,6 +11,7 @@ import { homedir } from 'node:os'
 import type { AgentStore } from '../core/agents/agentStore'
 import type { AttachmentStore } from '../core/attachments/attachmentStore'
 import type { SideQuestions } from '../core/btw/sideQuestions'
+import type { ItemsLoader } from '../core/git/agentTree'
 import type { GitChangesService } from '../core/git/changes'
 import type { WorktreeService } from '../core/git/worktrees'
 import type { ChatService } from '../core/chat/chatService'
@@ -992,6 +993,12 @@ export function createHandlers(d: HandlerDeps): Handlers {
   const told = (l: SidebarLayout | null): void => {
     if (l) d.sidebarChanged(l)
   }
+  // Where the agent worked, for the git chip and Changes: the open chat's list is held by the feed, with the running
+  // turn's calls; any other chat is read from disk.
+  const itemsOf =
+    (id: string): ItemsLoader =>
+    async () =>
+      feed.peek(id) ?? (await chats.loadItems(id))
   const reveals = createRevealLimiter()
   const needChannels = (p: ChannelPlatform): ChannelService => {
     if (!d.channels) throw new Error('Channels are not available on this server')
@@ -1777,14 +1784,14 @@ export function createHandlers(d: HandlerDeps): Handlers {
       const id = str(chatId, 'chatId')
       const meta = await chats.get(id)
       if (!meta) throw new Error(`Chat not found: ${id}`)
-      return d.worktrees ? d.worktrees.status(meta) : null
+      return d.worktrees ? d.worktrees.status(meta, itemsOf(id)) : null
     },
     'chats:gitChanges': async (chatId, scope) => {
       const id = str(chatId, 'chatId')
       const want = gitScope(scope)
       const meta = await chats.get(id)
       if (!meta) throw new Error(`Chat not found: ${id}`)
-      return d.gitChanges ? d.gitChanges.list(meta, want) : null
+      return d.gitChanges ? d.gitChanges.list(meta, want, itemsOf(id)) : null
     },
     'chats:gitDiff': async (chatId, path, scope) => {
       const id = str(chatId, 'chatId')
@@ -1794,7 +1801,7 @@ export function createHandlers(d: HandlerDeps): Handlers {
       if (!meta) throw new Error(`Chat not found: ${id}`)
       // The service reads only a path the scope lists as changed, so a made-up path never reaches the disk.
       if (!d.gitChanges) throw new Error('Not in a git repository')
-      return d.gitChanges.diff(meta, p, want)
+      return d.gitChanges.diff(meta, p, want, itemsOf(id))
     },
     'chats:remove': async (chatId) => {
       const id = str(chatId, 'chatId')

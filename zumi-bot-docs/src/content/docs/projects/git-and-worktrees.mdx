@@ -28,6 +28,8 @@ In a repository, the row under the message box shows a **branch chip** after the
 
 </Steps>
 
+If the agent makes a worktree of its own with git and works there, the chip and the panel follow it: they show that worktree's branch and changes, not the folder the chat was opened in. The chip's tooltip and a line under the panel's branch say "In the agent's worktree:" with its folder. The **Uncommitted** / **Since start** switch shows there too: Since start lists everything since the agent made its branch, so you still see its work after it has committed it. They go back to the chat's folder once the agent works there again or its worktree is removed.
+
 <Shot name="projects-changes-panel" alt="A chat with Code Reviewer in a git repository. The branch chip in the row under the message box reads 'main' with a small orange dot. The Changes panel is open: 'main, 2 files changed, +5 −1', with checkout.js marked M and discount.js marked U. checkout.js is picked and shows its diff, with one line removed and one added." />
 
 This panel reads git as it is now. It lists everything that is not committed, whether an agent changed it, a command did, or you did. An empty folder reads "No uncommitted changes. Everything is committed."
