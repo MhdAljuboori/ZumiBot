@@ -191,7 +191,9 @@ checked on an Intel Mac, macOS 15, Node 22; the two start-time lock tests need B
 - Timing: like Windows, vitest uses half the cores and a 30 s cap per test on darwin (`DARWIN_TIMEOUTS` in
   `backend/vitest.config.ts`, the shared and desktop configs). Deadlines meant to fall after a fake's start are longer on
   darwin where a file already widens them for Windows (`START_MS`), and a wait on a watched folder is longer (file events
-  arrive later than inotify's). Linux assertions and deadlines are unchanged.
+  arrive later than inotify's). A recursive `fs.watch` runs on an FSEvents stream that starts asynchronously and drops
+  events from before it runs, so a test that writes right after starting a watch writes again until the event lands
+  (`memoryStore.test.ts`). Linux assertions and deadlines are unchanged.
 
 ## The claude CLI in a container
 

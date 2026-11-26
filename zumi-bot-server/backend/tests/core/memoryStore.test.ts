@@ -300,8 +300,16 @@ describe('watch', () => {
     const stop = store.watch(() => {
       throw new Error('boom')
     })
-    await put('a', 'x.md', 'a')
-    await vi.waitFor(() => expect(logs.some((l) => l.includes('listener failed for a'))).toBe(true), { timeout: 2000 })
+    // macOS starts its FSEvents stream asynchronously and drops events from before it runs, so one write right after
+    // watch() can go unseen: write again until the listener has run.
+    await vi.waitFor(
+      async () => {
+        await put('a', 'x.md', 'a')
+        await new Promise((r) => setTimeout(r, 300))
+        expect(logs.some((l) => l.includes('listener failed for a'))).toBe(true)
+      },
+      { timeout: 4000 }
+    )
     stop()
   })
 })
