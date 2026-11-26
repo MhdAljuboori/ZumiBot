@@ -11,16 +11,13 @@ import {
   type ReactNode
 } from 'react'
 import { createPortal } from 'react-dom'
+import { inView, placeMenu, visibleView, type MenuPlace } from '../state/menuPlace'
 import { filterOptions, selectedLabel, type SelectOption } from '../state/menuSearch'
 import { Caret } from './Caret'
 import { MenuIcon } from './MenuIcon'
 import { MenuSearch } from './MenuSearch'
 
-type Place = { left: number; minWidth: number; maxHeight: number; top?: number; bottom?: number }
-
-const GAP = 4
 const MARGIN = 8
-const MAX_HEIGHT = 320
 
 /** The text of an option's children, as a native select shows it. */
 function textOf(node: ReactNode): string {
@@ -80,7 +77,7 @@ export function SearchSelect({
 }) {
   const current = String(value)
   const options = optionsOf(children)
-  const [place, setPlace] = useState<Place | null>(null)
+  const [place, setPlace] = useState<MenuPlace | null>(null)
   const [query, setQuery] = useState('')
   const button = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLDivElement>(null)
@@ -90,19 +87,10 @@ export function SearchSelect({
     if (refocus) button.current?.focus({ preventScroll: true })
   }, [])
 
-  // Where the menu goes for the button's spot now: below it, or above when there is clearly more room there.
-  const measure = useCallback((): Place | null => {
+  // Where the menu goes for the button's spot now, inside what is on screen (a phone keyboard may cover the rest).
+  const measure = useCallback((): MenuPlace | null => {
     const r = button.current?.getBoundingClientRect()
-    if (!r) return null
-    const below = window.innerHeight - r.bottom - GAP - MARGIN
-    const above = r.top - GAP - MARGIN
-    const up = below < 200 && above > below
-    return {
-      left: r.left,
-      minWidth: r.width,
-      maxHeight: Math.min(MAX_HEIGHT, up ? above : below),
-      ...(up ? { bottom: window.innerHeight - r.top + GAP } : { top: r.bottom + GAP })
-    }
+    return r ? placeMenu(r, visibleView(window)) : null
   }, [])
 
   const isOpen = place !== null
@@ -120,24 +108,32 @@ export function SearchSelect({
       close(true)
     }
     // It follows its button when the page under it scrolls (a drawer scrolling a form into view), and closes once the
-    // button has left the window.
+    // button has left what is on screen.
     const moved = (e: Event): void => {
       if (menu.current?.contains(e.target as Node)) return
       const r = button.current?.getBoundingClientRect()
-      if (!r || r.bottom < 0 || r.top > window.innerHeight) close()
+      if (!r || !inView(r, visibleView(window))) close()
       else setPlace(measure())
     }
+    // A resize, or a phone keyboard opening, panning or closing, only moves it: the keyboard comes up for a tap in its
+    // own search box, and closing then would drop the list under the typing finger.
+    const resized = (): void => setPlace(measure())
     const dismiss = (): void => close()
+    const vv = window.visualViewport
     document.addEventListener('mousedown', outside, true)
     document.addEventListener('keydown', esc, true)
     window.addEventListener('scroll', moved, true)
-    window.addEventListener('resize', moved)
+    window.addEventListener('resize', resized)
+    vv?.addEventListener('resize', resized)
+    vv?.addEventListener('scroll', resized)
     window.addEventListener('blur', dismiss)
     return () => {
       document.removeEventListener('mousedown', outside, true)
       document.removeEventListener('keydown', esc, true)
       window.removeEventListener('scroll', moved, true)
-      window.removeEventListener('resize', moved)
+      window.removeEventListener('resize', resized)
+      vv?.removeEventListener('resize', resized)
+      vv?.removeEventListener('scroll', resized)
       window.removeEventListener('blur', dismiss)
     }
   }, [isOpen, close, measure])
