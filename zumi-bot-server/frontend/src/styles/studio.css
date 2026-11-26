@@ -865,12 +865,14 @@ body {
 .pickers .picker.set:not(:disabled) {
   box-shadow: inset 0 0 0 1px var(--border);
 }
-/* A narrow pane (side panel open, small window): the chips drop their outline and padding before their labels cut. */
+/* A narrow pane (side panel open, small window, a phone): the chips drop their outline and tighten their padding and
+   spacing before their labels cut. */
 .composer {
   container-type: inline-size;
 }
 @container (max-width: 620px) {
   .pickers .picker {
+    gap: 5px;
     padding: 0 6px;
   }
   .pickers .picker.set:not(:disabled) {

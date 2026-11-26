@@ -144,9 +144,13 @@ export function NewChatView({
   const effortView = group || !agent ? null : effortPicker(engineOfAgent(agent), draft)
   const introAgent = intro ? agent : undefined
   const narrow = useNarrow()
-  // A narrow pane on a wide window (sidebar open, a small window) merges the run pickers too and wraps, as on a phone:
-  // the agent and folder keep their labels, since they are picked here.
+  // A narrow pane on a wide window (sidebar open, a small window) merges the run pickers too, as on a phone, and the
+  // row keeps to one line there with its labels cut to fit (`.pickers.compact`).
   const fit = useFitRow(!narrow)
+  const compact = narrow || fit.compact
+  // On an agent's start screen its intro and the "Message <agent>" placeholder already name it, so a compact row
+  // gives the agent chip's room to the run and folder chips: just its icon (the name stays in the DOM, hidden).
+  const agentIconOnly = compact && introAgent !== undefined
 
   // Jev's pick for the message typed so far, asked after a pause in typing. The server answers null while Jev is off.
   const query = suggestQuery(draft, agents)
@@ -216,7 +220,7 @@ export function NewChatView({
         onRemoveFile={onRemoveFile}
         onStop={() => {}}
       >
-        <div ref={fit.ref} className={fit.compact ? 'pickers compact' : 'pickers'}>
+        <div ref={fit.ref} className={compact ? 'pickers compact' : 'pickers'}>
           {group ? (
             <button
               type="button"
@@ -238,10 +242,14 @@ export function NewChatView({
           ) : (
             <button
               type="button"
-              className={['picker', agent && 'set', menu?.kind === 'agent' && 'open'].filter(Boolean).join(' ')}
+              className={['picker', agent && 'set', menu?.kind === 'agent' && 'open', agentIconOnly && 'icon-only']
+                .filter(Boolean)
+                .join(' ')}
               data-testid="new-chat-agent"
               aria-haspopup="menu"
               aria-expanded={menu?.kind === 'agent'}
+              aria-label={agentIconOnly && introAgent ? displayName(introAgent.name) : undefined}
+              data-tip={agentIconOnly && introAgent ? displayName(introAgent.name) : undefined}
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => toggle('agent', e.currentTarget)}
             >
@@ -253,7 +261,7 @@ export function NewChatView({
           {/* A room has no remote member, so only a single chat's agent can carry the chip. */}
           <RemoteChip agent={agent} />
           {/* One chip on a phone or a narrow pane, as under an open chat, so the row fits beside the agent and folder. */}
-          {narrow || fit.compact ? (
+          {compact ? (
             <RunPicker
               model={modelView}
               mode={modeView}
