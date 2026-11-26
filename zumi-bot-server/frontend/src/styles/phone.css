@@ -248,12 +248,9 @@ html.typing-hold .tab-bar,
   .composer-box {
     padding: 6px 6px 6px 14px;
   }
-  /* The new-chat row wraps rather than cutting its agent and folder to a few letters; a name too long for a whole line
-     still ends in an ellipsis, and the members and Role chips keep their size. */
+  /* The new-chat row is always compact here (`.pickers.compact`, new-chat.css): one line, its labels cut to fit. */
   .pickers {
     padding-left: 2px;
-    flex-wrap: wrap;
-    row-gap: 2px;
   }
   .picker {
     max-width: 100%;
