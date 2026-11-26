@@ -7,6 +7,8 @@ Manage your Claude Code agents and chat with them, alone or in group chats. Zumi
 
 Local and VPS are separate servers. Optional data sync does not transfer agent browser profiles or browser runtimes: website sign-ins stay separate.
 
+ZumiBot is free to use, change and share; the [license](#license) only rules out selling it. If it saves you time, **[sponsor ZumiBot](https://zumibot.run/sponsor)**.
+
 ## Contents
 
 - [Quick start with Docker](#quick-start-with-docker)
@@ -24,6 +26,8 @@ Local and VPS are separate servers. Optional data sync does not transfer agent b
 - [Where data lives](#where-data-lives)
 - [Testing](#testing)
 - [Troubleshooting](#troubleshooting)
+- [Sponsor](#sponsor)
+- [License](#license)
 
 ## Quick start with Docker
 
@@ -421,3 +425,13 @@ Numeric values must be positive integers. Time limits are capped at `86400000` m
 | Browser still shows the old UI after an update | Reload the tab (F5) |
 | `install:deb` can't find the file | Run `npm run build:deb` first; on a non-`amd64` machine, change the arch in the script |
 | Agents on the VPS fail to use tools | Set up their MCP servers, skills and plugins on the VPS; an update does not copy them |
+
+## Sponsor
+
+ZumiBot is free, and it stays free. If it saves you time, you can help keep it going: [zumibot.run/sponsor](https://zumibot.run/sponsor) takes USDT on TRON (TRC20) for now. A sponsorship is a gift; it buys no license, support plan or feature. A star here, or a clear bug report to [contact@zumibot.run](mailto:contact@zumibot.run), helps too.
+
+## License
+
+ZumiBot is source-available under the [MIT license with the Commons Clause](LICENSE). Anyone may use, copy, change and share it, companies included, and build other things on top of it. The one thing the Commons Clause rules out is selling it: you may not offer ZumiBot, or a product or service whose value comes entirely or mostly from it (paid hosting or paid support included), for a fee. Because of that clause it is not "open source" in the OSI sense.
+
+Every build carries the license: the server package and the Docker image hold `LICENSE` next to `server.mjs`, and the desktop app holds it in its `resources/server` folder.

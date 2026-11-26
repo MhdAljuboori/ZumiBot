@@ -4,6 +4,7 @@
   "installCommand": "cd .. && npm ci --ignore-scripts -w @zumibot/site",
   "buildCommand": "cd .. && npm run build -w @zumibot/site",
   "outputDirectory": "dist",
+  "cleanUrls": true,
   "ignoreCommand": "node --experimental-strip-types scripts/shouldBuild.mjs",
   "headers": [
     {

@@ -7,7 +7,8 @@ import { socialHead } from './src/lib/socialCard.ts'
 
 const SITE = 'https://docs.zumibot.run'
 
-// No `editLink`: pages never send readers into the source. `social` holds only the repo's home page and the contact address.
+// No `editLink`: pages never send readers into the source. `social` holds only the repo's home page, the site's sponsor page
+// and the contact address.
 export default defineConfig({
   site: SITE,
   security: {
@@ -27,6 +28,7 @@ export default defineConfig({
       logo: { src: './src/assets/zumi-z.svg' },
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/MhdAljuboori/ZumiBot' },
+        { icon: 'heart', label: 'Sponsor ZumiBot', href: 'https://zumibot.run/sponsor' },
         { icon: 'email', label: 'Email contact@zumibot.run', href: 'mailto:contact@zumibot.run' }
       ],
       favicon: '/favicon.png',

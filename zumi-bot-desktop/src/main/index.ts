@@ -10,12 +10,14 @@ import {
   Notification,
   screen,
   session,
+  shell as electronShell,
   Tray
 } from 'electron'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { cleanAgentList, cleanHotkey, type IslandSettings } from '@zumibot/shared/island'
 import { LOCAL_RESTART_EXIT, LOCAL_UPDATES_ENV, UPDATE_LOG_FILE } from '@zumibot/shared/update'
+import { SPONSOR_URL } from '@zumibot/shared/sponsor'
 import { resolveDataDir } from '@zumibot/backend/config'
 import { isThemePref } from '@zumibot/shared/types'
 import { macMenuTemplate } from './appMenu'
@@ -133,7 +135,8 @@ function createTray(): void {
     const image = nativeImage.createFromPath(join(__dirname, 'tray.png')).resize({ width: size, height: size })
     tray = new Tray(image)
     tray.setToolTip('ZumiBot')
-    tray.setContextMenu(Menu.buildFromTemplate(trayMenuTemplate({ open: () => showMain(), quit: requestQuit })))
+    const sponsor = (): void => void electronShell.openExternal(SPONSOR_URL)
+    tray.setContextMenu(Menu.buildFromTemplate(trayMenuTemplate({ open: () => showMain(), sponsor, quit: requestQuit })))
   } catch (err) {
     console.error('creating the tray failed:', err)
   }
