@@ -1,7 +1,7 @@
 // Fake claude CLI for tests. Ignores argv (except --mcp-config, for #MCP_CALL, --settings, for #PRE_TOOL, and --agent with
 // FAKE_STDOUT_DIR); behaviour is driven by env vars.
 // Speaks the stream-json input channel: the first stdin line is the user message and starts the
-// script; later stdin lines are control_response messages.
+// script; later stdin lines are control_response messages, or user messages (mid-turn steers) that #STEER_REPLAY echoes.
 // With FAKE_STDOUT_DIR, a side run (argv has --no-session-persistence) reads <dir>/<agent>.side.jsonl when that file exists.
 // FAKE_MCP_RESULTS_OUT: each #MCP_CALL appends {id, tool, text, isError} (a side run's tool results reach no chat item).
 // FAKE_HOOKS_OUT: each #PRE_TOOL appends {id, tool, agentId, blocked}.
@@ -79,6 +79,8 @@ if (ackAt >= 0 && process.argv[ackAt + 1]?.startsWith("You write the one short l
 const chunks = []
 const answered = new Map() // request id -> its control_response's `response`
 const waiters = new Map()
+const steers = [] // mid-turn user messages not echoed yet, oldest first
+let steerWaiter = null
 const decoder = new StringDecoder('utf8')
 let pending = ''
 let started = false
@@ -102,6 +104,11 @@ function onLine(l) {
   if (m?.type === 'control_request' && m.request?.subtype === 'interrupt') {
     try { writeSync(1, JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: m.request_id, response: {} } }) + '\n') } catch { /* stdout gone */ }
     process.exit(Number(process.env.FAKE_EXIT ?? 0))
+  }
+  if (m?.type === 'user') {
+    steers.push(m)
+    steerWaiter?.()
+    return
   }
   if (m?.type !== 'control_response') return
   if (process.env.FAKE_RESPONSES_FILE) appendFileSync(process.env.FAKE_RESPONSES_FILE, l + '\n')
@@ -313,6 +320,27 @@ if (scriptPath) {
       continue
     }
     if (l.startsWith('#SLEEP ')) { await sleep(Number(l.slice('#SLEEP '.length))); continue } // slow streams for the browser e2e
+    // Holds the script until the file exists: an e2e lets the run go on once it has seen what it waits to check.
+    if (l.startsWith('#WAIT_FILE ')) {
+      const path = l.slice('#WAIT_FILE '.length).trim()
+      while (!existsSync(path)) await sleep(50)
+      continue
+    }
+    // Waits until a mid-turn user message is on stdin, echoing nothing yet (an e2e then sees it waiting).
+    if (l === '#WAIT_STEER') {
+      if (steers.length === 0) await new Promise(r => { steerWaiter = r })
+      steerWaiter = null
+      continue
+    }
+    // The CLI taking in a mid-turn user message: waits for the next one on stdin and echoes it as --replay-user-messages does.
+    if (l === '#STEER_REPLAY') {
+      if (steers.length === 0) await new Promise(r => { steerWaiter = r })
+      steerWaiter = null
+      const m = steers.shift()
+      process.stdout.write(JSON.stringify({ type: 'user', isReplay: true, uuid: m.uuid, message: m.message, session_id: session }) + '\n')
+      await sleep(5)
+      continue
+    }
     // A script tool call with a real effect: {"path": ..., "content": ...} is written (parents made) at this point.
     if (l.startsWith('#WRITE_FILE ')) {
       const { path, content } = JSON.parse(l.slice('#WRITE_FILE '.length))

@@ -9,6 +9,7 @@ export interface Denial {
 export type RunEvent =
   | { kind: 'init'; sessionId: string; version?: string }
   | { kind: 'entry'; uuid: string } // a session-log entry the CLI wrote; comes before that line's content events
+  | { kind: 'userReplay'; uuid: string } // a stdin user message (a mid-turn steer) echoed as the CLI took it in (--replay-user-messages)
   | { kind: 'textDelta'; text: string }
   | { kind: 'assistantText'; text: string }
   // Thinking text comes only with --thinking-display summarized; without it every thinking block streams empty and none is sent.
@@ -292,6 +293,8 @@ export function parseLine(line: string): RunEvent[] {
       return m.message && typeof m.message === 'object' ? [...out, ...contextOf(m.message), ...spendOf(m.message)] : out
     }
     case 'user': {
+      // Not an entry: a replay must never become the turn's tip, which cuts and end stamps read.
+      if (m.isReplay === true) return typeof m.uuid === 'string' && m.uuid ? [{ kind: 'userReplay', uuid: m.uuid }] : []
       const out: RunEvent[] = entryOf(m)
       const content = m.message?.content
       if (!Array.isArray(content)) return out

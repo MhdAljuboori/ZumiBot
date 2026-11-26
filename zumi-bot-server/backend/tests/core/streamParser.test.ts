@@ -636,3 +636,20 @@ test('isCutRefused reads the refusal of a declared cut, and nothing else', () =>
   expect(isCutRefused('No conversation found with session ID: s1')).toBe(false)
   expect(isCutRefused('')).toBe(false)
 })
+
+test('a replayed user message (a mid-turn steer the CLI took in) is userReplay, and never a cut point', () => {
+  const line = JSON.stringify({ type: 'user', isReplay: true, uuid: 'u-1', message: { role: 'user', content: 'more detail' } })
+  expect(parseLine(line)).toEqual([{ kind: 'userReplay', uuid: 'u-1' }])
+  const blocks = JSON.stringify({
+    type: 'user',
+    isReplay: true,
+    uuid: 'u-3',
+    message: { role: 'user', content: [{ type: 'text', text: 'x' }] }
+  })
+  expect(parseLine(blocks)).toEqual([{ kind: 'userReplay', uuid: 'u-3' }])
+})
+
+test('a user line that is not a replay keeps its entry', () => {
+  const line = JSON.stringify({ type: 'user', uuid: 'u-2', message: { role: 'user', content: [] } })
+  expect(parseLine(line)).toEqual([{ kind: 'entry', uuid: 'u-2' }])
+})

@@ -1219,8 +1219,9 @@ export function MessageList({
         dimmed={dimmed.has(item.id)}
         readOnly={readOnly}
         actions={{
-          ...(canAct && caps.resend ? { onEdit: () => setEditingId(item.id), onResend: () => resend(item.id) } : {}),
-          ...(caps.fork ? { onFork: () => fork(item.id) } : {}),
+          // A message sent into a running reply sits inside it: no Edit, Resend or Fork of its own (mid-turn-messages.md).
+          ...(canAct && caps.resend && !item.steered ? { onEdit: () => setEditingId(item.id), onResend: () => resend(item.id) } : {}),
+          ...(caps.fork && !item.steered ? { onFork: () => fork(item.id) } : {}),
           resendBusy: busy.has(`resend:${item.id}`),
           forkBusy: busy.has(`fork:${item.id}`)
         }}

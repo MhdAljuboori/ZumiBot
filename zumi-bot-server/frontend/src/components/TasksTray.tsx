@@ -4,11 +4,16 @@ import { focusAfterRemoval, taskLabel, taskName } from '../state/tasks'
 import { ReplyIcon } from './MessageActions'
 import { TrayHead } from './TrayHead'
 
+/** A steer's row says why it is still there: the agent reads it at its next step. */
+export const STEER_WAITING = "Waiting for the agent's next step"
+
 /** Resolves true once the server took the action; false when it failed (the chat shows why). */
 type TaskAction = (taskId: string) => Promise<boolean>
 
 interface Props {
   tasks: QueuedTask[]
+  /** Messages written into the running reply, not read yet (docs/architecture/mid-turn-messages.md); no buttons: they are sent. */
+  steering?: QueuedTask[]
   open: boolean
   onToggle: () => void
   onDrop: TaskAction
@@ -17,7 +22,7 @@ interface Props {
 }
 
 /** "Tasks": messages sent while the chat ran, oldest first; each goes in on its own once the run before it ends. */
-export function TasksTray({ tasks, open, onToggle, onDrop, onSend = null }: Props) {
+export function TasksTray({ tasks, steering = [], open, onToggle, onDrop, onSend = null }: Props) {
   const listId = useId()
   const head = useRef<HTMLButtonElement>(null)
   const drops = useRef(new Map<string, HTMLButtonElement>())
@@ -55,8 +60,26 @@ export function TasksTray({ tasks, open, onToggle, onDrop, onSend = null }: Prop
 
   return (
     <div ref={root} className="tasks-tray" data-testid="tasks-tray">
-      <TrayHead testId="tasks-head" label="Tasks" count={tasks.length} open={open} onToggle={onToggle} controls={listId} headRef={head} />
+      <TrayHead
+        testId="tasks-head"
+        label="Tasks"
+        count={tasks.length + steering.length}
+        open={open}
+        onToggle={onToggle}
+        controls={listId}
+        headRef={head}
+      />
       <div className="tray-rows" id={listId} hidden={!open}>
+        {open &&
+          steering.map((task) => (
+            <div key={task.id} className="task-row steer-row" data-testid="steer-row">
+              <span className="steer-dot" aria-hidden="true" />
+              <span className="task-text" data-tip={task.text || undefined}>
+                {taskLabel(task)}
+              </span>
+              <span className="steer-note">{STEER_WAITING}</span>
+            </div>
+          ))}
         {open &&
           tasks.map((task, index) => {
             const files = task.attachments?.length ?? 0

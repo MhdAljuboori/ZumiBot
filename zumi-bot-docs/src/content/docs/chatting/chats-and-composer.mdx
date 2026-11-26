@@ -55,7 +55,14 @@ To quote part of a reply, select the text and choose **Quote**. It lands in your
 
 ## Send while the agent is working
 
-You do not have to wait for a reply to end. A message you send while the agent works joins a **Tasks** list above the box. Each one goes in on its own, in order, once the run before it ends. Choose the ✕ on a row to remove a message from the list before it is sent.
+You do not have to wait for a reply to end. While the agent works you can add details to the reply that is running, or line up a message for after it.
+
+- **Enter** (or the round send button) sends your message **into the running reply**. The agent reads it at its next step, such as after the command it is running now, and carries on with it without starting over. Until then it waits above the box as "Waiting for the agent's next step". Once read, it shows in the chat where the agent read it. If the agent was already finishing, it answers your message right after.
+- **Ctrl+Enter** (**Cmd+Enter** on a Mac), or holding the send button, **queues** your message instead. It joins the **Tasks** list above the box, and each one goes in on its own, in order, once the run before it ends. Choose the ✕ on a row to remove a message from the list before it is sent.
+
+A message you send into a reply cannot be edited, sent again or forked on its own, because it is part of that reply. Edit or resend the message that started the reply instead. If the reply stops before the agent reads your message, for example because you choose Stop, the message moves to the top of the Tasks list so nothing is lost.
+
+This works in single chats with Claude agents. In group rooms, and with Codex and other agents, a message you send while the agent works always joins the Tasks list. Commands and `/todo` messages also wait for the next turn.
 
 Choose the red Stop button to end the reply that is running.
 
@@ -73,7 +80,7 @@ In a narrow window or on a phone, the model, mode and effort share one chip, and
 
 - If the box is grayed out, look at the banner at the top of the screen. "Claude CLI not found." means Claude Code is missing or not on the path. See [What you need](/get-started/what-you-need/).
 - If the connection to the server drops, the send button is held and its tooltip reads "Reconnecting…". It works again once the connection is back.
-- Press Enter on a phone's keyboard to start a new line. Use the round button to send.
+- Press Enter on a phone's keyboard to start a new line. Use the round button to send, or hold it to queue while the agent works.
 - Attach files by dropping them on the chat or choosing the paperclip. See [Attachments](/chatting/attachments/).
 - Type `/` at the start of the box to see commands. See [Slash commands](/chatting/slash-commands/).
 

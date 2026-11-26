@@ -15,11 +15,17 @@ export function shouldRestoreDraft(items: ChatItem[], startIndex: number, text: 
 
 /**
  * Where a rejected send's message is, by the id it was sent under: in the chat (the turn failed after it went in),
- * waiting as a task (it was queued and only the reply was lost, e.g. the socket dropped), or nowhere.
+ * waiting as a task (it was queued and only the reply was lost, e.g. the socket dropped), or nowhere. A steer still waiting
+ * in the running reply (`steering`) is as good as queued: the reply reads it, or it goes back to the tray.
  */
-export function rejectedSendState(items: readonly ChatItem[], id: string, tasks: readonly QueuedTask[] = []): 'stored' | 'queued' | 'lost' {
+export function rejectedSendState(
+  items: readonly ChatItem[],
+  id: string,
+  tasks: readonly QueuedTask[] = [],
+  steering: readonly QueuedTask[] = []
+): 'stored' | 'queued' | 'lost' {
   if (items.some((i) => i.id === id)) return 'stored'
-  return tasks.some((t) => t.id === id) ? 'queued' : 'lost'
+  return tasks.some((t) => t.id === id) || steering.some((t) => t.id === id) ? 'queued' : 'lost'
 }
 
 /**

@@ -92,3 +92,15 @@ describe('editStillValid', () => {
     expect(editStillValid(items, 'a1')).toBe(false) // only a user message can be edited
   })
 })
+
+describe('resendTarget past a mid-turn message', () => {
+  it("passes over a steered message to the turn's own, which a Resend runs again", () => {
+    const items: ChatItem[] = [
+      { type: 'user', id: 'u1', text: 'do it', ts: 1 },
+      { type: 'assistant', id: 'a1', text: 'working', ts: 2 },
+      { type: 'user', id: 's1', text: 'also this', ts: 3, steered: true },
+      { type: 'assistant', id: 'a2', text: 'done', ts: 4 }
+    ]
+    expect(resendTarget(items, 'a2')).toBe('u1')
+  })
+})

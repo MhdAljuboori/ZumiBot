@@ -112,3 +112,12 @@ export function minusBaseline(cost: RunCost, base: ModelSpends | null): RunCost 
   const totalUsd = Object.values(models).reduce((s, m) => s + (m.costUsd ?? 0), 0)
   return { totalUsd, models }
 }
+
+/**
+ * What a later `result` of the same CLI process added: its `total_cost_usd` and model usage count the whole process, so a
+ * second turn in one process (a late mid-turn steer) would count the first again. `prev` null: the first result, as is.
+ */
+export function costSince(cost: RunCost, prev: RunCost | null): RunCost {
+  if (!prev) return cost
+  return { ...minusBaseline(cost, prev.models), totalUsd: Math.max(0, cost.totalUsd - prev.totalUsd) }
+}
