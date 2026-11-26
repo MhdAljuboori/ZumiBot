@@ -200,6 +200,46 @@ it('dispatches editing keys and modifier shortcuts without inserting printable k
   expect((await observe(i)).text).toMatch(/(?:^|\n)selected(?:\n|$)/)
 })
 
+it("takes a phone keyboard's Backspace and Enter, which come without a key code", async () => {
+  const i = await launch()
+  await run(i, { op: 'navigate', url: site.url + '/form' })
+  const o = await observe(i),
+    target = { generation: i.generation, tabId: o.stamp.tabId }
+  await run(i, { op: 'click', stamp: o.stamp, ref: o.elements.find((e) => e.name === 'Query')!.ref })
+  const press = async (key: string) => {
+    for (const type of ['keyDown', 'keyUp'] as const) await i.input({ ...target, type, key, code: '' }, new AbortController().signal)
+  }
+  await i.input({ ...target, type: 'text', text: 'd' }, new AbortController().signal)
+  await press('Backspace')
+  await press('Backspace')
+  await press('Enter')
+  expect((await observe(i)).text).toContain('Submitted ab')
+  const page = (i as any).context.pages()[0]
+  await page.getByRole('textbox', { name: 'Notes' }).focus()
+  await i.input({ ...target, type: 'text', text: 'one' }, new AbortController().signal)
+  await press('Enter')
+  await i.input({ ...target, type: 'text', text: 'two' }, new AbortController().signal)
+  expect(await page.getByRole('textbox', { name: 'Notes' }).inputValue()).toBe('one\ntwo')
+})
+
+it('keeps the focused field in view when a phone keyboard shortens the viewport', async () => {
+  const i = await launch()
+  await run(i, { op: 'navigate', url: site.url + '/form' })
+  await i.setViewport({ width: 400, height: 800, scale: 1 })
+  const o = await observe(i)
+  await run(i, { op: 'click', stamp: o.stamp, ref: o.elements.find((e) => e.name === 'Query')!.ref })
+  const page = (i as any).context.pages()[0],
+    field = page.getByRole('textbox', { name: 'Query' })
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await i.setViewport({ width: 400, height: 300, scale: 1 })
+  await expect
+    .poll(async () => {
+      const box = await field.boundingBox()
+      return box && box.y >= 0 && box.y + box.height <= 300
+    })
+    .toBe(true)
+})
+
 it('preserves held mouse buttons across manual drag moves and clears them on release', async () => {
   const i = await launch()
   await run(i, { op: 'navigate', url: site.url })

@@ -101,6 +101,56 @@ export function browserKeyText(e: {
   if (e.altKey && !altGraph && /^[a-z0-9]$/i.test(e.key)) return null
   return e.key
 }
+/**
+ * A key event the keyboard turns into text or an edit itself: an IME's composition, a phone keyboard's 229, a dead key.
+ * The page input's own input event carries what it did, so sending the key too would act twice.
+ */
+export function browserImeKey(e: { key: string; keyCode?: number; isComposing: boolean }): boolean {
+  return e.isComposing || e.keyCode === 229 || e.key === 'Process' || e.key === 'Unidentified' || e.key === 'Dead'
+}
+
+/**
+ * What the page input holds when it gets focus. A phone keyboard edits the text it believes is in the field: with some
+ * there, its Backspace deletes a character (an input event) rather than doing nothing, and since the field is never
+ * rewritten while typing, the keyboard never restarts, which closed and reopened it, or repeated its word, on every key.
+ * Spaces, so the padding never joins a word the keyboard is composing.
+ */
+export const BROWSER_INPUT_PAD = ' '.repeat(32)
+/** Past this the input goes back to the padding: one keyboard restart in thousands of characters. */
+export const BROWSER_INPUT_MAX = 2000
+/** Backspaces one edit may send: input is never queued, and a burst past the connection's bound would drop control. */
+export const BROWSER_BACKSPACES_MAX = 64
+export type BrowserTyping = { type: 'keyDown' | 'keyUp'; key: string; code: string } | { type: 'text'; text: string }
+const ENTER = [
+  { type: 'keyDown', key: 'Enter', code: 'Enter' },
+  { type: 'keyUp', key: 'Enter', code: 'Enter' }
+] as const
+/**
+ * What the page must receive for the page input to go from `before` to `after`. The page's caret sits where the input's
+ * does, at the end, so whatever changed (a key, a correction, a suggestion, voice typing) is replayed from where the two
+ * texts part: Backspaces back to there, then the new rest. Characters, not UTF-16 units, so one press deletes an emoji.
+ */
+export function browserTyping(before: string, after: string): BrowserTyping[] {
+  const a = Array.from(before),
+    b = Array.from(after)
+  let same = 0
+  while (same < a.length && same < b.length && a[same] === b[same]) same++
+  const out: BrowserTyping[] = []
+  const backspaces = Math.min(a.length - same, BROWSER_BACKSPACES_MAX)
+  // A held key repeats its key down and lets go once.
+  for (let i = 0; i < backspaces; i++) out.push({ type: 'keyDown', key: 'Backspace', code: 'Backspace' })
+  if (backspaces) out.push({ type: 'keyUp', key: 'Backspace', code: 'Backspace' })
+  // A keyboard may commit a line break as text; only Enter's key submits a form or breaks a line in the page.
+  b.slice(same)
+    .join('')
+    .split(/\r\n|\r|\n/)
+    .forEach((part, i) => {
+      if (i) out.push(...ENTER)
+      if (part) out.push({ type: 'text', text: part.slice(0, 16384) })
+    })
+  return out
+}
+
 /** Client-local shortcut only. Never keep paths, credentials, query strings or fragments. */
 export function safeReopenOrigin(value: string): string | null {
   try {

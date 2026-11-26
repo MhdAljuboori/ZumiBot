@@ -1,3 +1,4 @@
+import { browserKeyCode } from '@zumibot/shared/browser'
 import type { BrowserInput } from './types'
 
 const codes: Record<string, number> = {
@@ -50,19 +51,23 @@ const codes: Record<string, number> = {
   NumpadDivide: 111
 }
 export function browserKeyEvent(input: Extract<BrowserInput, { type: 'keyDown' | 'keyUp' }>) {
-  let keyCode = codes[input.code] ?? 0
-  if (/^Key[A-Z]$/.test(input.code)) keyCode = input.code.charCodeAt(3)
-  if (/^Digit[0-9]$/.test(input.code)) keyCode = input.code.charCodeAt(5)
-  if (/^Numpad[0-9]$/.test(input.code)) keyCode = 96 + Number(input.code.slice(6))
-  if (/^F([1-9]|1[0-9]|2[0-4])$/.test(input.code)) keyCode = 111 + Number(input.code.slice(1))
+  const code = browserKeyCode(input.key, input.code)
+  let keyCode = codes[code] ?? 0
+  if (/^Key[A-Z]$/.test(code)) keyCode = code.charCodeAt(3)
+  if (/^Digit[0-9]$/.test(code)) keyCode = code.charCodeAt(5)
+  if (/^Numpad[0-9]$/.test(code)) keyCode = 96 + Number(code.slice(6))
+  if (/^F([1-9]|1[0-9]|2[0-4])$/.test(code)) keyCode = 111 + Number(code.slice(1))
   const bits = { Alt: 1, Control: 2, Meta: 4, Shift: 8 }
-  // Printable/composed text arrives exactly once through Input.insertText.
+  // Printable/composed text arrives exactly once through Input.insertText. Enter is the exception: Chrome submits a form
+  // or breaks a line on its character, which a raw key down never makes; Ctrl/Alt/Meta+Enter stay a page's shortcut.
+  const enter = input.type === 'keyDown' && keyCode === 13 && !(input.modifiers ?? []).some((m) => m !== 'Shift')
   return {
-    type: input.type === 'keyDown' ? ('rawKeyDown' as const) : ('keyUp' as const),
+    type: enter ? ('keyDown' as const) : input.type === 'keyDown' ? ('rawKeyDown' as const) : ('keyUp' as const),
     key: input.key,
-    code: input.code,
+    code,
     windowsVirtualKeyCode: keyCode,
     modifiers: (input.modifiers ?? []).reduce((n, m) => n | bits[m], 0),
-    isKeypad: input.code.startsWith('Numpad')
+    isKeypad: code.startsWith('Numpad'),
+    ...(enter ? { text: '\r', unmodifiedText: '\r' } : {})
   }
 }

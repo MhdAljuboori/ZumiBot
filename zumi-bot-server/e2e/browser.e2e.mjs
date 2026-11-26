@@ -616,11 +616,13 @@ try {
     await until(async () => (await resources(metrics)).processes === 0, 'forced parent exit cleans browsers', 20000)
     assert.ok(pids.length > 0)
     pass(mode + ': forced parent exit frees owned Chromium')
+    // The fake claude answers no slash-command probe, so the server logs that it failed.
     const errors = unexpectedErrors(h.errors, [
       /WebSocket connection.*failed/,
       /Failed to load resource.*401/,
       /Failed to load resource.*403/,
-      /net::ERR_CONNECTION_REFUSED/
+      /net::ERR_CONNECTION_REFUSED/,
+      /^server stderr: engine commands probe failed \(claude\)$/
     ])
     assert.deepEqual(errors, [])
     // The killed server never ran close(): the next one's startup sweep removes its IPC folders.
