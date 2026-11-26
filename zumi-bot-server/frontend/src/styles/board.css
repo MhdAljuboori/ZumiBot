@@ -696,16 +696,12 @@
   cursor: default;
   opacity: 0.6;
 }
+/* Portalled like SearchSelect's menu; the current pick is bold and checked, as there. */
 .assignee-menu-list {
-  left: 0;
-  right: auto;
-  top: calc(100% + 4px);
-  max-height: 260px;
-  overflow-y: auto;
   font-weight: 400;
 }
 .assignee-menu-list [aria-checked='true'] {
-  font-weight: 650;
+  font-weight: 600;
 }
 .board-card-menu {
   position: relative;
