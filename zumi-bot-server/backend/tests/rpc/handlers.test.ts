@@ -1460,6 +1460,11 @@ describe('createHandlers', () => {
     await h['agents:save']('/a/old.md', 'raw')
     expect(approvals.has('new', 'Bash:ls')).toBe(true)
     expect(approvals.has('old', 'Bash:ls')).toBe(false)
+    // The save starts the rules' file write without waiting for it (they must move before its first await). Wait for it, or
+    // on a slow disk (macOS CI) the temp folder is removed while the write's temp file appears in it (ENOTEMPTY).
+    await vi.waitFor(async () =>
+      expect(Object.keys(JSON.parse(await fs.readFile(join(dir, 'approvals.json'), 'utf8')))).toEqual(['new'])
+    )
   })
 
   it('rejects a non-string chatId', async () => {

@@ -91,7 +91,9 @@ for (const reason of ['release', 'inactivity'] as const)
     const manager = new BrowserManager({
       profiles,
       adapter: createChromiumAdapter(),
-      config: { ...config, idleMs: 60000 },
+      // The command bound is also Chrome's start bound, and this test is often a CI job's first Chrome start (a cold disk):
+      // it gets the default 30 s, since three tries at 6 s each have all timed out there.
+      config: { ...config, idleMs: 60000, commandMs: loadBrowserConfig({}).commandMs },
       timers,
       now: Date.now,
       newId: () => 'request',
