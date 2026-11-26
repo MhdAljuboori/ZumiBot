@@ -178,4 +178,12 @@ describe('placeAfter', () => {
     expect(placeAfter(l, four, 'group:new', 'group:gone')).toBe(l)
     expect(placeAfter(l, four, 'group:new', 'group:new')).toBe(l)
   })
+
+  it('puts a room forked or cloned from a room in a section into that section, under its source', () => {
+    const fork = groupChat('g3', ['writer', 'qa'], 'Fork of Old room', 20)
+    const l = layout([sec('s', ['group:g2', 'group:g1'])], ['agent:writer'])
+    const next = placeAfter(l, itemKeys(agents, [...chats, fork]), 'group:g3', 'group:g1')
+    expect(next.sections[0].items).toEqual(['group:g2', 'group:g1', 'group:g3'])
+    expect(sidebarView(next, agents, [...chats, fork], '').unassigned.map((e) => e.key)).not.toContain('group:g3')
+  })
 })

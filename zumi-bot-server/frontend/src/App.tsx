@@ -1790,6 +1790,16 @@ export default function App() {
   const compactChat = (chatId: string, note: string, agent?: string): Promise<void> =>
     settled(chatId, api.chats.compact(chatId, note, agent))
 
+  // A room made from another (a clone, a fork) goes right under its source in the sidebar, in the same section. Rooms
+  // never placed have no stored spot, so the order the user sees is written out first (placeAfter does that); a failed
+  // save is reported by the hook and leaves the new room as is.
+  const placeUnder = (sourceId: string, meta: ChatMeta): void => {
+    const { agents: listed, layout } = placing.current
+    if (layout === null) return
+    const next = placeAfter(layout, itemKeys(listed, upsertChat(latest.current.chats, meta)), groupKey(meta.id), groupKey(sourceId))
+    if (next !== layout) sidebarLayout.save(next)
+  }
+
   // A user message's fork puts its text and files back in the new chat's composer, where the fork can send them again.
   const forkFrom = async (chatId: string, itemId: string): Promise<void> => {
     try {
@@ -1802,22 +1812,18 @@ export default function App() {
         }))
       }
       setChats((prev) => upsertChat(prev, chat))
+      // A single chat's fork lists under its agent; only a room has a sidebar spot of its own.
+      if (chat.group) placeUnder(chatId, chat)
       openChat(chat.id)
     } catch (e) {
       failChat(chatId, errorMessage(e))
     }
   }
 
-  // The clone goes right under its source in the sidebar. Rooms never placed have no stored spot, so the order the user
-  // sees is written out first (placeAfter does that); a failed save is reported by the hook and leaves the clone as is.
   const roomCloned = (sourceId: string, meta: ChatMeta): void => {
     setCloneSource(null)
     setChats((prev) => upsertChat(prev, meta))
-    const { agents: listed, layout } = placing.current
-    if (layout !== null) {
-      const next = placeAfter(layout, itemKeys(listed, upsertChat(latest.current.chats, meta)), groupKey(meta.id), groupKey(sourceId))
-      if (next !== layout) sidebarLayout.save(next)
-    }
+    placeUnder(sourceId, meta)
     navigate(() => openChat(meta.id))
   }
 
