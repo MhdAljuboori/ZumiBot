@@ -1,7 +1,7 @@
 {
   "name": "zumibot",
   "productName": "ZumiBot",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "Manage Claude Code agents and chat with them",
   "author": {
