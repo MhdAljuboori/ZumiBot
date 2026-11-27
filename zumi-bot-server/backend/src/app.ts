@@ -2270,6 +2270,11 @@ export async function startServer(
     } catch (err) {
       console.error('watching the agents folder failed:', err)
     }
+    // A skill, command or plugin added outside the app (a copied folder, `claude plugin install`) reaches the `/` menu without
+    // a restart. extensions.stop() ends the watch.
+    void extensions
+      .watchConfig()
+      .catch((err: unknown) => console.error('watching the Claude Code config failed:', err instanceof Error ? err.message : err))
 
     try {
       const stopMemory = memoryStore.watch(memoryChanged)
