@@ -723,6 +723,8 @@ interface Props {
   asks?: AskEnv
   /** A workflow Agent step's chat: the step's name in the workflow now (undefined once gone), for its messages' sender line. */
   workflowStepName?: string
+  /** Drawn after the last message, inside the scroll (the suggested replies' card): it reads as part of the thread. */
+  afterItems?: ReactNode
 }
 
 const NO_STREAMS: Record<string, string> = {}
@@ -779,7 +781,8 @@ export function MessageList({
   onOpenHandoffSource,
   readOnly = false,
   asks,
-  workflowStepName
+  workflowStepName,
+  afterItems
 }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const content = useRef<HTMLDivElement>(null)
@@ -1307,6 +1310,7 @@ export function MessageList({
               </Fragment>
             ))}
             {roomLive}
+            {afterItems}
             {localNotice && (
               <div className="notice run-started" data-testid="run-notice" role="status">
                 {localNotice.text} ·{' '}

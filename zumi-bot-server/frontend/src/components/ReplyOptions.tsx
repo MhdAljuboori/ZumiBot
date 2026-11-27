@@ -1,7 +1,8 @@
 import { useId } from 'react'
 
 /**
- * The suggested replies, right above the composer: what the reply did, the question it asks, and the answers as buttons.
+ * The suggested replies, in the thread under the reply that asked: what the reply did, the question it asks, and the
+ * answers as buttons.
  * A click sends that button's text as the user's own message.
  */
 export function ReplyOptions({

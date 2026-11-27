@@ -222,14 +222,11 @@
   outline-offset: -2px;
 }
 
-/* Suggested replies (ReplyOptions.tsx): a card over the message box with what the reply did, the question it asks and
-   the answers as buttons; a click sends that text as the user's message. */
+/* Suggested replies (ReplyOptions.tsx): a card in the thread, under the reply that asked, with what the reply did, the
+   question it asks and the answers as buttons; a click sends that text as the user's message. It starts where a turn's
+   body does (its 20px avatar and 9px gap; studio.css redoes it for its bigger tile), so it reads as part of the reply. */
 .reply-options {
-  width: 100%;
-  max-width: 1008px;
-  margin: 0 auto 8px;
-  padding: 0 24px;
-  flex: none;
+  padding-left: 29px;
 }
 .reply-options-card {
   display: flex;
