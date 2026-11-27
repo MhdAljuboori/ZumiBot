@@ -529,6 +529,16 @@ export function ChatView({
   const selfName = chat.agentName
   const askable = useMemo(() => askableAgents(agents, selfName), [agents, selfName])
   const listItems = pending.length === 0 ? state.items : [...state.items, ...pending.map((p) => p.item)]
+  // Under the reply that asked, in the thread's scroll: pinned over the box it hid the reply on a phone's short screen.
+  const replyButtons = offered && 'buttons' in offered && (
+    <ReplyOptions
+      options={offered.buttons}
+      question={offered.question}
+      summary={offered.summary}
+      disabled={offline || !cliFound}
+      onPick={pickReply}
+    />
+  )
   const list = (
     <MessageList
       chat={running === chat.inFlight ? chat : { ...chat, inFlight: running }}
@@ -586,6 +596,7 @@ export function ChatView({
       workflowStepName={workflowStepName}
       {...(offline || !cliFound || chat.asked || !onAllowed ? {} : { onAllowed })}
       {...(chat.asked ? { readOnly: true } : {})}
+      afterItems={replyButtons}
     />
   )
   // The page's box has no top bar, nor pickers under its composer (below): the page's own head names the chat.
@@ -603,15 +614,6 @@ export function ChatView({
       onToggle={() => toggleTray('tasks')}
       onDrop={onDropTask}
       onSend={tasksHeld(chat, state.items) && !offline && cliFound ? sendTask : null}
-    />
-  )
-  const replyButtons = offered && 'buttons' in offered && (
-    <ReplyOptions
-      options={offered.buttons}
-      question={offered.question}
-      summary={offered.summary}
-      disabled={offline || !cliFound}
-      onPick={pickReply}
     />
   )
 
@@ -672,7 +674,6 @@ export function ChatView({
         {chat.pause === 'pausing' && chat.inFlight && <PausingLine running={runningAgents} />}
         {/* Right over the box: the queued messages read as what goes next from it. */}
         {tasksTray}
-        {replyButtons}
         <Composer
           label={GROUP_LABEL}
           placeholder={GROUP_PLACEHOLDER}
@@ -729,7 +730,6 @@ export function ChatView({
       {cold}
       {chat.pause === 'pausing' && chat.inFlight && <PausingLine running={runningAgents} />}
       {tasksTray}
-      {replyButtons}
       <Composer
         label={`Message ${displayName(agent.name)}`}
         suggestion={suggestion}
