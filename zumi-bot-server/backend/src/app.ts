@@ -1113,9 +1113,10 @@ export async function startServer(
       costBaseline,
       onContext: (chatId, agent, c) => keepWarm.note(chatId, agent, c.used, c.at ?? Date.now()),
       compactWindow: async (agent) => (await agents.list()).find((a) => a.name === agent)?.autoCompactWindow ?? null,
-      acknowledge: async ({ chatId, agent, user, todos, signal }) => {
+      acknowledge: async ({ chatId, agent, user, todos, signal, earlier }) => {
         const message = ackMessage(user)
         if (message === '') return null
+        const before = earlier ? ackMessage(earlier) : '' // a steer: what the running reply is already on
         const bin = await claude.locate()
         if (!bin) return null
         await runEnv.ready()
@@ -1125,7 +1126,7 @@ export async function startServer(
           bin,
           cwd: homedir(),
           env: runEnv.env(),
-          input: { agent, description, message, todos },
+          input: { agent, description, message, todos, ...(before !== '' ? { earlier: before } : {}) },
           signal,
           onCost: (c, id) => usage.recordModerator(chatId, c, id, Date.now())
         })

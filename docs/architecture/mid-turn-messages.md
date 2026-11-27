@@ -48,7 +48,10 @@ and pushes the meta **before** writing (the echo may come back first), then writ
 `unsentSteers` and is written as the next run starts; `runClaude` itself buffers one written before its process is spawned and
 writes it right after the prompt. On `userReplay` (`streamParser.ts`; a replay line yields no `entry`, so it never becomes the
 turn's `tip`, a cut point) whose uuid is unread, `steeredItem` appends a user item with `steered: true` where the agent took it
-in, and `dropSteer` takes the row away. Replays of other uuids (the turn's own prompt) are ignored.
+in, and `dropSteer` takes the row away. Replays of other uuids (the turn's own prompt) are ignored. An accepted steer also
+starts its ack line (the same `acknowledge` call as a turn's own message, given the turn's message as `earlier`); the line is
+stored as the steered item's `ack` and drawn after its bubble, so the agent confirms the message before going on (see the Ack
+line in [App shell UI](ui.md)).
 
 **Stdin and the late case** (`claudeRunner.ts`). The runner keeps the uuids it wrote and has not seen echoed. At a `result`
 stdin closes only when none is unread; otherwise it stays open, since the CLI's second turn may need approvals, question or plan
