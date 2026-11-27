@@ -1293,8 +1293,21 @@ describe('startServer', () => {
     await boot()
     expect(await desktopMapping()).toEqual({ tester: profileId })
     await rm(join(agentsDir, 'tester.md'))
-    // macOS file events arrive later than inotify's, the more so with the suite running beside this.
-    await until(async () => Object.keys(await desktopMapping()).length === 0, process.platform === 'darwin' ? 10_000 : 3000)
+    // macOS starts the folder's FSEvents stream asynchronously and drops events from before it runs, so the delete right
+    // after boot can go unseen there. Any later change in the folder makes the watcher rescan, which finds the file gone:
+    // write one now and then, spaced past the watcher's 150 ms debounce.
+    let nudgedAt = Date.now()
+    await until(
+      async () => {
+        if (Object.keys(await desktopMapping()).length === 0) return true
+        if (process.platform === 'darwin' && Date.now() - nudgedAt > 500) {
+          nudgedAt = Date.now()
+          await writeFile(join(agentsDir, 'nudge.txt'), String(nudgedAt))
+        }
+        return false
+      },
+      process.platform === 'darwin' ? 10_000 : 3000
+    )
     expect((await stat(join(dataDir, 'desktops', profileId))).isDirectory()).toBe(true)
   })
 

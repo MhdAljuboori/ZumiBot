@@ -193,7 +193,8 @@ checked on an Intel Mac, macOS 15, Node 22; the two start-time lock tests need B
   darwin where a file already widens them for Windows (`START_MS`), and a wait on a watched folder is longer (file events
   arrive later than inotify's). A recursive `fs.watch` runs on an FSEvents stream that starts asynchronously and drops
   events from before it runs, so a test that writes right after starting a watch writes again until the event lands
-  (`memoryStore.test.ts`). Linux assertions and deadlines are unchanged.
+  (`memoryStore.test.ts`); one that deletes writes another file now and then, so the watcher's rescan finds the file gone
+  (`app.test.ts`). Linux assertions and deadlines are unchanged.
 
 ## The claude CLI in a container
 
