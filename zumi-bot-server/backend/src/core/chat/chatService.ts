@@ -266,9 +266,16 @@ export interface ChatServiceDeps {
   costBaseline?: CostBaseline
   // The agent's `autoCompactWindow`: the CLI applies the frontmatter key to subagents only, so the run gets it as env.
   compactWindow?(agent: string): Promise<number | null>
-  // The line every agent's turn opens with (acknowledge.ts), else null: failed or too slow.
-  // Not awaited by the turn, and dropped once the turn ends: after the reply it would say nothing.
-  acknowledge?(o: { chatId: string; agent: string; user: UserItem; todos: boolean; signal: AbortSignal }): Promise<string | null>
+  // The line every agent's turn opens with (acknowledge.ts), else null: failed or too slow. A steer gets one too, with
+  // `earlier` the turn's own message. Not awaited by the turn, and dropped once the turn ends: after the reply it would say nothing.
+  acknowledge?(o: {
+    chatId: string
+    agent: string
+    user: UserItem
+    todos: boolean
+    signal: AbortSignal
+    earlier?: UserItem
+  }): Promise<string | null>
   // The agent's own servers, plugins, skills and hooks (its file's extension keys), read per attempt like compactWindow, for every
   // Claude run of it: main, room member, Compact, and through the side base its side runs. Never a Codex agent's.
   agentRunConfig?(agent: string): Promise<AgentRunConfig>
@@ -2014,7 +2021,11 @@ export class ChatService {
     // Accepted while no run was up (the turn still preparing it, or between attempts): written as the next run starts.
     const unsentSteers = new Map<string, UserContent>()
     let steersClosed = false // the turn is ending: a steer now would have no run to read it
+    // A steer's ack line that came before the CLI read it: it goes on the bubble when that lands.
+    const steerAcks = new Map<string, string>()
+    const steerAckStop = new AbortController()
     const giveBack = async (ids: string[]): Promise<void> => {
+      for (const id of ids) steerAcks.delete(id) // a task again: it gets its own line when it runs as a turn
       await store
         .returnSteers(chatId, ids)
         .then((meta) => push({ chatId, kind: 'meta', meta }))
@@ -2034,6 +2045,23 @@ export class ChatService {
       // A file is read by its path: the running CLI reaches the attachments folder only when it started with it.
       const dir = this.d.files.dirOf(chatId)
       const hasDir = spec.extraArgs.some((a, i) => a === '--add-dir' && spec.extraArgs[i + 1] === dir)
+      const turnUser = [...history].reverse().find((i): i is UserItem => i.type === 'user')
+      // Like the turn's own message, a steer gets a line on how the agent takes it in (docs/architecture/ui.md, Ack line).
+      const ackSteer = (user: UserItem) => {
+        const acknowledge = this.d.acknowledge
+        if (!acknowledge) return
+        acknowledge({ chatId, agent: spec.agentName, user, todos: false, signal: steerAckStop.signal, earlier: turnUser })
+          .then((ack) => {
+            if (ack === null || steerAckStop.signal.aborted) return
+            if (!ref.get().some((i) => i.type === 'user' && i.id === user.id)) {
+              if (unreadSteers.has(user.id)) steerAcks.set(user.id, ack)
+              return
+            }
+            ref.set(ref.get().map((i) => (i.type === 'user' && i.id === user.id ? { ...i, ack } : i)))
+            saveAndPush(false)
+          })
+          .catch((e: unknown) => console.error('acknowledge failed:', chatId, e instanceof Error ? e.message : 'error'))
+      }
       slot.steer = async (task) => {
         if (steersClosed || forkIgnored !== undefined || r.reason !== null) return false
         if (needsAttachmentDir(task.attachments) && !hasDir) return false
@@ -2048,9 +2076,13 @@ export class ChatService {
           unreadSteers.set(task.id, task)
           if (h === null) {
             unsentSteers.set(task.id, content)
+            ackSteer(user)
             return true
           }
-          if (h.steer?.(content, task.id)) return true
+          if (h.steer?.(content, task.id)) {
+            ackSteer(user)
+            return true
+          }
           unreadSteers.delete(task.id)
         }
         push({ chatId, kind: 'meta', meta: await store.dropSteer(chatId, task.id) })
@@ -2565,7 +2597,9 @@ export class ChatService {
           const task = unreadSteers.get(e.uuid)
           if (!task) break // the turn's own prompt, echoed too
           unreadSteers.delete(e.uuid)
-          add(steeredItem(task, now()))
+          const ack = steerAcks.get(e.uuid)
+          steerAcks.delete(e.uuid)
+          add({ ...steeredItem(task, now()), ...(ack !== undefined ? { ack } : {}) })
           saveAndPush(false)
           later(async () => push({ chatId, kind: 'meta', meta: await store.dropSteer(chatId, task.id) }))
           break
@@ -3874,6 +3908,8 @@ export class ChatService {
       r.slots.delete(slot)
       // Steers taken after the last run ended, or for a turn that never started one, have nothing left to read them.
       steersClosed = true
+      steerAckStop.abort()
+      steerAcks.clear()
       if (unreadSteers.size > 0) {
         const back = [...unreadSteers.keys()]
         unreadSteers.clear()

@@ -340,6 +340,13 @@ describe('withAcks', () => {
     expect(rows[3]).toEqual({ kind: 'agent', key: agentKeyAfter('u1'), items: [], agent: null, ack: 'On it.' })
     expect(groupItems([acked('u1', 'x'), assistant('a1')])[1].key).toBe(agentKeyAfter('u1'))
   })
+  it('a message sent into the running reply gets its line after its bubble, inside the same turn', () => {
+    const steer: ChatItem = { type: 'user', id: 's1', text: 'just unread', ts: 0, steered: true, ack: 'Got it.' }
+    const rows = withAcks(groupItems([acked('u1', 'On it.'), tool('t1'), steer, assistant('a1')]))
+    expect(rows.map((r) => r.kind)).toEqual(['user', 'agent', 'user', 'agent'])
+    expect(rows[1]).toMatchObject({ ack: 'On it.', items: [{ id: 't1' }] })
+    expect(rows[3]).toMatchObject({ ack: 'Got it.', items: [{ id: 'a1' }] })
+  })
   it('leaves messages without a line alone', () => {
     const rows = groupItems([user('u1'), assistant('a1'), user('u2')])
     expect(withAcks(rows)).toEqual(rows)

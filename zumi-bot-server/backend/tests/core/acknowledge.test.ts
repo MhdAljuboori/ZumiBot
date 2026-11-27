@@ -21,6 +21,16 @@ test('the prompt names the agent, its role, the to-do state and the message', ()
   expect(long).toContain('x'.repeat(ACK_MESSAGE_CHARS) + '…</message>')
 })
 
+test('a message sent into a running reply names the request the agent was already on', () => {
+  expect(ackPrompt(input)).not.toContain('<earlier>')
+  const p = ackPrompt({ ...input, message: 'just unread ones', earlier: 'Check my notifications' })
+  expect(p).toContain('<earlier>Check my notifications</earlier>')
+  expect(p.indexOf('<earlier>')).toBeLessThan(p.indexOf('<message>'))
+  const long = ackPrompt({ ...input, earlier: 'y'.repeat(ACK_MESSAGE_CHARS + 50) })
+  expect(long).toContain('y'.repeat(ACK_MESSAGE_CHARS) + '…</earlier>')
+  expect(ackArgs().join('\n')).toContain('<earlier>')
+})
+
 test('reads the line from structured output, or from a JSON result', () => {
   expect(parseAck(JSON.stringify({ structured_output: { text: '  Checking all channels\nnow. ' } }))).toBe('Checking all channels now.')
   expect(parseAck(JSON.stringify({ result: JSON.stringify({ text: 'On it.' }) }))).toBe('On it.')
