@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpath
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EXT_TEXT, type AgentExtensions, type Loadout } from '@zumibot/shared/extensions'
 import type { AgentSummary } from '@zumibot/shared/types'
 import type { VaultItem } from '@zumibot/shared/vault'
@@ -1241,6 +1241,88 @@ describe('ExtensionsService.engineCommands', () => {
     st.holdProbes(false)
     await s.engineCommands(folder, 'desk')
     expect(st.seen.filter((x) => x.agent === 'desk')).toHaveLength(2)
+  })
+
+  it('configChanged() drops every cached answer and tells the pages, but not for the echo of its own write', async () => {
+    const st = stubs()
+    let clock = 1000
+    const s = make({ probe: st.probe, now: () => clock })
+    await s.engineCommands(folder, 'helper')
+    s.configChanged()
+    expect(changed).toBe(1)
+    await s.engineCommands(folder, 'helper')
+    expect(st.seen).toHaveLength(2)
+
+    // The write already forgot and told the pages; its own file events must not start a second round of probes.
+    await s.setSkill('mine', false)
+    expect(changed).toBe(2)
+    await s.engineCommands(folder, 'helper')
+    s.configChanged()
+    expect(changed).toBe(2)
+    await s.engineCommands(folder, 'helper')
+    expect(st.seen).toHaveLength(3)
+
+    clock += 5_000
+    s.configChanged()
+    expect(changed).toBe(3)
+    await s.engineCommands(folder, 'helper')
+    expect(st.seen).toHaveLength(4)
+  })
+
+  it('configChanged() is ignored while a write runs', async () => {
+    let release = () => {}
+    const s = make({
+      // The write's paths wait on env(): held here, the write is still running when configChanged() comes.
+      env: () => new Promise((r) => (release = () => r(envOf())))
+    })
+    const writing = s.setSkill('mine', false)
+    await settle()
+    s.configChanged()
+    expect(changed).toBe(0)
+    release()
+    await writing
+    expect(changed).toBe(1)
+  })
+
+  it('watchConfig() follows the config folder until stop()', async () => {
+    const s = make()
+    await s.watchConfig()
+    await vi.waitFor(
+      async () => {
+        writeFileSync(join(claudeDir, 'skills', 'mine', 'SKILL.md'), `---\nname: mine\ndescription: ${Math.random()}\n---\n`)
+        await new Promise((r) => setTimeout(r, 600))
+        expect(changed).toBeGreaterThan(0)
+      },
+      { timeout: 6000 }
+    )
+    await s.stop()
+    const before = changed
+    writeFileSync(join(claudeDir, 'settings.json'), '{}\n')
+    await new Promise((r) => setTimeout(r, 900))
+    expect(changed).toBe(before)
+  })
+
+  it("watches a chat folder's own .claude from its first menu ask, until stop()", async () => {
+    const st = stubs()
+    mkdirSync(join(folder, '.claude'), { recursive: true })
+    const s = make({ probe: st.probe })
+    await s.engineCommands(folder, 'helper')
+    await vi.waitFor(
+      async () => {
+        mkdirSync(join(folder, '.claude', 'skills', 'proj'), { recursive: true })
+        writeFileSync(join(folder, '.claude', 'skills', 'proj', 'SKILL.md'), `---\nname: proj\ndescription: ${Math.random()}\n---\n`)
+        await new Promise((r) => setTimeout(r, 600))
+        expect(changed).toBeGreaterThan(0)
+      },
+      { timeout: 6000 }
+    )
+    await s.engineCommands(folder, 'helper')
+    expect(st.seen).toHaveLength(2)
+    await s.stop()
+    const before = changed
+    writeFileSync(join(folder, '.claude', 'settings.json'), '{}\n')
+    await new Promise((r) => setTimeout(r, 900))
+    expect(changed).toBe(before)
   })
 
   it('returns an old hit at once after five minutes and re-probes once in the background', async () => {

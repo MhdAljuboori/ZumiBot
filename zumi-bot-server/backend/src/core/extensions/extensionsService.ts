@@ -35,6 +35,7 @@ import {
   writeProjectServer
 } from './mcpFiles'
 import { commandsProbeArgs } from './commandsProbeArgs'
+import { watchClaudeConfig } from './configWatch'
 import { claudeCommandRows, codexSkillRows, type EngineCommandRow } from './engineCommandRows'
 import { probeClaude, probeClaudeCommands, probeCodex, probeCodexCommands, type ProbeAnswers } from './probe'
 import { toLoadout } from './sanitize'
@@ -104,6 +105,10 @@ const PROBES_MAX = 2
 const CACHE_MAX = 100
 /** A cached command list older than this is still served, and re-probed once in the background. */
 export const ENGINE_COMMANDS_STALE_MS = 300_000
+// A write's own file events land while it runs or just after: they are not a change made outside the app.
+const WRITE_ECHO_MS = 2_000
+// Project folders whose `.claude` is watched at once; the oldest asked-for goes first.
+const FOLDER_WATCH_MAX = 20
 const HOOK_FILES: HookFile[] = ['user', 'project', 'local']
 // listSkillDirs never lists these folders, so a skill made under either name would vanish from the page.
 const RESERVED_SKILL_FOLDERS = new Set(['synced', '.trash'])
@@ -261,6 +266,10 @@ export class ExtensionsService {
   private stopping = false
   private readonly aborts = new Set<AbortController>()
   private readonly builds = new Set<Promise<unknown>>()
+  private writing = 0
+  private wroteAt = Number.NEGATIVE_INFINITY
+  private unwatch: (() => void) | null = null
+  private readonly folderWatches = new Map<string, () => void>()
 
   constructor(private readonly d: ExtensionsDeps) {}
 
@@ -271,6 +280,10 @@ export class ExtensionsService {
    */
   async stop(): Promise<void> {
     this.stopping = true
+    this.unwatch?.()
+    this.unwatch = null
+    for (const stop of this.folderWatches.values()) stop()
+    this.folderWatches.clear()
     for (const a of this.aborts) a.abort()
     await Promise.allSettled([...this.builds, ...this.tails.values()])
   }
@@ -294,6 +307,50 @@ export class ExtensionsService {
     this.inflight.clear()
     this.engineCache.clear()
     this.engineInflight.clear()
+  }
+
+  /**
+   * Follows the user's Claude config folder (the one `CLAUDE_CONFIG_DIR` of `env()` names, as the CLI reads it), so a skill,
+   * command or plugin added outside the app reaches the `/` menu and the Claude Code page without a restart. Ended by stop().
+   */
+  async watchConfig(): Promise<void> {
+    const { claudeDir } = await this.paths()
+    if (this.stopping || this.unwatch) return
+    this.unwatch = watchClaudeConfig(claudeDir, () => this.configChanged())
+  }
+
+  // A project's own skills, commands and settings.json, from the first time its `/` menu is asked for. The user's own folder
+  // (home's `.claude`) is watchConfig()'s.
+  private async watchFolder(folder: string): Promise<void> {
+    const had = this.folderWatches.get(folder)
+    if (had) {
+      this.folderWatches.delete(folder)
+      this.folderWatches.set(folder, had)
+      return
+    }
+    const dir = join(folder, '.claude')
+    if (dir === (await this.paths()).claudeDir) return
+    // Not kept when missing, so a `.claude` made later is watched from the next ask.
+    const isDir = await fs.stat(dir).then((st) => st.isDirectory(), () => false)
+    if (!isDir || this.stopping || this.folderWatches.has(folder)) return
+    this.folderWatches.set(folder, watchClaudeConfig(dir, () => this.configChanged()))
+    if (this.folderWatches.size > FOLDER_WATCH_MAX) {
+      const [oldest, stop] = this.folderWatches.entries().next().value as [string, () => void]
+      stop()
+      this.folderWatches.delete(oldest)
+    }
+  }
+
+  /** The user's skills, commands, plugins or settings.json changed on disk: every cached answer goes and open pages refetch. */
+  configChanged(): void {
+    // A write of ours already did both, and a second round would probe everything again.
+    if (this.stopping || this.writing > 0 || this.d.now() - this.wroteAt < WRITE_ECHO_MS) return
+    this.forget()
+    try {
+      this.d.onChanged()
+    } catch {
+      /* a page that is not told refetches on its next load */
+    }
   }
 
   // ---- what loads ----
@@ -379,6 +436,7 @@ export class ExtensionsService {
   async engineCommands(folder: string, agent: string): Promise<EngineCommandsAnswer | null> {
     const target = await this.engineTarget(folder, agent)
     if (!target) return null
+    void this.watchFolder(folder).catch(() => undefined)
     const hit = this.engineCache.get(target.key)
     if (hit) {
       if (this.d.now() - hit.at > ENGINE_COMMANDS_STALE_MS)
@@ -780,6 +838,7 @@ export class ExtensionsService {
   }
 
   private async write<T>(key: (p: Paths) => string, fn: (p: Paths, signal: AbortSignal) => Promise<T>): Promise<T> {
+    this.writing++
     try {
       this.refuseStopped()
       const paths = await this.paths()
@@ -791,6 +850,8 @@ export class ExtensionsService {
     } catch (err) {
       throw pageError(err)
     } finally {
+      this.writing--
+      this.wroteAt = this.d.now()
       // Also after a failure: a remove that went through before its add failed changed what loads.
       this.forget()
       try {
