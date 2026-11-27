@@ -1,6 +1,6 @@
 ---
 title: FAQ
-description: Short answers to common questions about installing ZumiBot, chatting, agents, automation, safety and cost, and the desktop app, each with a link to the page that explains it, and how to reach us.
+description: Short answers to common questions about installing ZumiBot, chatting, agents, automation, safety and cost, the desktop app and the license, each with a link to the page that explains it, how to support ZumiBot and how to reach us.
 sidebar:
   order: 5
 ---
@@ -126,6 +126,16 @@ The data folder, Claude Code's folder and its settings file, and the vault key, 
 ### Can I move my Local chats to my server?
 
 Yes, with Sync in the desktop app. It joins the chats and Claude data on both sides, and backs up what it replaces. See [Sync](/desktop/sync/).
+
+## License and sponsoring
+
+### Is ZumiBot free?
+
+Yes. Anyone may use ZumiBot, change it and share it, at home or at work. Its license is MIT with the Commons Clause, and the one thing it rules out is selling ZumiBot, or a paid service, such as hosting, that is mostly ZumiBot itself. The full text is in the LICENSE file on [GitHub](https://github.com/MhdAljuboori/ZumiBot), and **Settings**, **About** names it too.
+
+### How can I support ZumiBot?
+
+Sponsor it on [zumibot.run/sponsor](https://zumibot.run/sponsor), which you also reach from **Sponsor ZumiBot** in **Settings**, **About** and in the desktop app's tray menu. A sponsorship is a gift: it buys no license, support plan or feature, and ZumiBot stays free either way. A star on GitHub, or a clear bug report, helps too.
 
 ## Contact
 

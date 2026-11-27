@@ -1,6 +1,8 @@
 {
   "name": "zumibot-monorepo",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE",
+  "funding": "https://zumibot.run/sponsor",
   "engines": {
     "node": ">=22"
   },

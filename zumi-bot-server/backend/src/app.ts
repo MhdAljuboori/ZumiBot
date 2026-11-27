@@ -1113,9 +1113,10 @@ export async function startServer(
       costBaseline,
       onContext: (chatId, agent, c) => keepWarm.note(chatId, agent, c.used, c.at ?? Date.now()),
       compactWindow: async (agent) => (await agents.list()).find((a) => a.name === agent)?.autoCompactWindow ?? null,
-      acknowledge: async ({ chatId, agent, user, todos, signal }) => {
+      acknowledge: async ({ chatId, agent, user, lastReply, todos, signal, earlier }) => {
         const message = ackMessage(user)
         if (message === '') return null
+        const before = earlier ? ackMessage(earlier) : '' // a steer: what the running reply is already on
         const bin = await claude.locate()
         if (!bin) return null
         await runEnv.ready()
@@ -1125,7 +1126,7 @@ export async function startServer(
           bin,
           cwd: homedir(),
           env: runEnv.env(),
-          input: { agent, description, message, todos },
+          input: { agent, description, message, lastReply, todos, ...(before !== '' ? { earlier: before } : {}) },
           signal,
           onCost: (c, id) => usage.recordModerator(chatId, c, id, Date.now())
         })
@@ -2270,6 +2271,11 @@ export async function startServer(
     } catch (err) {
       console.error('watching the agents folder failed:', err)
     }
+    // A skill, command or plugin added outside the app (a copied folder, `claude plugin install`) reaches the `/` menu without
+    // a restart. extensions.stop() ends the watch.
+    void extensions
+      .watchConfig()
+      .catch((err: unknown) => console.error('watching the Claude Code config failed:', err instanceof Error ? err.message : err))
 
     try {
       const stopMemory = memoryStore.watch(memoryChanged)

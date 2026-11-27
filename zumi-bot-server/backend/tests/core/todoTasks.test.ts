@@ -65,7 +65,9 @@ beforeEach(async () => {
   listChat = (await store.create('alpha', '/a')).id
 })
 afterEach(async () => {
-  await fs.rm(dir, { recursive: true, force: true })
+  // A mentioned agent's ask runs on after the comment call returns; a write of it still landing makes rmdir fail with
+  // ENOTEMPTY on Windows for a moment.
+  await fs.rm(dir, { recursive: true, force: true, maxRetries: 5 })
 })
 
 describe('TodoService card edits', () => {
@@ -770,6 +772,9 @@ describe('CommentAsks', () => {
       await routed(() => Promise.reject(new Error('boom'))).comment(id, '@writer again', null)
       await vi.waitFor(async () => expect((await item(id)).comments!.find((c) => c.text === '@writer again')!.asked).toEqual(['writer']))
       await vi.waitFor(() => expect(sent).toHaveLength(3))
+      // `sent` grows as a turn starts; its items and the agent's reply are written after. Ending before them leaves writes
+      // racing the temp folder's removal (ENOTEMPTY on Windows).
+      await vi.waitFor(async () => expect((await item(id)).comments!.filter((c) => c.by !== 'user')).toHaveLength(3))
     })
 
     it("gives a reply's routing the thread's first comment", async () => {

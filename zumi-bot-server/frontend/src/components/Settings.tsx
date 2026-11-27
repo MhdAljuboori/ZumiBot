@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode, type RefObject } from 'react'
 import type { Accent, AgentSummary, ThemePref } from '@zumibot/shared/types'
 import { KEEP_WARM_CHAT_HOURS, KEEP_WARM_ROOM_HOURS, type KeepWarmSettings } from '@zumibot/shared/keepWarm'
+import { LICENSE_NAME, SPONSOR_URL } from '@zumibot/shared/sponsor'
 import { api } from '../api'
 import type { SettingsSection } from '../state/route'
 import { keepWarmLabel, mobileDevice, settingsLabel } from '../state/settings'
@@ -427,6 +428,16 @@ function AboutSettings() {
             )}
           </>
         )}
+        <Row label="License" hint="Free to use, change and share. The one thing it rules out is selling ZumiBot.">
+          <span className="set-value" data-testid="about-license">
+            {LICENSE_NAME}
+          </span>
+        </Row>
+        <Row label="Sponsor" hint="ZumiBot is free, and it stays free. If it saves you time, a sponsorship helps keep it going.">
+          <a className="btn" href={SPONSOR_URL} target="_blank" rel="noreferrer" data-testid="about-sponsor">
+            Sponsor ZumiBot
+          </a>
+        </Row>
         <div className="set-block about-body">
           <p>
             ZumiBot is where you chat with your Claude Code agents. Every reply runs the real Claude Code with that agent, on the machine

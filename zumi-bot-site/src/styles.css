@@ -611,6 +611,15 @@ button {
   color: var(--fg);
 }
 
+/* The sponsor link on every page, a square like the theme and GitHub buttons beside it. */
+.sponsor-btn[aria-current='page'] {
+  border-color: color-mix(in srgb, var(--agent-pink) 50%, var(--border));
+}
+.heart {
+  color: var(--agent-pink);
+  flex: none;
+}
+
 .foot {
   border-top: 1px solid var(--border);
   padding: 36px 0;
@@ -2760,23 +2769,147 @@ a.btn.pri:active {
   font-size: 12px;
 }
 
+/* ---- sponsor page ---- */
+
+.sponsor-hero {
+  padding: 88px 0 112px;
+}
+.sponsor-h1 {
+  font-size: clamp(42px, 5.6vw, 76px);
+}
+.sponsor-lbl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sponsor-thanks {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  color: var(--fg-muted);
+  font-size: 15px;
+}
+.give {
+  flex: 1 1 440px;
+  max-width: 580px;
+  padding: 24px;
+  gap: 18px;
+  box-shadow: var(--shadow-pane);
+}
+.give-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.give-coin {
+  font: 650 24px/1 var(--display);
+  letter-spacing: -0.02em;
+}
+.give-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 22px;
+}
+/* Fixed black on white in both themes, with its quiet zone drawn in: a dark or inverted code fails some scanners. */
+.qr {
+  display: block;
+  flex: none;
+  width: 200px;
+  height: 200px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.give-side {
+  flex: 1 1 200px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.give-addr {
+  align-self: stretch;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: var(--code-bg);
+  font: 14px/1.5 var(--mono);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.give-warn {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--note-yellow-border);
+  background: var(--note-yellow);
+  font-size: 13px;
+}
+.sponsor-more {
+  padding: 80px 0 96px;
+}
+.sponsor-h2 {
+  font-size: clamp(30px, 3.4vw, 44px);
+}
+.help-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+.help.card {
+  padding: 20px;
+  gap: 8px;
+  color: var(--fg);
+  text-decoration: none;
+}
+.help.card:hover {
+  border-color: var(--sel-border);
+  background: var(--bg-raised);
+  color: var(--fg);
+}
+.help-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+/* The home page's last band: the ask, in a big plain button so the two download buttons stay the prominent ones. */
+.sponsor-band {
+  padding: 80px 0;
+}
+.sponsor-band-in {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px 48px;
+}
+.sponsor-band-in .txt {
+  flex: 0 1 640px;
+}
+.btn.big.sponsor-band-btn {
+  background: var(--bg);
+}
+a.btn.sponsor-band-btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
 /* ---- phone ---- */
 
-/* The header row is one line: drop its widest parts before it overflows and pushes the theme button off screen.
-   The cast label runs to ~170px ("Inbox Clerk is setting up a server"); the nav links are ~450px; the GitHub and theme
-   buttons ~100px. */
-@media (max-width: 1140px) {
+/* The header row is one line: drop its widest parts before it overflows and pushes the buttons off screen. The cast
+   label runs to ~145px ("Planner is trying on shapes"), the cast ~110px; the nav links are ~500px; the sponsor, theme
+   and GitHub buttons ~180px with their gaps. The full row needs ~1100px, nearly all the 1200px wrap leaves. */
+@media (max-width: 1199px) {
   .castlabel {
     display: none;
   }
 }
-/* Just above the nav's breakpoint the cast gives way too, so the nav and both buttons still fit. */
-@media (min-width: 881px) and (max-width: 960px) {
+/* Just above the nav's breakpoint the cast gives way too, so the nav and the buttons still fit. */
+@media (min-width: 901px) and (max-width: 1020px) {
   .cast {
     display: none;
   }
 }
-@media (max-width: 880px) {
+@media (max-width: 900px) {
   .navlinks {
     display: none;
   }
@@ -2784,6 +2917,12 @@ a.btn.pri:active {
 @media (max-width: 720px) {
   .wrap {
     padding: 0 16px;
+  }
+  .sponsor-hero {
+    padding: 56px 0 72px;
+  }
+  .give {
+    padding: 18px;
   }
   .scene {
     padding: 72px 0;
@@ -2805,6 +2944,21 @@ a.btn.pri:active {
   .island,
   .cast {
     display: none;
+  }
+  /* Three header buttons and the brand on a 320px phone. */
+  .top-in {
+    gap: 12px;
+  }
+  .top-end {
+    gap: 8px;
+  }
+  .gh-btn {
+    margin-left: 0;
+  }
+  .qr {
+    width: 100%;
+    height: auto;
+    max-width: 260px;
   }
   /* The chat wraps to more lines on a phone: the window grows instead of clipping its composer. */
   .win.app {

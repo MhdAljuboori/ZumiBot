@@ -373,8 +373,8 @@ async function main() {
   // 4. Assigning the agent starts nothing; a drag to To do starts its chat with the card, and its question blocks the card.
   await cardOf(todoId).locator(tid('board-card-open')).click()
   await card.locator(tid('todo-card-assign')).click()
-  // The chip opens the assignee menu; an agent opens the form with it chosen, to confirm the folder.
-  await card.locator(`${tid('assignee-menu-item')}[data-who="${AGENT}"]`).click()
+  // The chip opens the assignee menu (portalled to <body>); an agent opens the form with it chosen, to confirm the folder.
+  await page.locator(`${tid('assignee-menu')} ${tid('assignee-menu-item')}[data-who="${AGENT}"]`).click()
   assert((await selectValue(card.locator(tid('todo-give-agent')))) === AGENT, 'the agent picked in the menu is not chosen in the form')
   await card.locator(tid('todo-give-pick')).click()
   await waitFor(async () => (await card.locator(tid('todo-give-folder')).textContent()) === folder, T, 'the picked folder')
@@ -711,9 +711,7 @@ async function main() {
 
   // 12. The assignee changes in place, on a Kanban card and in a grid row, without opening the drawer.
   await cardOf('m2').locator(tid('board-card-assignee')).click()
-  await cardOf('m2')
-    .locator(`${tid('assignee-menu-item')}[data-who="user"]`)
-    .click()
+  await page.locator(`${tid('assignee-menu')} ${tid('assignee-menu-item')}[data-who="user"]`).click()
   await waitFor(async () => (await stored('m2')).assignee === 'user', T, "the Kanban card's assignee menu to give m2 to the user")
   await waitFor(async () => (await cardOf('m2').locator(tid('board-card-assignee')).textContent()) === 'You', T, 'the card to read you')
   assert((await page.locator(tid('board-drawer')).count()) === 0, 'the assignee menu opened the drawer')
@@ -722,7 +720,7 @@ async function main() {
   await grid.waitFor({ timeout: T })
   const m2Row = grid.locator(`${tid('grid-row')}[data-todo-id="m2"]`)
   await m2Row.locator(tid('grid-assignee-button')).click()
-  await m2Row.locator(`${tid('assignee-menu-item')}[data-who=""]`).click()
+  await page.locator(`${tid('assignee-menu')} ${tid('assignee-menu-item')}[data-who=""]`).click()
   await waitFor(async () => (await stored('m2')).assignee === undefined, T, "the grid's assignee menu to unassign m2")
   await waitFor(async () => (await m2Row.locator(tid('grid-assignee')).textContent()) === 'unassigned', T, 'the row to read unassigned')
   assert((await page.locator(tid('board-drawer')).count()) === 0, "the grid's assignee menu opened the drawer")

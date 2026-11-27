@@ -1,7 +1,8 @@
 {
   "name": "@zumibot/shared",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
+  "license": "SEE LICENSE IN ../../LICENSE",
   "type": "module",
   "exports": {
     "./*": "./src/*.ts"

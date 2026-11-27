@@ -1,8 +1,9 @@
 {
   "name": "zumibot",
   "productName": "ZumiBot",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
+  "license": "SEE LICENSE IN ../LICENSE",
   "description": "Manage Claude Code agents and chat with them",
   "author": {
     "name": "Mohammed Al-Juboori",

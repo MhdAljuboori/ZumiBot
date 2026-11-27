@@ -161,6 +161,25 @@ const until = async (cond: () => boolean | Promise<boolean>, ms = 8000): Promise
   }
 }
 
+// For a change made in the agents folder after boot. macOS starts the folder's FSEvents stream asynchronously and drops
+// events from before it runs, so the change can go unseen there. Any later change makes the watcher rescan the whole
+// folder, so on macOS a spare file is written now and then, spaced past the watcher's 150 ms debounce.
+const untilWatched = async (cond: () => boolean | Promise<boolean>, ms = 8000): Promise<void> => {
+  const darwin = process.platform === 'darwin'
+  let nudgedAt = Date.now()
+  await until(
+    async () => {
+      if (await cond()) return true
+      if (darwin && Date.now() - nudgedAt > 500) {
+        nudgedAt = Date.now()
+        await writeFile(join(agentsDir, 'nudge.txt'), String(nudgedAt))
+      }
+      return false
+    },
+    darwin ? Math.max(ms, 10_000) : ms
+  )
+}
+
 describe('startServer', () => {
   it('btw busy counts side runs alongside main runs and stop leaves main running', async () => {
     process.env.FAKE_HANG = '1'
@@ -243,7 +262,7 @@ describe('startServer', () => {
     if (path === 'save') await c.call('agents:save', join(agentsDir, 'tester.md'), raw)
     else {
       await writeFile(join(agentsDir, 'tester.md'), raw)
-      await until(async () => ((await c.call('chats:list')) as ChatMeta[]).some((m) => m.id === chat.id && m.agentName === 'renamed'))
+      await untilWatched(async () => ((await c.call('chats:list')) as ChatMeta[]).some((m) => m.id === chat.id && m.agentName === 'renamed'))
     }
     await c.call('btw:stop', chat.id, 'side')
     await until(async () => ((await c.call('btw:list', chat.id)) as { agent: string; state: string }[])[0]?.state === 'stopped')
@@ -335,7 +354,7 @@ describe('startServer', () => {
       JSON.parse(await readFile(join(dataDir, 'browsers', 'profiles.json'), 'utf8')) as { profiles: Record<string, string> }
     expect((await mapping()).profiles.canonical).toBe(profileId)
     await rm(bad)
-    await until(async () => (await mapping()).profiles.canonical === undefined)
+    await untilWatched(async () => (await mapping()).profiles.canonical === undefined)
     await writeFile(join(agentsDir, 'canonical.md'), '---\nname: canonical\ndescription: Test agent\n---\nTest agent.')
     expect(((await c.call('browsers:status', 'canonical')) as { profileId: string }).profileId).not.toBe(profileId)
     expect((await stat(join(dataDir, 'browsers', profileId))).isDirectory()).toBe(true)
@@ -383,7 +402,7 @@ describe('startServer', () => {
       c = await connect(s.port)
     await c.call('vault:save', apiKey(['tester']))
     await writeFile(join(agentsDir, 'tester.md'), '---\nname: renamed\ndescription: Test agent\n---\nTest agent.')
-    await until(async () => ((await c.call('vault:list')) as { agents: string[] }[])[0]?.agents[0] === 'renamed', 3000)
+    await untilWatched(async () => ((await c.call('vault:list')) as { agents: string[] }[])[0]?.agents[0] === 'renamed', 3000)
     c.ws.close()
   })
 
@@ -392,7 +411,7 @@ describe('startServer', () => {
       c = await connect(s.port)
     await c.call('vault:save', apiKey(['tester']))
     await rm(join(agentsDir, 'tester.md'))
-    await until(async () => ((await c.call('vault:list')) as { agents: string[] }[])[0]?.agents.length === 0, 3000)
+    await untilWatched(async () => ((await c.call('vault:list')) as { agents: string[] }[])[0]?.agents.length === 0, 3000)
     c.ws.close()
   })
 
@@ -1175,7 +1194,7 @@ describe('startServer', () => {
       await until(() => forget.mock.calls.length > before)
       const mid = forget.mock.calls.length
       await writeFile(join(agentsDir, 'forget-me.md'), '---\nname: forget-me\ndescription: d\n---\nBody.\n')
-      await until(() => forget.mock.calls.length > mid)
+      await untilWatched(() => forget.mock.calls.length > mid)
       c.ws.close()
     } finally {
       forget.mockRestore()
@@ -1293,8 +1312,7 @@ describe('startServer', () => {
     await boot()
     expect(await desktopMapping()).toEqual({ tester: profileId })
     await rm(join(agentsDir, 'tester.md'))
-    // macOS file events arrive later than inotify's, the more so with the suite running beside this.
-    await until(async () => Object.keys(await desktopMapping()).length === 0, process.platform === 'darwin' ? 10_000 : 3000)
+    await untilWatched(async () => Object.keys(await desktopMapping()).length === 0, 3000)
     expect((await stat(join(dataDir, 'desktops', profileId))).isDirectory()).toBe(true)
   })
 

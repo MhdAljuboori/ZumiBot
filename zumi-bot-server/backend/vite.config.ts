@@ -18,6 +18,8 @@ function ship() {
     },
     closeBundle() {
       cpSync(join(root, 'src', 'http', 'login'), join(outDir, 'login'), { recursive: true })
+      // The license must travel with every copy: the server tarball, the Docker image and the desktop app all ship dist.
+      cpSync(join(root, '..', '..', 'LICENSE'), join(outDir, 'LICENSE'))
       const web = join(root, '..', 'frontend', 'dist')
       if (existsSync(web)) cpSync(web, join(outDir, 'web'), { recursive: true })
       const playwright = dirname(createRequire(import.meta.url).resolve('playwright-core/package.json'))

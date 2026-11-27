@@ -2,6 +2,15 @@
 
 What changed in each ZumiBot release, newest first. The release notes on GitHub come from here.
 
+## v0.1.4 — 2026-11-27
+
+- A message you send into a running reply now gets its own short line confirming it, such as "Got it, I'll get only the unread notifications.", right under your message, so you see the agent took it before it carries on.
+- The line confirming your message now reads the agent's last reply too, so a short answer, such as picking one of the choices it offered, is confirmed as an answer to its question rather than taken as a new request.
+- A skill, command or plugin you add outside ZumiBot, in your Claude Code folder or in a chat folder's own `.claude` folder, joins the slash menu of open chats within a few seconds, with no restart.
+- Suggested replies now show in the chat itself, right under the agent's last reply and lined up with it, instead of sitting over the message box.
+- On a card, the assignee menu now opens above everything, so the comment box no longer hides part of it.
+- ZumiBot's license is now MIT with the Commons Clause: anyone may use, change and share it, and the one thing it rules out is selling it. If ZumiBot saves you time, you can sponsor it at zumibot.run/sponsor, also reached from Settings › About and the desktop app's tray menu.
+
 ## v0.1.3 — 2026-11-26
 
 - While an agent replies, Enter now sends your message into the reply that is running: the agent reads it at its next step and carries on with it, without stopping. Ctrl+Enter (Cmd+Enter on a Mac), or holding Send, lines it up in the Tasks list for after the reply, as Enter did before. If the reply stops before the agent reads your message, it moves to the top of the Tasks list, so nothing is lost. This works in single chats with Claude agents; in group rooms and with other agents, a message sent while the agent works still joins the Tasks list.

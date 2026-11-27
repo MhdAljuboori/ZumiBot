@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { displayName } from '@zumibot/shared/frontmatter'
 import type { TodoItem } from '@zumibot/shared/todos'
 import type { AgentSummary } from '@zumibot/shared/types'
 import { assigneeLabel } from '../state/todoBoard'
 import { givableAgents } from '../state/todoCard'
+import { useAnchoredMenu } from '../useAnchoredMenu'
+import { MenuIcon } from './MenuIcon'
 import { MenuSearch } from './MenuSearch'
 
 /**
@@ -31,29 +34,12 @@ export function AssigneeMenu({
   children?: ReactNode
   onPick: (assignee: string | null) => void
 }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  // Closes on a click elsewhere or Esc, as the card's Move to menu does.
-  useEffect(() => {
-    if (!open) return
-    const close = (e: MouseEvent): void => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false)
-    }
-    const esc = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        setOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', close)
-    document.addEventListener('keydown', esc, true)
-    return () => {
-      document.removeEventListener('mousedown', close)
-      document.removeEventListener('keydown', esc, true)
-    }
-  }, [open])
+  const button = useRef<HTMLButtonElement>(null)
+  const menu = useRef<HTMLDivElement>(null)
+  // Portalled and placed as the Status picker's menu is, so the drawer's scrolling body cannot clip it.
+  const { place, open, close } = useAnchoredMenu(button, menu)
   const pick = (who: string | null): void => {
-    setOpen(false)
+    close(true)
     if (who !== (item.assignee ?? null)) onPick(who)
   }
   const options: { who: string | null; label: string }[] = [
@@ -63,21 +49,23 @@ export function AssigneeMenu({
   ]
   const pill = item.assignee ? (item.assignee === 'user' ? 'board-pill you' : 'board-pill agent') : 'board-pill nobody'
   return (
-    <div className="assignee-menu" ref={ref}>
+    <div className="assignee-menu">
       <button
+        ref={button}
         type="button"
         className={bare ? 'assignee-menu-button bare' : children ? 'assignee-menu-button big' : 'assignee-menu-button'}
         data-testid={buttonTestId ?? `${testId}-button`}
         disabled={disabled}
         aria-haspopup="menu"
-        aria-expanded={open}
+        aria-expanded={place !== null}
         data-tip="Change assignee"
         // A press on the pill must not start dragging the card under it.
         draggable={false}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation()
-          setOpen((o) => !o)
+          if (place) close()
+          else open()
         }}
       >
         {children ?? (
@@ -91,27 +79,39 @@ export function AssigneeMenu({
           </svg>
         )}
       </button>
-      {open && (
-        <div className="board-menu assignee-menu-list" role="menu" data-testid="assignee-menu" onMouseDown={(e) => e.stopPropagation()}>
-          <MenuSearch />
-          {options.map((o) => (
-            <button
-              key={o.who ?? ''}
-              type="button"
-              role="menuitemradio"
-              aria-checked={o.who === (item.assignee ?? null)}
-              data-testid="assignee-menu-item"
-              data-who={o.who ?? ''}
-              onClick={(e) => {
-                e.stopPropagation()
-                pick(o.who)
-              }}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-      )}
+      {place &&
+        createPortal(
+          <div
+            ref={menu}
+            className="menu picker-menu search-select-menu assignee-menu-list"
+            role="menu"
+            data-testid="assignee-menu"
+            style={{ left: place.left, top: place.top, bottom: place.bottom, minWidth: place.minWidth, maxHeight: place.maxHeight }}
+            // React events still bubble to the card or row the button sits in, which would open its drawer or drag it.
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MenuSearch />
+            {options.map((o) => {
+              const on = o.who === (item.assignee ?? null)
+              return (
+                <button
+                  key={o.who ?? ''}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={on}
+                  data-testid="assignee-menu-item"
+                  data-who={o.who ?? ''}
+                  onClick={() => pick(o.who)}
+                >
+                  <span className="menu-text">{o.label}</span>
+                  {on && <MenuIcon name="check" className="menu-icon menu-current" />}
+                </button>
+              )
+            })}
+          </div>,
+          document.body
+        )}
     </div>
   )
 }

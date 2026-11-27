@@ -12440,6 +12440,22 @@ describe('ack line', () => {
     expect(pushes.some((p) => p.kind === 'items' && p.items.some((i) => i.type === 'user' && i.ack === 'Looking into it now.'))).toBe(true)
   })
 
+  it("is given the agent's last reply before the message, so a picked answer reads as one", async () => {
+    const replies: string[] = []
+    svc = makeService({
+      acknowledge: async ({ lastReply }) => {
+        replies.push(lastReply)
+        return null
+      }
+    })
+    const c = await store.create('helper', dir)
+    await svc.send(c.id, 'first')
+    await svc.send(c.id, "Who's out")
+    const said = (await itemsOf(c.id)).filter((i) => i.type === 'assistant') as { text: string }[]
+    expect(replies).toEqual(['', said[0].text])
+    expect(said[0].text).not.toBe('')
+  })
+
   it('drops a line that comes after the turn ended', async () => {
     let answer: (s: string) => void = () => {}
     svc = makeService({ acknowledge: () => new Promise((r) => (answer = r)) })
@@ -12536,6 +12552,77 @@ describe('mid-turn steers', () => {
     expect(tagged(items)).toEqual(['user:own', 'tool', 'user:s-1', 'assistant:done'])
     expect(items[2]).toMatchObject({ type: 'user', id: 's-1', text: 'detail s-1', steered: true })
     expect((await store.get(c.id))?.steering).toBeUndefined()
+  })
+
+  it('a steer gets its own ack line, on its bubble once the CLI reads it', async () => {
+    const asked: { text: string; earlier: string | undefined; todos: boolean }[] = []
+    let answerSteer: (s: string) => void = () => {}
+    svc = makeService({
+      acknowledge: ({ user, earlier, todos }) => {
+        asked.push({ text: user.text, earlier: earlier?.text, todos })
+        if (!user.steered) return Promise.resolve('Checking all your notifications.')
+        return new Promise((r) => (answerSteer = r))
+      }
+    })
+    const c = await store.create('helper', dir)
+    const { s, ready } = hanging([
+      { kind: 'init', sessionId: 's1' },
+      { kind: 'toolUse', id: 't1', name: 'Bash', input: {} }
+    ])
+    const sending = svc.send(c.id, 'check my notifications')
+    await ready
+    expect(await svc.steer(c.id, task('s-1', { text: 'just unread' }))).toBe(true)
+    await tick()
+    expect(asked).toEqual([
+      { text: 'check my notifications', earlier: undefined, todos: false },
+      { text: 'just unread', earlier: 'check my notifications', todos: false }
+    ])
+    // The line comes before the CLI reads the steer: it waits for the bubble.
+    answerSteer("Got it, I'll get only the unread ones.")
+    await tick()
+    emit({ kind: 'toolResult', toolUseId: 't1', content: 'ok', isError: false })
+    emit({ kind: 'userReplay', uuid: 's-1' })
+    emit({ kind: 'assistantText', text: 'done' })
+    emit(okResult)
+    s.end!()
+    await sending
+    const items = await itemsOf(c.id)
+    expect(tagged(items)).toEqual(['user:own', 'tool', 'user:s-1', 'assistant:done'])
+    expect(items[2]).toMatchObject({ steered: true, ack: "Got it, I'll get only the unread ones." })
+    expect(JSON.stringify(steered)).not.toContain('Got it')
+  })
+
+  it("a steer's ack line that comes after the CLI read it goes on the bubble; after the turn ended, nowhere", async () => {
+    const answers = new Map<string, (s: string) => void>()
+    svc = makeService({
+      acknowledge: ({ user }) => (user.steered ? new Promise((r) => answers.set(user.id, r)) : Promise.resolve(null))
+    })
+    const c = await store.create('helper', dir)
+    const { s, ready } = hanging([
+      { kind: 'init', sessionId: 's1' },
+      { kind: 'toolUse', id: 't1', name: 'Bash', input: {} }
+    ])
+    const sending = svc.send(c.id, 'go')
+    await ready
+    expect(await svc.steer(c.id, task('s-1'))).toBe(true)
+    expect(await svc.steer(c.id, task('s-2'))).toBe(true)
+    await tick()
+    emit({ kind: 'toolResult', toolUseId: 't1', content: 'ok', isError: false })
+    emit({ kind: 'userReplay', uuid: 's-1' })
+    emit({ kind: 'userReplay', uuid: 's-2' })
+    await tick()
+    answers.get('s-1')!('On it.')
+    await tick()
+    const last = pushes.filter((p) => p.kind === 'items').at(-1) as Extract<ChatPush, { kind: 'items' }>
+    expect(last.items.find((i) => i.id === 's-1')).toMatchObject({ ack: 'On it.' })
+    emit(okResult)
+    s.end!()
+    await sending
+    answers.get('s-2')!('Too late.')
+    await tick()
+    const items = await itemsOf(c.id)
+    expect(items.find((i) => i.id === 's-1')).toMatchObject({ ack: 'On it.' })
+    expect(items.find((i) => i.id === 's-2')).not.toHaveProperty('ack')
   })
 
   it('a late steer runs as a second CLI turn in the same process, its cost counted once', async () => {

@@ -1,5 +1,7 @@
 appId: com.mhdaljuboori.zumibot
 productName: ZumiBot
+# Shown in the macOS About panel and the Windows file properties. The license itself ships inside resources/server.
+copyright: Copyright © 2026 Mohammed Al-Juboori
 directories: { buildResources: build, output: dist }
 files: [out/**, '!out/main/sync/**', package.json]
 protocols:

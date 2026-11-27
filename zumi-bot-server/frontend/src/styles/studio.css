@@ -392,8 +392,10 @@ body {
   gap: 10px;
   padding-top: 5px;
 }
-/* A room's "Thinking…" and queue lines start at the name's 44px, past the 32px tile and its gap. */
-.room-status {
+/* A room's "Thinking…" and queue lines, and the suggested replies' card, start at the name's 44px, past the 32px tile
+   and its gap. */
+.room-status,
+.reply-options {
   padding-left: 44px;
 }
 .agent-turn-name {
@@ -785,11 +787,6 @@ body {
     width: calc(100% - 64px);
     max-width: 820px;
   }
-  /* The suggested replies' card lines up with the message box itself, not its text. */
-  .reply-options {
-    max-width: 884px;
-    padding: 0 32px;
-  }
 }
 /* A cloned room's handoff note lines up with the thread's column. */
 .handoff-slot {
@@ -1124,7 +1121,8 @@ body {
     width: 20px;
     height: 20px;
   }
-  .room-status {
+  .room-status,
+  .reply-options {
     padding-left: 38px;
   }
 }

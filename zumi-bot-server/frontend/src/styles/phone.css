@@ -283,10 +283,6 @@ html.typing-hold .tab-bar,
   .tasks-tray {
     padding: 6px 14px;
   }
-  /* Lines up with the phone's message box. */
-  .reply-options {
-    padding: 0 10px;
-  }
   .pausing-line {
     padding: 4px 14px;
     min-height: 36px;
