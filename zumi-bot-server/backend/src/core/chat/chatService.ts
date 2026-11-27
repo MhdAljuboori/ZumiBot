@@ -39,6 +39,7 @@ import {
   type UserContent
 } from './controlProtocol'
 import { HOUSE_STYLE } from './houseStyle'
+import { lastReplyOf } from './acknowledge'
 import { randomUUID } from 'node:crypto'
 import { existsSync, promises as fs } from 'node:fs'
 import { dirname, resolve, sep, basename } from 'node:path'
@@ -268,10 +269,12 @@ export interface ChatServiceDeps {
   compactWindow?(agent: string): Promise<number | null>
   // The line every agent's turn opens with (acknowledge.ts), else null: failed or too slow. A steer gets one too, with
   // `earlier` the turn's own message. Not awaited by the turn, and dropped once the turn ends: after the reply it would say nothing.
+  // lastReply: the agent's last reply before the message (lastReplyOf), so a short answer reads as the pick it is.
   acknowledge?(o: {
     chatId: string
     agent: string
     user: UserItem
+    lastReply: string
     todos: boolean
     signal: AbortSignal
     earlier?: UserItem
@@ -1835,7 +1838,14 @@ export class ChatService {
       const acknowledge = this.d.acknowledge
       if (acknowledge && !t.extra?.auto && user.from === undefined && !user.run) {
         const userId = user.id
-        acknowledge({ chatId, agent: meta.agentName, user, todos: asksTodos(user) && bridges, signal: ackStop.signal })
+        acknowledge({
+          chatId,
+          agent: meta.agentName,
+          user,
+          lastReply: lastReplyOf(history),
+          todos: asksTodos(user) && bridges,
+          signal: ackStop.signal
+        })
           .then(async (ack) => {
             if (ack === null || ackStop.signal.aborted) return
             // Through `items`, which agentTurn's ref also writes, so its own adds keep the line and its saves store it.
@@ -2050,7 +2060,7 @@ export class ChatService {
       const ackSteer = (user: UserItem) => {
         const acknowledge = this.d.acknowledge
         if (!acknowledge) return
-        acknowledge({ chatId, agent: spec.agentName, user, todos: false, signal: steerAckStop.signal, earlier: turnUser })
+        acknowledge({ chatId, agent: spec.agentName, user, lastReply: '', todos: false, signal: steerAckStop.signal, earlier: turnUser })
           .then((ack) => {
             if (ack === null || steerAckStop.signal.aborted) return
             if (!ref.get().some((i) => i.type === 'user' && i.id === user.id)) {
