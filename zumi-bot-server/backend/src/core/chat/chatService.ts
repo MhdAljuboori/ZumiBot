@@ -39,6 +39,7 @@ import {
   type UserContent
 } from './controlProtocol'
 import { HOUSE_STYLE } from './houseStyle'
+import { lastReplyOf } from './acknowledge'
 import { randomUUID } from 'node:crypto'
 import { existsSync, promises as fs } from 'node:fs'
 import { dirname, resolve, sep, basename } from 'node:path'
@@ -268,7 +269,15 @@ export interface ChatServiceDeps {
   compactWindow?(agent: string): Promise<number | null>
   // The line every agent's turn opens with (acknowledge.ts), else null: failed or too slow.
   // Not awaited by the turn, and dropped once the turn ends: after the reply it would say nothing.
-  acknowledge?(o: { chatId: string; agent: string; user: UserItem; todos: boolean; signal: AbortSignal }): Promise<string | null>
+  // lastReply: the agent's last reply before the message (lastReplyOf), so a short answer reads as the pick it is.
+  acknowledge?(o: {
+    chatId: string
+    agent: string
+    user: UserItem
+    lastReply: string
+    todos: boolean
+    signal: AbortSignal
+  }): Promise<string | null>
   // The agent's own servers, plugins, skills and hooks (its file's extension keys), read per attempt like compactWindow, for every
   // Claude run of it: main, room member, Compact, and through the side base its side runs. Never a Codex agent's.
   agentRunConfig?(agent: string): Promise<AgentRunConfig>
@@ -1828,7 +1837,14 @@ export class ChatService {
       const acknowledge = this.d.acknowledge
       if (acknowledge && !t.extra?.auto && user.from === undefined && !user.run) {
         const userId = user.id
-        acknowledge({ chatId, agent: meta.agentName, user, todos: asksTodos(user) && bridges, signal: ackStop.signal })
+        acknowledge({
+          chatId,
+          agent: meta.agentName,
+          user,
+          lastReply: lastReplyOf(history),
+          todos: asksTodos(user) && bridges,
+          signal: ackStop.signal
+        })
           .then(async (ack) => {
             if (ack === null || ackStop.signal.aborted) return
             // Through `items`, which agentTurn's ref also writes, so its own adds keep the line and its saves store it.

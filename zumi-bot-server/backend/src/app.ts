@@ -1113,7 +1113,7 @@ export async function startServer(
       costBaseline,
       onContext: (chatId, agent, c) => keepWarm.note(chatId, agent, c.used, c.at ?? Date.now()),
       compactWindow: async (agent) => (await agents.list()).find((a) => a.name === agent)?.autoCompactWindow ?? null,
-      acknowledge: async ({ chatId, agent, user, todos, signal }) => {
+      acknowledge: async ({ chatId, agent, user, lastReply, todos, signal }) => {
         const message = ackMessage(user)
         if (message === '') return null
         const bin = await claude.locate()
@@ -1125,7 +1125,7 @@ export async function startServer(
           bin,
           cwd: homedir(),
           env: runEnv.env(),
-          input: { agent, description, message, todos },
+          input: { agent, description, message, lastReply, todos },
           signal,
           onCost: (c, id) => usage.recordModerator(chatId, c, id, Date.now())
         })

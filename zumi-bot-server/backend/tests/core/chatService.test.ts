@@ -12440,6 +12440,22 @@ describe('ack line', () => {
     expect(pushes.some((p) => p.kind === 'items' && p.items.some((i) => i.type === 'user' && i.ack === 'Looking into it now.'))).toBe(true)
   })
 
+  it("is given the agent's last reply before the message, so a picked answer reads as one", async () => {
+    const replies: string[] = []
+    svc = makeService({
+      acknowledge: async ({ lastReply }) => {
+        replies.push(lastReply)
+        return null
+      }
+    })
+    const c = await store.create('helper', dir)
+    await svc.send(c.id, 'first')
+    await svc.send(c.id, "Who's out")
+    const said = (await itemsOf(c.id)).filter((i) => i.type === 'assistant') as { text: string }[]
+    expect(replies).toEqual(['', said[0].text])
+    expect(said[0].text).not.toBe('')
+  })
+
   it('drops a line that comes after the turn ended', async () => {
     let answer: (s: string) => void = () => {}
     svc = makeService({ acknowledge: () => new Promise((r) => (answer = r)) })
