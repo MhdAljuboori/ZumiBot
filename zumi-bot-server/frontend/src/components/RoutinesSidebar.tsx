@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { RoutinesSnapshot } from '@zumibot/shared/routines'
 import type { AgentSummary, ChatMeta } from '@zumibot/shared/types'
+import { api } from '../api'
 import { routineRows, type RoutineRow } from '../state/routinesList'
 import { Glyph } from './Sidebar'
 
@@ -40,12 +41,30 @@ interface Props {
   selectedId: string | null
   onNew: () => void
   onOpen: (id: string) => void
+  onError: (e: unknown) => void
 }
 
+/** The Routines column, in the sidebar's place: each routine with its switch and last run's dot, as the Workflows column. */
 export function RoutinesSidebar(p: Props) {
   const [searching, setSearching] = useState(false)
   const [query, setQuery] = useState('')
+  const [switching, setSwitching] = useState<ReadonlySet<string>>(new Set())
   const rows = useMemo(() => routineRows(p.snapshot, p.agents, p.chats, p.now, query), [p.snapshot, p.agents, p.chats, p.now, query])
+
+  // Applies at once, like the workflow rows' switch; the push brings the new state (an open editor follows it).
+  const toggle = (id: string, on: boolean): void => {
+    setSwitching((s) => new Set(s).add(id))
+    api.routines
+      .setEnabled(id, on)
+      .catch(p.onError)
+      .finally(() =>
+        setSwitching((s) => {
+          const next = new Set(s)
+          next.delete(id)
+          return next
+        })
+      )
+  }
   const closeSearch = (): void => {
     setSearching(false)
     setQuery('')
@@ -115,30 +134,47 @@ export function RoutinesSidebar(p: Props) {
         </button>
       </div>
       <nav className="agent-list routine-list" aria-label="Routines">
-        {rows.map((r) => (
-          <button
-            key={r.id}
-            type="button"
-            className={r.id === p.selectedId ? 'routine-row selected' : 'routine-row'}
-            data-testid="routine-row"
-            data-routine-id={r.id}
-            data-dot={r.dot ?? ''}
-            data-paused={r.paused ? 'true' : 'false'}
-            onClick={() => p.onOpen(r.id)}
-          >
-            <span className="routine-ic">
-              <TriggerIcon kind={r.icon} />
-            </span>
-            <span className="routine-text">
-              <span className="routine-name">
-                <span className="routine-name-text">{r.name}</span>
-                {r.dot && <span className={`routine-dot ${r.dot}`} aria-hidden="true" />}
-              </span>
-              <span className="routine-sub">{r.subline}</span>
-              {r.warning && <span className="routine-warn">{r.warning}</span>}
-            </span>
-          </button>
-        ))}
+        {rows.map((r) => {
+          const selected = r.id === p.selectedId
+          return (
+            <div key={r.id} className={selected ? 'wf-row selected' : 'wf-row'} data-enabled={r.enabled ? 'true' : 'false'}>
+              <button
+                type="button"
+                className="routine-row"
+                data-testid="routine-row"
+                data-routine-id={r.id}
+                data-dot={r.dot ?? ''}
+                aria-current={selected ? 'page' : undefined}
+                onClick={() => p.onOpen(r.id)}
+              >
+                <span className="routine-ic">
+                  <TriggerIcon kind={r.icon} />
+                </span>
+                <span className="routine-text">
+                  <span className="routine-name">
+                    <span className="routine-name-text">{r.name}</span>
+                    {r.dot && <span className={`routine-dot ${r.dot}`} aria-hidden="true" />}
+                  </span>
+                  <span className="routine-sub">{r.subline}</span>
+                  {r.warning && <span className="routine-warn">{r.warning}</span>}
+                </span>
+              </button>
+              <button
+                type="button"
+                role="switch"
+                className="wf-row-switch"
+                data-testid="routine-row-enabled"
+                aria-checked={r.enabled}
+                aria-label={`${r.name}: ${r.enabled ? 'on' : 'off'}`}
+                data-tip={r.enabled ? 'On' : 'Off'}
+                disabled={switching.has(r.id)}
+                onClick={() => toggle(r.id, !r.enabled)}
+              >
+                <span className="wf-row-knob" />
+              </button>
+            </div>
+          )
+        })}
         {rows.length === 0 && (
           <p className="routine-empty">{query.trim() ? 'No routines match.' : 'No routines yet. Press + to add one.'}</p>
         )}

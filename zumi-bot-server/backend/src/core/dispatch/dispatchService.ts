@@ -133,6 +133,11 @@ export class DispatchService {
     return whole ? { entry, from: 0 } : { entry: { ...entry, steps: entry.steps.slice(from) }, from }
   }
 
+  /** Every entry of the chat, stored and live, steps included (Turn X-ray). */
+  entries(chatId: string): Promise<DispatchEntry[]> {
+    return this.read(chatId)
+  }
+
   private liveEntries(chatId: string): DispatchEntry[] {
     return [...(this.live.get(chatId) ?? [])].flatMap((rec) => rec.entries())
   }

@@ -72,6 +72,8 @@ import { chatCaps, cliMissing, missingFeaturesTitle, roomMissingFeaturesTitle } 
 import { TasksTray } from './TasksTray'
 import { ReplyOptions } from './ReplyOptions'
 import { PausingLine } from './PausingLine'
+import { MakeRepeatableMenu } from './MakeRepeatableMenu'
+import { canMakeRepeatable, repeatableKinds, type RepeatablePick } from '../state/makeRepeatable'
 
 interface Props {
   chat: ChatMeta
@@ -138,6 +140,8 @@ interface Props {
   onMarkUnread: (itemId: string) => void
   /** Opens Export with an agent message's reply picked. */
   onExportReply: (itemId: string) => void
+  /** Opens an agent message's Turn X-ray in the side panel. */
+  onXrayReply: (itemId: string) => void
   /** Removes a queued message before it is sent; resolves false when that failed. */
   onDropTask: (taskId: string) => Promise<boolean>
   /** Sends a queued message now; offered only while the queue holds its tasks (a paused group, or a held chat). */
@@ -166,6 +170,8 @@ interface Props {
   onOpenSide: (id: string) => void
   /** A room: opens the Clone room dialog. */
   onCloneRoom: () => void
+  /** Make repeatable: hands the finished chat to Zumi Bot as the picked kind. */
+  onMakeRepeatable: (pick: RepeatablePick) => void
   /** A cloned room's handoff card: whether the room it came from is still listed, and opening it. */
   handoffSourceExists: boolean
   onOpenHandoffSource: () => void
@@ -341,6 +347,7 @@ export function ChatView({
   onFork,
   onMarkUnread,
   onExportReply,
+  onXrayReply,
   onDropTask,
   onSendTask,
   onCompact,
@@ -357,6 +364,7 @@ export function ChatView({
   sides,
   onOpenSide,
   onCloneRoom,
+  onMakeRepeatable,
   handoffSourceExists,
   onOpenHandoffSource,
   askedSourceExists,
@@ -410,6 +418,7 @@ export function ChatView({
     </div>
   )
   const title = chatTitle(chat, agents)
+  const repeatKinds = repeatableKinds(chat, agents)
   const titleIcon = chat.group ? (
     <MemberStack agents={memberAgents(chat.group.members, agents)} size={22} working={workingMembers(chat)} max={3} />
   ) : agent ? (
@@ -428,6 +437,9 @@ export function ChatView({
             </h1>
           </div>
           {!compact && onOpenProcesses && <ProcessMark mark={processMark} onOpen={onOpenProcesses} />}
+          {!compact && repeatKinds.length > 0 && (
+            <MakeRepeatableMenu kinds={repeatKinds} disabled={!canMakeRepeatable(chat, agents)} onPick={onMakeRepeatable} />
+          )}
           <SidePanelToggle open={sideOpen} onToggle={onToggleSide} />
         </div>
         {archivedNote && <div className="chat-top">{archivedNote}</div>}
@@ -590,7 +602,7 @@ export function ChatView({
       onSwitchVersion={onSwitchVersion}
       onFork={onFork}
       onMarkUnread={onMarkUnread}
-      {...(compact ? {} : { onExport: onExportReply })}
+      {...(compact ? {} : { onExport: onExportReply, onXray: onXrayReply })}
       // A room's running turns are drawn after its finished ones and move when they end, so the line is looked for among those.
       newLineBefore={newLineItem(chat.group ? threadItems(state.items) : state.items, since, (state.start ?? 0) > 0)}
       showRequest={showRequest}

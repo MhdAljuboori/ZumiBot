@@ -66,6 +66,7 @@
 @import './board.css';
 @import './grid.css';
 @import './dispatch.css';
+@import './xray.css';
 @import './workflows-sidebar.css';
 @import './workflow-editor.css';
 @import './workflow-canvas.css';

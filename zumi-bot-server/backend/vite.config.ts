@@ -46,6 +46,7 @@ export default defineConfig({
         desktopBridge: join(root, 'src/core/desktop/desktopBridge.ts'),
         todoBridge: join(root, 'src/core/todos/todoBridge.ts'),
         processBridge: join(root, 'src/core/processes/processBridge.ts'),
+        recallBridge: join(root, 'src/core/recall/recallBridge.ts'),
         vaultBridge: join(root, 'src/core/vault/vaultBridge.ts'),
         askBridge: join(root, 'src/core/asks/askBridge.ts'),
         automationBridge: join(root, 'src/core/automations/automationBridge.ts'),

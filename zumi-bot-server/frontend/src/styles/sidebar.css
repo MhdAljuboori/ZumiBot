@@ -199,18 +199,6 @@
 .routine-row:hover {
   background: var(--bg-hover);
 }
-.routine-row.selected {
-  background: var(--sel-bg);
-  box-shadow: inset 0 0 0 1px var(--sel-border);
-}
-/* A paused routine is still opened from here, so its text keeps 4.5:1: the icon fades, the name goes muted, and the
-   subline says Paused. Fading the whole row put the name near 3.4:1. */
-.routine-row[data-paused='true'] .routine-ic {
-  opacity: 0.5;
-}
-.routine-row[data-paused='true'] .routine-name-text {
-  color: var(--fg-muted);
-}
 .routine-ic {
   flex: none;
   width: 36px;

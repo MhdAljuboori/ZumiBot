@@ -85,6 +85,8 @@ export function chatTranscript(meta: ChatMeta, items: readonly ChatItem[], max =
     `Title: ${clip(oneLine(meta.title), 200)}`,
     ...who,
     `Folder: ${clip(oneLine(meta.cwd), 500)}`,
+    // A worktree chat's folder may be removed later: what is made from it runs in the folder the user picked.
+    ...(meta.worktree ? [`Worktree of: ${clip(oneLine(meta.worktree.folder), 500)}`] : []),
     `Items: ${items.length}`
   ].join('\n')
   const close = '</chat>'

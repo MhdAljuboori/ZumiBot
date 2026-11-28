@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react'
+import { ZUMI_PATHS } from '../botShapes'
 
 // Line icons for menu items, drawn on a 24px grid and shown at 16px in the item's text color. Shapes after Lucide (ISC).
 const SHAPES = {
@@ -153,6 +154,40 @@ const SHAPES = {
       <path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0l1.58 6.14a2 2 0 0 0 1.44 1.44l6.14 1.58a.5.5 0 0 1 0 .96l-6.14 1.58a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0Z" />
       <path d="M20 3v4M22 5h-4" />
     </>
+  ),
+  repeat: (
+    <>
+      <path d="m17 2 4 4-4 4" />
+      <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+      <path d="m7 22-4-4 4-4" />
+      <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+    </>
+  ),
+  terminal: (
+    <>
+      <path d="m4 17 6-6-6-6" />
+      <path d="M12 19h8" />
+    </>
+  ),
+  workflow: (
+    <>
+      <rect x="3" y="3" width="8" height="8" rx="2" />
+      <path d="M7 11v4a2 2 0 0 0 2 2h4" />
+      <rect x="13" y="13" width="8" height="8" rx="2" />
+    </>
+  ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 6v6l4 2" />
+    </>
+  ),
+  // Zumi Bot's own shape as a line icon: its 100-unit body outlined at the menu stroke (2 on the 24 grid), eyes filled.
+  zumiBot: (
+    <g transform="translate(0 0.5) scale(0.24)">
+      <path d={ZUMI_PATHS.body} strokeWidth={8.3} />
+      <path d={ZUMI_PATHS.eyes} fill="currentColor" stroke="none" />
+    </g>
   )
 } satisfies Record<string, ReactElement>
 

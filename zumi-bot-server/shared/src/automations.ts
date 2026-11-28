@@ -1,4 +1,4 @@
-// Names and fixed texts of Zumi Bot's routine and workflow tools (the `zumibot_automations` MCP server).
+// Names and fixed texts of Zumi Bot's routine, workflow and skill tools (the `zumibot_automations` MCP server).
 export const AUTOMATIONS_SERVER = 'zumibot_automations'
 export const AUTOMATION_PREFIX = `mcp__${AUTOMATIONS_SERVER}__`
 
@@ -11,7 +11,10 @@ export const AUTOMATION_TOOLS = [
   'workflow_get',
   'workflow_save',
   'workflow_delete',
-  'chat_read'
+  'chat_read',
+  'skills_list',
+  'skill_get',
+  'skill_save'
 ] as const
 export type AutomationToolName = (typeof AUTOMATION_TOOLS)[number]
 
@@ -30,6 +33,6 @@ export function automationSummary(toolName: string, input: unknown): string | nu
   return typeof name === 'string' && name !== '' ? `Delete ${kind} “${name}”` : null
 }
 
-export const WRITE_REFUSED = 'Routines and workflows can only be changed from a message the user sends.'
+export const WRITE_REFUSED = 'Routines, workflows and skills can only be changed from a message the user sends.'
 export const STALE_REFUSED = 'It changed since you read it: read it again.'
 export const CHAT_READ_MAX = 150_000

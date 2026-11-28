@@ -6,6 +6,8 @@ export const TODOS = '/todos'
 export const WORKFLOWS = '/workflows'
 export const ROUTINES = '/routines'
 export const VOICE = '/voice'
+// Settings › Claude Code, where the user's skills are listed and edited (the frontend's settingsPath('claude-code')).
+export const CLAUDE_CODE_SETTINGS = '/settings/claude-code'
 // Routine ids are UUIDs, so this segment never names a saved routine.
 export const NEW_ROUTINE = 'new'
 // What `/todos/mine` named before the board (My to-dos); read as the board itself, so an old link still lands there.

@@ -241,3 +241,36 @@ describe('allowBlocked: folder rows', () => {
     expect(gitAfterFolder(sheetRows('cd /cwd/sub && git push', [], '/cwd'))).toBeNull()
   })
 })
+
+describe('allowBlocked: git after a cd into another folder', () => {
+  // The reported card: the plain git rules were all held, so it said "still refused although these rules are allowed".
+  const cmd =
+    'cd /home/u/Dev/OC-loc && git fetch origin --prune -q && echo "unmerged:" && git push origin --delete b; git branch -D b 2>/dev/null'
+  const plain = ['Read(//home/u/Dev/OC-loc/**)', 'Bash(git fetch origin --prune -q:*)', 'Bash(echo:*)', 'Bash(git push origin --delete:*)', 'Bash(git branch -D:*)']
+  it('shows the git parts in their git -C form, so rules for the plain parts do not count', () => {
+    const rows = sheetRows(cmd, plain, '/home/u/Dev/OC')
+    expect(rows.map((r) => [r.part, r.gitC])).toEqual([
+      ['cd /home/u/Dev/OC-loc', false],
+      ['git -C /home/u/Dev/OC-loc fetch origin --prune -q', true],
+      ['echo "unmerged:"', false],
+      ['git -C /home/u/Dev/OC-loc push origin --delete b', true],
+      ['git -C /home/u/Dev/OC-loc branch -D b 2>/dev/null', true]
+    ])
+    expect(allHeld(rows)).toBe(false)
+    expect(gitAfterFolder(rows)).toBe('/home/u/Dev/OC-loc')
+    expect(chosenPrefixes(rows, cmd).prefixes).toEqual([
+      'git -C /home/u/Dev/OC-loc fetch origin --prune -q',
+      'git -C /home/u/Dev/OC-loc push origin --delete',
+      'git -C /home/u/Dev/OC-loc branch -D'
+    ])
+  })
+  it('is stuck once the git -C rules are held: the agent ran git after the cd again', () => {
+    const held = [...plain, 'Bash(git -C /home/u/Dev/OC-loc fetch:*)', 'Bash(git -C /home/u/Dev/OC-loc push origin:*)', 'Bash(git -C /home/u/Dev/OC-loc branch -D:*)']
+    expect(allHeld(sheetRows(cmd, held, '/home/u/Dev/OC'))).toBe(true)
+  })
+  it('keeps git parts as written for a cd inside the chat folder or one the card does not offer', () => {
+    expect(sheetRows('cd /cwd/sub && git push', [], '/cwd')[1]).toMatchObject({ part: 'git push', gitC: false })
+    expect(sheetRows('cd /etc/x && git push', [], '/cwd')[1]).toMatchObject({ gitC: true })
+    expect(sheetRows('cd /etc && git push', [], '/cwd')[1]).toMatchObject({ part: 'git push', gitC: false })
+  })
+})

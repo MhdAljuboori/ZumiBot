@@ -297,6 +297,7 @@ beforeEach(async () => {
     side,
     todos: todoSvc,
     dispatch: dispatchSvc,
+    xray: { get: async (chatId: string, itemId: string) => (itemId === 'a1' ? ({ chatId, itemId } as never) : null) },
     search,
     agents: {
       save: async () => saveResult,
@@ -562,6 +563,7 @@ const KEPT = [
   'github:sendCheck',
   'dispatch:list',
   'dispatch:get',
+  'xray:get',
   'processes:list',
   'processes:logs',
   'processes:stop',
@@ -3954,6 +3956,14 @@ describe('createHandlers', () => {
       expect(await h['dispatch:get'](chat.id, 'nope', undefined)).toBeNull()
       for (const bad of [-1, 1.5, '1', Number.NaN]) await expect(h['dispatch:get'](chat.id, 'a', bad)).rejects.toThrow(TypeError)
       await expect(h['dispatch:get'](chat.id, 7, 0)).rejects.toThrow(TypeError)
+    })
+  })
+  describe('xray', () => {
+    it("xray:get passes a chat and message id to the service and checks both", async () => {
+      expect(await h['xray:get']('c1', 'a1')).toEqual({ chatId: 'c1', itemId: 'a1' })
+      expect(await h['xray:get']('c1', 'other')).toBeNull()
+      await expect(h['xray:get'](5, 'a1')).rejects.toThrow(TypeError)
+      await expect(h['xray:get']('c1', null)).rejects.toThrow(TypeError)
     })
   })
 

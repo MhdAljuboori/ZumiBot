@@ -1,3 +1,4 @@
+import { RECALL_SERVER } from '@zumibot/shared/recall'
 import { createHash } from 'node:crypto'
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
@@ -208,7 +209,9 @@ function zumiBotAdds(agent: AgentSummary | null, engine: Engine): { servers: Loa
     'zumibot_todos',
     'zumibot_vault',
     isBot ? 'zumibot_automations' : 'zumibot_agents',
-    ...(desktop ? ['zumibot_desktop'] : [])
+    ...(desktop ? ['zumibot_desktop'] : []),
+    // Hive recall rides only on runs of an agent that has it on.
+    ...(agent?.recall ? [RECALL_SERVER] : [])
   ]
   const guardOn = VAULT_GUARD_ON[engine]
   const hooks = [
@@ -969,6 +972,21 @@ export class ExtensionsService {
   }
 
   // ---- skills ----
+
+  /** The user-scope skills by name, for Zumi Bot's skills_list: no path, and a skill that cannot be read is left out. */
+  async userSkills(): Promise<{ name: string; description: string }[]> {
+    try {
+      const root = skillRoot('user', this.d.home, await this.paths())
+      const out: { name: string; description: string }[] = []
+      for (const dir of (await listSkillDirs(root)).values()) {
+        const view = await readSkill(root, dir, 'user').catch(() => null)
+        if (view) out.push({ name: view.name, description: view.description })
+      }
+      return out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+    } catch (err) {
+      throw pageError(err)
+    }
+  }
 
   async skill(scope: 'user' | 'project', folder: string, name: string): Promise<SkillView> {
     try {

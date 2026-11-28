@@ -61,10 +61,11 @@ describe('routineRows', () => {
       ['manual', 'Manual']
     ])
   })
-  it('marks paused rows', () => {
+  it('marks off rows and keeps their schedule without a next run', () => {
     const [row] = routineRows(snap([routine({ enabled: false })]), agents, [], NOW, '')
-    expect(row.paused).toBe(true)
-    expect(row.subline).toBe('Paused')
+    expect(row.enabled).toBe(false)
+    expect(row.subline).toBe('Every day at 7:00 AM')
+    expect(routineRows(snap([routine()]), agents, [], NOW, '')[0].enabled).toBe(true)
   })
   it('takes the dot from the newest run and appends waiting', () => {
     const runs = {

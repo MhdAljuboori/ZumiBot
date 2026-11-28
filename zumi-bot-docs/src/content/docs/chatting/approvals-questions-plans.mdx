@@ -54,7 +54,7 @@ These rules work in **Auto**, **Ask permissions** and **Accept edits**, and neve
 
 A command with a part that cannot be allowed, such as `python3` writing a file, is refused as a whole, however many of its other parts you allowed. When everything else in it is already allowed, the card has no button: it names that part and lists the rules you already have. Ask the agent to do it another way, without that part, for example by writing the file itself and then running the other command on its own.
 
-Claude Code always asks about a command that changes into another folder and then runs `git` there, such as `cd /home/you/other-repo && git push`, because the folder's own git settings could run code. No rule changes that, so the card says so: ask the agent to use `git -C /home/you/other-repo push` instead, which runs git in that folder without changing into it.
+Claude Code always asks about a command that changes into another folder and then runs `git` there, such as `cd /home/you/other-repo && git push`, because the folder's own git settings could run code. In Auto, its classifier answers that question instead of you, and no rule changes it, so allowing `git push` as written would only see the same command refused again. The card therefore offers the git parts as `git -C /home/you/other-repo push`, which runs git in that folder without changing into it, and Allow and continue also tells the agent to run git that way. If the agent still runs git after `cd`, the card says so and its **Ask to use git -C** button asks the agent again.
 
 ## Questions
 

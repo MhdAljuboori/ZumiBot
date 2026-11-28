@@ -4,9 +4,9 @@ import { join } from 'node:path'
 
 /**
  * The IPC bridges' private folders, `mkdtemp('/tmp/cb-<letter>-')` holding one socket `s`: browser, desktop, todos,
- * processes, vault, asks and automations.
+ * processes, vault, asks, automations and recall (`h`).
  */
-export const IPC_DIR_NAME = /^cb-[abdprtv]-[A-Za-z0-9]{6}$/
+export const IPC_DIR_NAME = /^cb-[abdhprtv]-[A-Za-z0-9]{6}$/
 /** A contained turn's run folder (`ContainerRunner.open`): its auth and network proxies' sockets, mounted into the container. */
 export const RUN_DIR_NAME = /^cb-c-[A-Za-z0-9]{6}$/
 export const RUN_SOCKETS: readonly string[] = ['api.sock', 'net.sock']

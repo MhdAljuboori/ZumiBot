@@ -420,7 +420,9 @@ export function checkPrefix(prefix: string, command: string): string | null {
   const bad = prefixRuleError(prefix)
   if (bad) return bad
   if (typeof command !== 'string') return 'The command is missing.'
-  if (!commandParts(command).some((part) => covers(part, prefix))) {
+  // A git part run after a `cd` may be granted in its `git -C <folder>` form: the same command, which the CLI lets rules pass.
+  const forms = gitCForms(command).flatMap((f) => (f === null ? [] : [f.part]))
+  if (![...commandParts(command), ...forms].some((part) => covers(part, prefix))) {
     return 'The prefix must be the start of one command in the refused command, ending at a space.'
   }
   return null
@@ -452,6 +454,58 @@ export function isSafePart(part: string): boolean {
 /** Whether a part runs git, whatever its path, case or `.exe`. */
 export function isGitPart(part: string): boolean {
   return isGit(part.trim().split(/\s+/)[0] ?? '')
+}
+
+// --- git after a cd --------------------------------------------------------------------------
+// The CLI asks about `cd <folder> && git …` whatever is allowed (the folder's hooks or config could run), and in Auto that ask
+// goes to the classifier, so no rule lets such a command through: granting its git parts as written only made the same command
+// fail again. `git -C <folder> …` does the same and passes on its own prefix rules (probe cases e1, e2, e3; CLI 2.1.329), so
+// the card offers that form, and the agent is told to run git that way.
+
+// A folder written into a git -C form as it is: quotes or spaces would make the rule differ from what the agent writes.
+const PLAIN_FOLDER = /^\/[^\s'"$`\\]*$/
+
+/** `git <rest>` as `git -C <folder> <rest>`, or null when git already has global options (where -C goes is then a guess). */
+function gitCForm(part: string, folder: string): string | null {
+  const toks = wordsOf(part)
+  if (!toks.length || !isGit(toks[0].text) || afterGitOptions(toks.map((t) => t.text)) > 1) return null
+  return `${part.slice(0, toks[0].end)} -C ${folder}${part.slice(toks[0].end)}`
+}
+
+/** One entry per part of `command` (as `commandParts` gives them): a git part run after a `cd` into an absolute folder, as
+ *  `git -C <folder> …` with that folder; null for every other part. Any other `cd` ends the folder. The folder must have a
+ *  rule's shape (2+ segments, no glob or rule syntax) and be plain to write (no spaces or quotes). */
+export function gitCForms(command: string): ({ part: string; folder: string } | null)[] {
+  let folder: string | null = null
+  return commandParts(command).map((part) => {
+    if (/^cd(\s|$)/.test(part)) {
+      const t = cdTarget(part)
+      folder = t !== null && PLAIN_FOLDER.test(t) && folderShapeError(t) === null ? t : null
+      return null
+    }
+    const form = folder === null ? null : gitCForm(part, folder)
+    return form === null || folder === null ? null : { part: form, folder }
+  })
+}
+
+/** The folder of the first `git -C` form one of `prefixes` grants and no part as written does, or null: the agent must then
+ *  be told to run git that way, or it sends the same `cd … && git …` again. */
+export function gitCFolder(prefixes: readonly string[], command: string): string | null {
+  const parts = commandParts(command)
+  for (const f of gitCForms(command)) {
+    if (f === null) continue
+    if (prefixes.some((p) => covers(f.part, p) && !parts.some((part) => covers(part, p)))) return f.folder
+  }
+  return null
+}
+
+/** What the agent is told to do instead of git after `cd <folder>`. */
+export const gitCAdvice = (folder: string): string =>
+  `Run git there as \`git -C ${folder} …\`, not after \`cd ${folder}\`: Claude Code asks about git after a cd into another folder, whatever is allowed.`
+
+/** The message the Allow card sends when the agent ran git after a cd although the git -C rules are held. */
+export function gitCText(folder: string, member: string | null): string {
+  return `${member ? `@${member} ` : ''}${gitCAdvice(folder)} Continue.`
 }
 
 // --- folders ---------------------------------------------------------------------------------
@@ -560,9 +614,11 @@ export function continueText(
   rules: readonly string[],
   scope: 'chat' | 'agent',
   agent: string,
-  member: string | null
+  member: string | null,
+  gitFolder: string | null = null
 ): string {
   const items = rules.map((r) => '`' + r + '`')
   const list = items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}` : items.join('')
-  return `${member ? `@${member} ` : ''}I allowed ${list} for ${scope === 'chat' ? 'this chat' : agent}. Continue.`
+  const how = gitFolder === null ? '' : ` ${gitCAdvice(gitFolder)}`
+  return `${member ? `@${member} ` : ''}I allowed ${list} for ${scope === 'chat' ? 'this chat' : agent}.${how} Continue.`
 }

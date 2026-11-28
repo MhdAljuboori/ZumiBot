@@ -17,12 +17,20 @@
 //   e0) information only: the same without the Read rule, ASKED or RAN (RAN: the folder row is no longer needed).
 //   e1) information only: `cd <folder> && git …` with the Read rule and a git prefix rule, ASKED or RAN. The card's git note
 //      ("use git -C") rests on ASKED: the CLI asks about a cd before a version-control command whatever is allowed.
+//   e2) information only: e1 in Auto, RAN or REFUSED, never ASKED (2.1.329: RAN): Auto hands the cd-then-git ask to its
+//      classifier, not to a card, so a refusal of such a command is the classifier's verdict, and no rule changes it.
+//   e3) information only: the git -C form of e1, with `Bash(git -C <folder> branch -D:*)` and the folder rule, in Default mode
+//      (rules alone decide). RAN: once the agent retries with git -C, rules the Allow card offers can let it through.
+//   f) information only: in Auto, `git push origin --delete` with an allow rule for it and the ask rule `Bash(git *push*--delete*)`
+//      (the shape of the user's own). ASKED: an ask rule still brings a card in Auto. REFUSED or RAN: Auto hands an ask rule's
+//      call to its classifier, no card comes, and only Ask permissions mode lets the user answer it. The Allow card's ask-rule
+//      reason rests on this.
 // The user's own ask rules (`Bash(git *push*--delete*)`) beat allow rules, so the remote branches are deleted with
 // `git push origin :<branch>`, which none of them match. The runs keep the user's settings: with `--setting-sources project,local`
 // the classifier let case a's command run (3 of 3 runs, 0 of 3 without it), so the probe could not tell anything.
 // A verdict is only about the case's own script sent as one Bash call: a model that rewrites it, or a refusal of some other call
 // (`cat NOTES.md`), makes the case INCONCLUSIVE, never a PASS or FAIL.
-// Real claude, Haiku, a few cents of quota. Run directly: node zumi-bot-server/e2e/allowRuleProbe.mjs [--case a|b|c|d|d0|e|e0|e1].
+// Real claude, Haiku, a few cents of quota. Run directly: node zumi-bot-server/e2e/allowRuleProbe.mjs [--case a|b|c|d|d0|e|e0|e1|e2|e3|f].
 // Exit 0 PASS, 1 FAILED, 2 INCONCLUSIVE (after one retry per case: no login, the model did not send the command...).
 // `--soft` turns INCONCLUSIVE into exit 0 with a loud warning (npm run e2e passes it); ZUMIBOT_SKIP_ALLOW_PROBE=1 skips it.
 // ZUMIBOT_PROBE_CLAUDE (or CLAUDE_BIN) names the binary.
@@ -91,6 +99,27 @@ const CASES = {
     rules: () => ['Bash(tar --version:*)'],
     outside: true,
     isScript: (cmd) => has(cmd, 'cd ', 'tar --version', MARKER)
+  },
+  e2: {
+    title: 'e1 in Auto (information only)',
+    script: (repo) => `cd ${repo} && git branch -D probe-a probe-c`,
+    rules: (repo) => ['Bash(git branch -D:*)', folderRule(repo)],
+    outside: true,
+    mode: 'auto',
+    isScript: (cmd) => has(cmd, 'cd ', 'git branch -D')
+  },
+  e3: {
+    title: 'the git -C form of e1, with a git -C prefix rule and the folder rule (information only)',
+    script: (repo) => `git -C ${repo} branch -D probe-a probe-c`,
+    rules: (repo) => [`Bash(git -C ${repo} branch -D:*)`, folderRule(repo)],
+    outside: true,
+    isScript: (cmd) => has(cmd, 'git -C ', 'branch -D')
+  },
+  f: {
+    title: 'Auto, a push --delete held by an allow rule and matched by an ask rule (information only)',
+    script: () => 'git push origin --delete probe-a probe-b',
+    rules: () => ({ allow: ['Bash(git push origin --delete:*)'], ask: ['Bash(git *push*--delete*)'] }),
+    isScript: (cmd) => has(cmd, 'git push origin --delete')
   },
   e1: {
     title: 'cd into a folder outside the cwd, then git, with the folder rule (information only)',
@@ -164,7 +193,7 @@ async function attempt(bin, id, model = 'haiku') {
     '--max-turns',
     '6',
     '--permission-mode',
-    c.outside ? 'default' : 'auto',
+    c.mode ?? (c.outside ? 'default' : 'auto'),
     '--permission-prompt-tool',
     'stdio',
     '--strict-mcp-config',
@@ -175,7 +204,8 @@ async function attempt(bin, id, model = 'haiku') {
     '--verbose'
   ]
   const rules = typeof c.rules === 'function' ? c.rules(repoPath) : c.rules
-  if (rules) argv.push('--settings', JSON.stringify({ permissions: { allow: rules } }))
+  // A list is allow rules; an object is the whole permissions block (case f's ask rule).
+  if (rules) argv.push('--settings', JSON.stringify({ permissions: Array.isArray(rules) ? { allow: rules } : rules }))
   const env = { ...GIT_ENV, CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1' }
   delete env.CLAUDECODE
   const r = { id, work, cwd, version: null, bash: [], asked: [], denied: [], results: [], result: null, stderr: '', error: null, local: [], remote: [] }
@@ -309,16 +339,23 @@ export function classify(r) {
     if (refused) return { outcome: 'pass', reason: null }
     return no('sh -c neither ran nor was refused')
   }
+  if (r.id === 'f') {
+    if (asked.length) return { outcome: 'info', verdict: 'ASKED', reason: null }
+    if (classifier) return { outcome: 'info', verdict: 'REFUSED', reason: null }
+    if (e.remoteGone) return { outcome: 'info', verdict: 'RAN', reason: null }
+    return no('the push neither ran, nor was asked or refused')
+  }
   if (r.id[0] === 'e') {
     // e and e0 print the marker when they ran; e1 deletes the local branches.
     const printed = r.results.some((x) => calls.some((b) => b.id === x.id) && x.text.includes(MARKER))
-    const eRan = r.id === 'e1' ? e.localGone : printed
+    const eRan = r.id === 'e' || r.id === 'e0' ? printed : e.localGone
     if (r.id === 'e') {
       if (eRan && !asked.length) return { outcome: 'pass', reason: null }
       if (asked.length) return { outcome: 'fail', reason: `a cd outside the cwd was still asked with ${folderRule('<repo>')}: the folder row cannot help` }
       return no('the script neither ran nor asked')
     }
     if (asked.length) return { outcome: 'info', verdict: 'ASKED', reason: null }
+    if (classifier) return { outcome: 'info', verdict: 'REFUSED', reason: null }
     if (eRan) return { outcome: 'info', verdict: 'RAN', reason: null }
     return no('the script neither ran nor asked')
   }
@@ -370,9 +407,9 @@ export async function main(args = []) {
     return 0
   }
   const at = args.indexOf('--case')
-  const ids = at >= 0 ? [args[at + 1]] : ['a', 'b', 'c', 'd', 'e', 'e0', 'e1']
+  const ids = at >= 0 ? [args[at + 1]] : ['a', 'b', 'c', 'd', 'e', 'e0', 'e1', 'e2', 'e3', 'f']
   if (!ids.every((id) => id in CASES)) {
-    console.error('--case takes a, b, c, d, d0, e, e0 or e1')
+    console.error('--case takes a, b, c, d, d0, e, e0, e1, e2, e3 or f')
     return 2
   }
   let code = 0,

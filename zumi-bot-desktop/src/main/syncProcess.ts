@@ -6,6 +6,7 @@ interface Options {
   entry: string
   config: SyncConfig
   home: string
+  chats: boolean
   log(line: string): void
 }
 
@@ -29,7 +30,7 @@ export function runSyncProcess(o: Options): Promise<number> {
       resolve(code ?? 1)
     })
     child.once('spawn', () => {
-      child.send({ config: o.config, home: o.home }, (err) => {
+      child.send({ config: o.config, home: o.home, chats: o.chats }, (err) => {
         if (err) o.log(`Could not start sync: ${err.message}`)
       })
     })

@@ -355,6 +355,9 @@ export function createApi(
       get: (chatId, id, from) => call('dispatch:get', chatId, id, from ?? null),
       onChanged: (cb) => rpc.on('dispatch:changed', (p: { chatId: string }) => cb(p.chatId))
     },
+    xray: {
+      get: (chatId, itemId) => call('xray:get', chatId, itemId)
+    },
     processes: {
       list: (chatId) => call('processes:list', chatId),
       logs: (chatId, id, from) => call('processes:logs', chatId, id, from ?? null),
