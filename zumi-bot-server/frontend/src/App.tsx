@@ -89,6 +89,8 @@ import { ChatView } from './components/ChatView'
 import { ClaudeBanner } from './components/ClaudeBanner'
 import { CloneRoomDialog } from './components/CloneRoomDialog'
 import { ExportDialog } from './components/ExportDialog'
+import { MAKE_REPEATABLE, repeatableRequest, type RepeatablePick } from './state/makeRepeatable'
+import { ZUMI_BOT_NAME } from '@zumibot/shared/zumiBot'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { UpdateHost } from './components/UpdateHost'
 import { ConnectionBar, OFFLINE_REASON } from './components/ConnectionBar'
@@ -1382,6 +1384,27 @@ export default function App() {
     showAgentStart(agentName)
   }
 
+  // Make repeatable: Zumi Bot's chat (its fixed folder, an empty one reused) gets /make-repeatable for the picked kind, as a
+  // command pick, so the server fills Zumi Bot's prompt rather than sending the text plain.
+  const makeRepeatable = async (chat: ChatMeta, pick: RepeatablePick): Promise<void> => {
+    // The chat as it is now: a sidebar menu holds the copy from when it opened, and a reply may have started since.
+    const text = repeatableRequest(chat.id, latest.current.chats, latest.current.agents, pick)
+    if (text === null) return
+    let cwd: string | null
+    try {
+      cwd = await api.app.lastFolder(ZUMI_BOT_NAME)
+    } catch (e) {
+      report(e)
+      return
+    }
+    const chatId = await newChat(ZUMI_BOT_NAME, cwd === null ? 'none' : { cwd })
+    if (chatId === null) return
+    await sendMessage(chatId, text, emptyDraftFiles, undefined, false, {
+      agent: ZUMI_BOT_NAME,
+      name: MAKE_REPEATABLE
+    })
+  }
+
   const deleteAgent = async (filePath: string): Promise<void> => {
     try {
       await api.agents.trash(filePath)
@@ -2499,6 +2522,7 @@ export default function App() {
       sides: sideQuestions.list,
       onOpenSide: (sideId) => openSide(id, sideId),
       onCloneRoom: () => setCloneSource(chat),
+      onMakeRepeatable: (pick) => void makeRepeatable(chat, pick),
       handoffSourceExists: handoffFrom !== null && chats.some((c) => c.id === handoffFrom),
       onOpenHandoffSource: () => {
         if (handoffFrom !== null) navigate(() => openChat(handoffFrom))
@@ -2774,6 +2798,7 @@ export default function App() {
                   onDeleteChat={(id) => void deleteChat(id)}
                   onArchiveChat={(id) => archiveChat(id, true)}
                   onExportChat={fromNav((chat: ChatMeta) => setExportTarget({ chat, item: null }))}
+                  onMakeRepeatable={fromNav((chat: ChatMeta, pick: RepeatablePick) => navigate(() => void makeRepeatable(chat, pick)))}
                   allChats={chats}
                   connected={connection === 'connected'}
                   onOpenMessage={openMessage}

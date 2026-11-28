@@ -285,14 +285,21 @@ body {
   font-weight: 650;
   letter-spacing: -0.015em;
 }
-.side-toggle {
+.side-toggle,
+.make-repeatable-btn {
   width: 32px;
   height: 32px;
   border-radius: 10px;
 }
 .side-toggle:hover,
-.side-toggle.open {
+.side-toggle.open,
+.make-repeatable-btn:hover:not(:disabled),
+.make-repeatable-btn.open {
   background: var(--bg-hover);
+}
+.make-repeatable-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 /* The side panel's launcher: its views as raised tiles, the same lift as a picked row. */

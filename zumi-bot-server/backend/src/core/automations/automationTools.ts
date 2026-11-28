@@ -7,8 +7,11 @@ export const AUTOMATION_ASK_SETTINGS: string = JSON.stringify({ permissions: { a
 // Bounds that keep one call inside the IPC's request limit (automationIpc.ts): the authoring object is the only big part.
 const ID_MAX = 128,
   NAME_MAX = 200,
+  SKILL_NAME_MAX = 100,
   CHAT_MAX = 2048,
   OBJECT_MAX = 60_000
+// skill_get refuses a skill bigger than a save could send back (automationService.ts).
+export { OBJECT_MAX }
 
 const idSchema = { type: 'string', minLength: 1, maxLength: ID_MAX }
 const none = { type: 'object' as const, properties: {}, required: [] as string[], additionalProperties: false }
@@ -95,6 +98,29 @@ export const automationTools = [
       additionalProperties: false,
       properties: { chat: { type: 'string', minLength: 1, maxLength: CHAT_MAX } }
     }
+  },
+  {
+    name: 'skills_list',
+    description: "List the user's Claude Code skills: name and description.",
+    inputSchema: none
+  },
+  {
+    name: 'skill_get',
+    description: "Read one of the user's Claude Code skills by name: name, description, body and the stamp skill_save takes to edit it.",
+    inputSchema: {
+      type: 'object' as const,
+      required: ['name'],
+      additionalProperties: false,
+      properties: { name: { type: 'string', minLength: 1, maxLength: SKILL_NAME_MAX } }
+    }
+  },
+  {
+    name: 'skill_save',
+    description:
+      "Create a skill in the user's Claude Code skills folder (no stamp) or change one (the stamp from skill_get). " +
+      'The skill object is {name, description, body, stamp?}: name is lower-case letters, digits and single hyphens; description says when to use it; ' +
+      'body is the Markdown instructions, with $ARGUMENTS where the text typed after /<name> goes. A create never overwrites a skill of that name.',
+    inputSchema: objectSchema('skill', 'The skill object.')
   }
 ]
 
@@ -150,6 +176,15 @@ export function parseAutomationCall(name: string, args: unknown): AutomationCall
     case 'chat_read':
       if (!exact(args, ['chat'])) throw bad('chat_read takes chat')
       return { op: 'chat_read', chat: text(args, 'chat', CHAT_MAX) }
+    case 'skills_list':
+      if (!exact(args, [])) throw bad('this tool takes no arguments')
+      return { op: 'skills_list' }
+    case 'skill_get':
+      if (!exact(args, ['name'])) throw bad('skill_get takes name')
+      return { op: 'skill_get', name: text(args, 'name', SKILL_NAME_MAX) }
+    case 'skill_save':
+      if (!exact(args, ['skill'])) throw bad('skill_save takes one object, skill')
+      return { op: 'skill_save', skill: object(args, 'skill') }
     default:
       throw bad('unknown tool')
   }

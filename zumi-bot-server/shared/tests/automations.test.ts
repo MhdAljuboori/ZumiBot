@@ -16,9 +16,10 @@ import { archivedFromPath, chatIdFromPath, routinesPath, todosFromPath, workflow
 describe('names', () => {
   it('builds the full tool names from the server name', () => {
     expect(AUTOMATION_PREFIX).toBe(`mcp__${AUTOMATIONS_SERVER}__`)
-    expect(AUTOMATION_TOOLS).toHaveLength(9)
+    expect(AUTOMATION_TOOLS).toHaveLength(12)
+    expect(AUTOMATION_TOOLS.slice(-3)).toEqual(['skills_list', 'skill_get', 'skill_save'])
     expect(CHAT_READ_MAX).toBe(150_000)
-    expect(WRITE_REFUSED).toBe('Routines and workflows can only be changed from a message the user sends.')
+    expect(WRITE_REFUSED).toBe('Routines, workflows and skills can only be changed from a message the user sends.')
     expect(STALE_REFUSED).toBe('It changed since you read it: read it again.')
   })
   it('automationTool matches only this server', () => {
