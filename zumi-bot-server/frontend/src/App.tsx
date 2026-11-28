@@ -2720,6 +2720,7 @@ export default function App() {
                   selectedId={routineView?.id ?? null}
                   onNew={fromNav(() => openRoutineGuarded(null))}
                   onOpen={fromNav(openRoutineGuarded)}
+                  onError={report}
                 />
               ) : mode === 'workflows' ? (
                 <WorkflowsNav
