@@ -1678,6 +1678,16 @@ describe.skipIf(process.platform !== 'linux')('sync', () => {
     expect(calls.every((c) => c.cmd === 'ssh')).toBe(true)
   })
 
+  // A sync.env carried over from ClaudeBot still named ~/claudebot, so the shell's bare "No such file" was all it said.
+  it('names VPS_DIR when no server is installed there, before touching anything', async () => {
+    const dir = join(vps, 'claudebot')
+    expect(await go(fakeRun(), () => false, { VPS_DIR: dir })).toBe(1)
+    expect(logs).toContain(
+      `No ZumiBot server at ${dir} on the VPS. Set VPS_DIR to the folder it is installed in (the installer's default is /home/bot/zumibot).`
+    )
+    expect(calls.every((c) => c.cmd === 'ssh')).toBe(true)
+  })
+
   it('refuses while ZumiBot runs on this PC', async () => {
     write(data(pc, 'server.lock'), '4242 1')
     expect(await go(fakeRun(), () => true)).toBe(1)

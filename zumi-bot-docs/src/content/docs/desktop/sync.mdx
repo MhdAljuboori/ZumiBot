@@ -56,6 +56,7 @@ The settings page can also start a sync from a browser. There, **Sync** shows an
 - **Nothing is deleted.** A file you deleted on one side can come back from the other.
 - **Backups.** Before anything changes, Sync copies the data it will replace to a folder named `zumibot-sync-backup` with the time, in your home folder on this computer and on the server. The log gives both names. Sync does not remove old ones, so delete them yourself when you no longer need them.
 - **A reply on the server blocks Sync.** The log says "N replies running on the VPS. Sync again once they finish." On this computer it says "N replies running on this PC. Wait for them to finish, then retry."
+- **A wrong server folder stops Sync before anything changes.** If ZumiBot is not installed in the folder `VPS_DIR` names, the log says "No ZumiBot server at" followed by that folder, and gives the installer's default. Choose a settings file with the right `VPS_DIR`, or none, with **Choose deploy.env…**, then sync again.
 - **You cannot quit while it runs.** Quitting is held until Sync ends.
 - **Telegram and Slack bots.** Because channels arrive switched off on this computer, only the server runs your bots.
 - **Local mode and a server stay separate otherwise.** Sync is how they meet. See [Local mode and server mode](/desktop/local-vs-server/).

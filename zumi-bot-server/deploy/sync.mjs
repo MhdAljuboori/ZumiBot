@@ -1003,6 +1003,11 @@ export async function sync({
 
   // A reply running on either side would write chats while they are being joined.
   const busy = await ssh(busyCmd)
+  // 127: the remote shell found no launcher, so VPS_DIR is wrong (a ClaudeBot-era sync.env names ~/claudebot).
+  if (busy.code === 127) {
+    log(`No ZumiBot server at ${dir} on the VPS. Set VPS_DIR to the folder it is installed in (the installer's default is /home/${user}/zumibot).`)
+    return 1
+  }
   const count = busy.code === 0 ? /^\d+$/m.exec(busy.stdout)?.[0] : undefined
   if (count !== '0') {
     log(
