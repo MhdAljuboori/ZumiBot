@@ -47,7 +47,7 @@ Decisions as built:
 | `allowedByAgentRule {rule}` | a remembered agent rule, with its `approvals.json` key |
 | `allowedByWorkflowRule` | a workflow step rule |
 | `allowedByAllowlist {host}` | a sandboxed agent's `WebFetch` to an on-list host in auto mode (2.3) |
-| `allowedByZumiBot {why}` | `todos`, `vault`, `automation`, `ask` (ZumiBot's own bridges, no card), `sideAsk` (a side answer's one allowed tool), `connectorRead` (a claude.ai connector read, see [Connectors](connectors.md)) |
+| `allowedByZumiBot {why}` | `todos`, `vault`, `automation`, `ask`, `recall` (ZumiBot's own bridges, no card; `recall` reads chat text over its IPC, so a sandboxed or contained agent with recall on reads the chats its scope covers although its own tools cannot reach the data dir, see [Hive recall](recall.md)), `sideAsk` (a side answer's one allowed tool), `connectorRead` (a claude.ai connector read, see [Connectors](connectors.md)) |
 | `approvedByUser {scope}` | `once`, `chat`, `agent`, `step`; also an answered question card and an approved plan |
 | `deniedByUser` | Deny, a skipped question, a plan sent back |
 | `deniedByRule` | a failed call the run's `result` lists in `permission_denials` with no request |

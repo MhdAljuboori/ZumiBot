@@ -185,7 +185,7 @@ describe('zumiBot', () => {
     expect(section).toContain('When it has no `tools` list, leave it out')
     // The agent's own job stays.
     expect(section).toContain("Never change the agent's role, steps or limits")
-    expect(section).toContain('`name`, `description`, `model`, `memory` or `computerUse`')
+    expect(section).toContain('`name`, `description`, `model`, `memory`, `computerUse` or `recall`')
     // Edge cases: a broken file is skipped, a complete one is left untouched.
     expect(section).toContain('does not parse')
     expect(section).toContain('leave its file untouched')
@@ -266,6 +266,20 @@ describe('zumiBot', () => {
     expect(editing).toContain('leave any `agui:` as it is')
     const friendly = text.slice(text.indexOf('## Making an existing agent ZumiBot friendly'), text.indexOf('## Deleting an agent'))
     expect(friendly).toContain('Never add, change or remove `acp:` or `agui:`')
+  })
+
+  it('writes recall only when asked, and /make-friendly never touches it', () => {
+    const text = zumiBotContent('/tmp/agents-x')
+    const format = text.slice(text.indexOf('## Agent file format'), text.indexOf('## The answer format each agent writes'))
+    expect(format).toContain('`recall: agent`')
+    expect(format).toContain('`recall: folder`')
+    expect(format).toContain('Write it only when the user asks')
+    expect(format).toContain('an agent that searches or looks up earlier chats')
+    expect(format).not.toContain('an agent that remembers')
+    expect(format).toContain('When an agent with `recall` has a `tools` list, also add `mcp__zumibot_recall__search, mcp__zumibot_recall__read`')
+    const friendly = text.slice(text.indexOf('## Making an existing agent ZumiBot friendly'), text.indexOf('## Deleting an agent'))
+    expect(friendly).toContain('`computerUse` or `recall`')
+    expect(friendly).toContain('plus `mcp__zumibot_recall__search, mcp__zumibot_recall__read` when it has `recall`')
   })
 
   it('gives a remote agent none of what it does not use: no body sections, no Compact at, no subagent lines, no tools list', () => {

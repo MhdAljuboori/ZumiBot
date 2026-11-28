@@ -556,6 +556,13 @@ describe('ExtensionsService.loadout', SLOW, () => {
     expect(names(plain, 'servers')).not.toContain('zumibot_desktop')
   })
 
+  it('lists the recall bridge only for an agent with recall on', async () => {
+    agentList.push(summary('rememberer', { recall: 'folder' }))
+    const s = make()
+    expect(names(await s.loadout(folder, 'rememberer', false), 'servers')).toContain('zumibot_recall')
+    expect(names(await s.loadout(folder, 'helper', false), 'servers')).not.toContain('zumibot_recall')
+  })
+
   it('probes a Codex agent with codex, lists no plugins and builds no per-agent config', async () => {
     const answers: ProbeAnswers = {
       version: '0.164.0',

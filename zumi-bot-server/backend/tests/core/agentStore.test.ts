@@ -620,6 +620,16 @@ describe('AgentStore folders and built-in', () => {
     expect(c).not.toHaveProperty('computerUse')
   })
 
+  it('lists recall only when the file has agent or folder', async () => {
+    await fs.writeFile(join(dir, 'a.md'), agent('a', 'recall: folder\n'))
+    await fs.writeFile(join(dir, 'b.md'), agent('b'))
+    await fs.writeFile(join(dir, 'c.md'), agent('c', 'recall: on\n'))
+    const [a, b, c] = await store.list()
+    expect(a.recall).toBe('folder')
+    expect(b).not.toHaveProperty('recall')
+    expect(c).not.toHaveProperty('recall')
+  })
+
   it('lists only valid commands on the summary', async () => {
     const extra =
       'commands:\n  - {name: check, description: d, prompt: p}\n  - {name: Bad, description: d, prompt: p}\n  - {name: fix, description: d}\n'
@@ -663,6 +673,20 @@ describe('AgentStore folders and built-in', () => {
     await store.save(null, agent('empty', 'tools: ""\n'))
     expect(await fs.readFile(join(dir, 'empty.md'), 'utf8')).not.toContain('mcp__zumibot_todos')
     expect(await fs.readFile(join(dir, 'empty.md'), 'utf8')).not.toContain('mcp__zumibot_agents')
+  })
+
+  it('adds the recall tools to a non-empty tools list only while recall is on', async () => {
+    await store.save(null, agent('rememberer', 'recall: folder\ntools: Read\n'))
+    const text = await fs.readFile(join(dir, 'rememberer.md'), 'utf8')
+    expect(text).toMatch(/tools: Read, .*mcp__zumibot_recall__search, mcp__zumibot_recall__read\n/)
+    expect(text.match(/mcp__zumibot_recall__search/g)).toHaveLength(1)
+    // Saving the result again adds nothing.
+    await store.save(join(dir, 'rememberer.md'), text)
+    expect(await fs.readFile(join(dir, 'rememberer.md'), 'utf8')).toBe(text)
+    await store.save(null, agent('helper', 'tools: Read\n'))
+    expect(await fs.readFile(join(dir, 'helper.md'), 'utf8')).not.toContain('zumibot_recall')
+    await store.save(null, agent('open', 'recall: agent\n'))
+    expect(await fs.readFile(join(dir, 'open.md'), 'utf8')).toBe(agent('open', 'recall: agent\n'))
   })
 
   it('adds vault_items to a non-empty tools list', async () => {

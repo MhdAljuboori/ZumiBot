@@ -62,6 +62,9 @@ import { TODO_SYSTEM } from '../../src/core/todos/todoPrompt'
 import { RUN_SYSTEM } from '../../src/core/processes/processPrompt'
 import type { AskOwner, AskTurn } from '../../src/core/asks/askIpc'
 import { serveVaultIpc, type VaultOwner, type VaultTurn } from '../../src/core/vault/vaultIpc'
+import type { RecallOwner, RecallTurn } from '../../src/core/recall/recallIpc'
+import { recallSystem } from '../../src/core/recall/recallPrompt'
+import type { RecallScope } from '@zumibot/shared/recall'
 import { VAULT_SYSTEM } from '../../src/core/vault/vaultPrompt'
 import type { VaultAgentItem } from '@zumibot/shared/vault'
 import { ChatTmp } from '../../src/core/chat/chatTmp'
@@ -6573,6 +6576,138 @@ describe('agent vault', () => {
     const args = calls[0].args
     expect(args.indexOf(TODO)).toBeGreaterThan(-1)
     expect(args.indexOf(VAULT_CONFIG)).toBeGreaterThan(args.indexOf(TODO))
+  })
+})
+
+describe('hive recall', () => {
+  const RECALL_CONFIG = '{"mcpServers":{"zumibot_recall":{"type":"stdio"}}}'
+  const configsOf = (args: string[]) => args.flatMap((a, i) => (args[i - 1] === '--mcp-config' ? [a] : []))
+  const systemOf = (args: string[]) => args[args.indexOf('--append-system-prompt') + 1] ?? ''
+  let made: { chatId: string; agent: string; side?: true }[]
+  let disposed: number
+  let scopes: Record<string, RecallScope | null>
+  const recallTurns = () => ({
+    scopeOf: async (agent: string) => scopes[agent] ?? null,
+    create: (owner: RecallOwner): RecallTurn => {
+      made.push({ chatId: owner.chatId, agent: owner.agent(), ...(owner.side ? { side: true as const } : {}) })
+      return {
+        mcp: { name: 'zumibot_recall', command: '/usr/bin/node', args: ['/opt/recallBridge.mjs'], passEnv: [], fixedEnv: {} },
+        args: ['--mcp-config', RECALL_CONFIG],
+        env: { ZUMIBOT_RECALL_CAPABILITY: `recall-cap-${made.length}`, ZUMIBOT_RECALL_IPC: '/tmp/private-recall-ipc' },
+        dispose: () => {
+          disposed++
+        }
+      }
+    }
+  })
+  beforeEach(() => {
+    made = []
+    disposed = 0
+    scopes = { helper: 'folder' }
+    svc = makeService({ recallTurns: recallTurns() })
+  })
+
+  it('an agent with recall on gets the bridge, its env and the paragraph for its scope', async () => {
+    const c = await store.create('helper', dir)
+    await svc.send(c.id, 'what did we decide?')
+    expect(configsOf(calls[0].args)).toContain(RECALL_CONFIG)
+    expect(calls[0].env?.ZUMIBOT_RECALL_IPC).toBe('/tmp/private-recall-ipc')
+    expect(systemOf(calls[0].args)).toContain(recallSystem('folder'))
+    expect(made).toEqual([{ chatId: c.id, agent: 'helper' }])
+    expect(disposed).toBe(1)
+  })
+
+  it('an agent with recall off gets no bridge and no paragraph', async () => {
+    const c = await store.create('other', dir)
+    await svc.send(c.id, 'hi')
+    expect(configsOf(calls[0].args)).not.toContain(RECALL_CONFIG)
+    expect(calls[0].env?.ZUMIBOT_RECALL_CAPABILITY).toBeUndefined()
+    expect(systemOf(calls[0].args)).not.toContain('zumibot_recall')
+    expect(made).toEqual([])
+  })
+
+  it('a room member gets the bridge by its own setting, acting as that member', async () => {
+    const c = await store.create('', dir)
+    for (const [agent, on] of [
+      ['helper', true],
+      ['other', false]
+    ] as const) {
+      const r = svc.claim(c.id)
+      let items: ChatItem[] = []
+      await svc.agentTurn(
+        c.id,
+        r,
+        {
+          agentName: agent,
+          author: agent,
+          sessionId: null,
+          prompt: 'go',
+          seedPrompt: () => 'seed',
+          extraArgs: [],
+          disallowedTools: [],
+          allowScope: `${c.id}:${agent}`,
+          saveSession: async () => {}
+        },
+        {
+          get: () => items,
+          set: (next) => {
+            items = next
+          }
+        }
+      )
+      svc.release(c.id, r)
+      expect(configsOf(calls.at(-1)!.args).includes(RECALL_CONFIG)).toBe(on)
+    }
+    expect(made).toEqual([{ chatId: c.id, agent: 'helper' }])
+  })
+
+  it('a side run joins a side-owned recall bridge only after a main run had one, and redacts its values', async () => {
+    const c = await store.create('helper', dir)
+    await svc.send(c.id, 'go')
+    expect(svc.sideBase(c.id, 'helper')!.recall).toBe(true)
+    const turn = (await svc.sideBrowser(c.id, 'helper'))!
+    expect(configsOf(turn.args)).toEqual([RECALL_CONFIG])
+    expect(made.at(-1)).toEqual({ chatId: c.id, agent: 'helper', side: true })
+    const values = new Map<string, string>()
+    notePrivateValues(values, 'browser', turn.env)
+    expect([...values.keys()]).toEqual(expect.arrayContaining(['recall-cap-2', '/tmp/private-recall-ipc']))
+    await turn.dispose()
+    expect(disposed).toBe(2)
+    const other = await store.create('other', dir)
+    await svc.send(other.id, 'go')
+    expect(await svc.sideBrowser(other.id, 'other')).toBeNull()
+  })
+
+  it("answers its own tools' permission requests without a card, and only while bridged", async () => {
+    mode = 'manual'
+    const c = await store.create('helper', dir)
+    const ask = (id: string): RunEvent[] => [
+      { kind: 'toolUse', id: `${id}-tool`, name: 'mcp__zumibot_recall__search', input: { query: 'x' } },
+      {
+        kind: 'permissionRequest',
+        requestId: id,
+        toolName: 'mcp__zumibot_recall__search',
+        input: { query: 'x' },
+        description: null,
+        reason: null,
+        toolUseId: `${id}-tool`
+      }
+    ]
+    scripts.push({ hang: true, events: ask('recall-permission') })
+    const done = svc.send(c.id, 'go')
+    await vi.waitFor(() => expect(sent).toHaveLength(1))
+    expect(sent).toEqual([allowResponse('recall-permission', { query: 'x' })])
+    expect(svc.pendingCount(c.id)).toBe(0)
+    svc.stop(c.id)
+    await done
+    // Recall off: a tool of that name asks like any other.
+    scopes.helper = null
+    scripts.push({ hang: true, events: ask('other-permission') })
+    const again = svc.send(c.id, 'go')
+    await vi.waitFor(() => expect(svc.pendingCount(c.id)).toBe(1))
+    expect(sent).toHaveLength(1)
+    svc.stop(c.id)
+    await again
   })
 })
 

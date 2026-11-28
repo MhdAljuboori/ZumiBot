@@ -26,7 +26,7 @@ export type AuditDecision =
   | { kind: 'allowedByAgentRule'; rule: string }
   | { kind: 'allowedByWorkflowRule' }
   | { kind: 'allowedByAllowlist'; host: string }
-  | { kind: 'allowedByZumiBot'; why: 'todos' | 'vault' | 'automation' | 'ask' | 'sideAsk' | 'connectorRead' }
+  | { kind: 'allowedByZumiBot'; why: 'todos' | 'vault' | 'automation' | 'ask' | 'sideAsk' | 'connectorRead' | 'recall' }
   | { kind: 'approvedByUser'; scope: 'once' | 'chat' | 'agent' | 'step' }
   | { kind: 'deniedByUser' }
   | { kind: 'deniedByRule' }
