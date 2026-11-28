@@ -5,6 +5,7 @@ import {
   commandParts,
   coveredBy,
   folderCoveredBy,
+  gitCForms,
   isGitPart,
   isSafePart,
   PROGRAM_MESSAGE,
@@ -75,6 +76,9 @@ export interface SheetRow {
    *  instead of a prefix. null for every other part. */
   folder: string | null
   ticked: boolean
+  /** The part is a git command after a `cd` into a folder row, shown in its `git -C <folder> …` form: no rule lets git run after
+   *  such a cd, so the rule and the agent's retry use that form. */
+  gitC: boolean
   /** The held rule that already allows this part, or null. */
   heldBy: string | null
   /** Why no rule can start with this part's program (a shell or wrapper), or null. Such a row has no prefix and is never ticked. */
@@ -85,21 +89,29 @@ const insideFolder = (path: string, folder: string): boolean =>
   path === folder || path.startsWith(folder.endsWith('/') ? folder : folder + '/')
 
 /** One row per part of the refused command. Read-only helpers start unticked; a held part is ticked and fixed. A `cd` into a
- *  folder outside `cwd` (the chat's folder) is a folder row, ticked: a Bash rule cannot let it through. */
+ *  folder outside `cwd` (the chat's folder) is a folder row, ticked: a Bash rule cannot let it through. A git part after such a
+ *  cd is shown as `git -C <folder> …` (`gitCForms`), since git after the cd is asked whatever is allowed. */
 export function sheetRows(command: string, held: readonly string[], cwd?: string): SheetRow[] {
-  return commandParts(command).map((part) => {
-    const folder = cdTarget(part)
+  const forms = gitCForms(command)
+  let afterFolder = false // the latest cd is a folder row the card offers
+  return commandParts(command).map((raw, i) => {
+    const folder = cdTarget(raw)
+    if (/^cd(\s|$)/.test(raw)) afterFolder = false
     if (folder !== null && !(cwd && insideFolder(folder, cwd))) {
       // The server also refuses the home folder, which the page does not know.
       const refused = checkFolder(folder, command)
-      if (refused !== null) return { part, prefix: '', folder, ticked: false, heldBy: null, refused }
-      return { part, prefix: '', folder, ticked: true, heldBy: folderCoveredBy(folder, held), refused: null }
+      if (refused !== null) return { part: raw, prefix: '', folder, gitC: false, ticked: false, heldBy: null, refused }
+      afterFolder = true
+      return { part: raw, prefix: '', folder, gitC: false, ticked: true, heldBy: folderCoveredBy(folder, held), refused: null }
     }
+    const form = afterFolder ? forms[i] : null
+    const part = form?.part ?? raw
+    const gitC = form !== null
     // `timeout 30 git …` is not offered as `git …`: whether the CLI matches the wrapped command is unverified.
     const refused = programError(part)
-    if (refused !== null) return { part, prefix: '', folder: null, ticked: false, heldBy: null, refused }
+    if (refused !== null) return { part, prefix: '', folder: null, gitC, ticked: false, heldBy: null, refused }
     const heldBy = coveredBy(part, held)
-    return { part, prefix: suggestPrefix(part), folder: null, ticked: heldBy !== null || !isSafePart(part), heldBy, refused: null }
+    return { part, prefix: suggestPrefix(part), folder: null, gitC, ticked: heldBy !== null || !isSafePart(part), heldBy, refused: null }
   })
 }
 
@@ -111,7 +123,8 @@ export function chosenFolders(rows: readonly SheetRow[]): string[] {
 }
 
 /** The folder of a folder row that a later part runs git in, or null. The CLI asks about `cd <folder> && git …` whatever
- *  is allowed (it could pick up the folder's hooks), so no rule helps there; `git -C <folder>` does not trip it. */
+ *  is allowed (it could pick up the folder's hooks), so no rule helps there; `git -C <folder>` does not trip it. When the git
+ *  rows are in their git -C form (`gitC`), the card's rules are for that form and the agent is told to use it. */
 export function gitAfterFolder(rows: readonly SheetRow[]): string | null {
   const at = rows.findIndex((r) => r.folder)
   return at >= 0 && rows.slice(at + 1).some((r) => isGitPart(r.part)) ? rows[at].folder : null

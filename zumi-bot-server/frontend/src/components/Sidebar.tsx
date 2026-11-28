@@ -1,13 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type DragEvent,
-  type MouseEvent,
-  type TouchEvent
-} from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent, type MouseEvent, type TouchEvent } from 'react'
 import { ARCHIVE_RUNNING } from '@zumibot/shared/archive'
 import { displayName } from '@zumibot/shared/frontmatter'
 import { agentKey, emptyLayout, groupKey, SECTION_NAME_MAX, type SidebarLayout, type SidebarSection } from '@zumibot/shared/sidebarLayout'
@@ -15,6 +6,7 @@ import { isGroup, type AgentSummary, type ChatMeta } from '@zumibot/shared/types
 import { SEARCH_QUERY_MAX, parseQuery, type SearchHit } from '@zumibot/shared/search'
 import { isUnread } from '@zumibot/shared/unread'
 import { agentHasPending } from '../state/approvals'
+import { popoutClick } from '../state/popout'
 import { engineTag } from '../state/agentEngine'
 import { agentIsWorking } from '../state/bot'
 import { FOLDER_SHOWN, FOLDER_STEP, folderKey, folderRows } from '../state/folderChats'
@@ -45,6 +37,8 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { FolderIcon } from './FolderIcon'
 import { MemberStack } from './MemberStack'
 import { MenuIcon } from './MenuIcon'
+import { RepeatableItems } from './MakeRepeatableMenu'
+import { canMakeRepeatable, repeatableKinds, type RepeatablePick } from '../state/makeRepeatable'
 import { MessageHits } from './MessageHits'
 import { api } from '../api'
 import { CHANNEL_LABELS, CHANNEL_PLATFORMS, type ChannelPlatform } from '@zumibot/shared/channels'
@@ -165,6 +159,8 @@ interface Props {
   onNewChat: (agentName: string, folder: NewChatFolder) => void
   onDeleteAgent: (filePath: string) => void
   onOpenChat: (chatId: string) => void
+  /** Ctrl/Cmd+click, middle click or the menu: the chat in a window of its own, the open view left as it is. */
+  onPopoutChat: (chatId: string) => void
   onRenameChat: (chatId: string, title: string) => void
   /** Opens the Clone room dialog for a group room. */
   onCloneRoom: (chat: ChatMeta) => void
@@ -172,6 +168,8 @@ interface Props {
   /** Moves a chat or room to Archived; offered only while it is not running or waiting on an approval. */
   onArchiveChat: (chatId: string) => void
   onExportChat: (chat: ChatMeta) => void
+  /** Make repeatable: hands a finished chat to Zumi Bot as the picked kind. */
+  onMakeRepeatable: (chat: ChatMeta, pick: RepeatablePick) => void
   /** Every chat, archived ones too: the search's message hits name them. */
   allChats: ChatMeta[]
   /** The socket is up: the message search asks the server. */
@@ -185,8 +183,8 @@ export function Sidebar(p: Props) {
   // How many chats each folder lists after Show more (by folderKey); a folder not in it lists FOLDER_SHOWN.
   const [shown, setShown] = useState<Record<string, number>>({})
   const [menu, setMenu] = useState<Menu | null>(null)
-  // The Move to list beside the agent or chat menu.
-  const [moveOpen, setMoveOpen] = useState(false)
+  // The list open beside the agent or chat menu: Move to, or Make repeatable's kinds.
+  const [sub, setSub] = useState<'move' | 'repeat' | null>(null)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [renamingSection, setRenamingSection] = useState<string | null>(null)
   // Continue in Telegram's refusal (not paired, the agent not on for Telegram), shown until dismissed.
@@ -214,7 +212,7 @@ export function Sidebar(p: Props) {
   useDismiss(menu !== null, closeMenu)
   useFitInViewport(menuRef, menu)
 
-  useEffect(() => setMoveOpen(false), [menu])
+  useEffect(() => setSub(null), [menu])
 
   // The Move to list opens beside the menu, on its left when the right has no room, and is nudged inside the window.
   useLayoutEffect(() => {
@@ -231,7 +229,7 @@ export function Sidebar(p: Props) {
     const dx = Math.max(MARGIN - r.left, Math.min(0, window.innerWidth - MARGIN - r.right))
     const dy = Math.max(MARGIN - r.top, Math.min(0, window.innerHeight - MARGIN - r.bottom))
     if (dx !== 0 || dy !== 0) el.style.translate = `${dx}px ${dy}px`
-  }, [moveOpen, menu])
+  }, [sub, menu])
 
   // The drawer coming out takes focus, so the keyboard and screen readers land in it.
   useEffect(() => {
@@ -355,15 +353,26 @@ export function Sidebar(p: Props) {
 
   const endPress = (): void => window.clearTimeout(press.current?.timer)
 
-  // What every chat and group row shares: click opens, right-click (or a long press) gives the chat menu.
+  // What every chat and group row shares: click opens, Ctrl/Cmd+click or a middle click pops it out, right-click (or a
+  // long press) gives the chat menu.
   const chatHandlers = (chat: ChatMeta) => ({
     'data-chat-id': chat.id,
-    onClick: () => {
+    onClick: (e: MouseEvent) => {
       if (press.current?.fired) {
         press.current = null
         return
       }
+      if (popoutClick(e)) return p.onPopoutChat(chat.id)
       p.onOpenChat(chat.id)
+    },
+    // A middle click fires no click: auxclick it is. Its mousedown would start autoscroll (or paste the X selection).
+    onMouseDown: (e: MouseEvent) => {
+      if (e.button === 1) e.preventDefault()
+    },
+    onAuxClick: (e: MouseEvent) => {
+      if (e.button !== 1) return
+      e.preventDefault()
+      p.onPopoutChat(chat.id)
     },
     onContextMenu: (e: MouseEvent) => {
       e.preventDefault()
@@ -847,18 +856,18 @@ export function Sidebar(p: Props) {
           type="button"
           role="menuitem"
           aria-haspopup="menu"
-          aria-expanded={moveOpen}
-          className={moveOpen ? 'sub-toggle open' : 'sub-toggle'}
+          aria-expanded={sub === 'move'}
+          className={sub === 'move' ? 'sub-toggle open' : 'sub-toggle'}
           data-testid="menu-move-to"
           // Hovering already opened it, so a click never closes it again.
-          onMouseEnter={() => setMoveOpen(true)}
-          onClick={() => setMoveOpen(true)}
+          onMouseEnter={() => setSub('move')}
+          onClick={() => setSub('move')}
         >
           <MenuIcon name="folder" />
           Move to
           <Glyph name="chevron" />
         </button>
-        {moveOpen && (
+        {sub === 'move' && (
           <div ref={subRef} className="menu submenu" role="menu" data-testid="move-to-menu">
             {dest(null, 'Unassigned')}
             {layout.sections.map((s) => dest(s.id, s.name))}
@@ -873,9 +882,47 @@ export function Sidebar(p: Props) {
     )
   }
 
-  // Hovering another item closes the Move to list.
+  // Make repeatable › and its kinds, for a finished chat; disabled while its reply runs.
+  const repeatItem = (chat: ChatMeta) => {
+    const kinds = repeatableKinds(chat, p.agents)
+    if (kinds.length === 0) return null
+    const ready = canMakeRepeatable(chat, p.agents)
+    return (
+      <div className="has-sub">
+        <button
+          type="button"
+          role="menuitem"
+          aria-haspopup="menu"
+          aria-expanded={sub === 'repeat'}
+          className={sub === 'repeat' ? 'sub-toggle open' : 'sub-toggle'}
+          data-testid="chat-menu-repeat"
+          disabled={!ready}
+          data-tip={ready ? undefined : 'Wait for the reply to finish'}
+          onMouseEnter={() => ready && setSub('repeat')}
+          onClick={() => ready && setSub('repeat')}
+        >
+          <MenuIcon name="repeat" />
+          Make repeatable
+          <Glyph name="chevron" />
+        </button>
+        {sub === 'repeat' && (
+          <div ref={subRef} className="menu submenu" role="menu" data-testid="make-repeatable-menu">
+            <RepeatableItems
+              kinds={kinds}
+              onPick={(pick) => {
+                setMenu(null)
+                p.onMakeRepeatable(chat, pick)
+              }}
+            />
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Hovering another item closes the open list.
   const menuHover = (e: MouseEvent): void => {
-    if (moveOpen && !(e.target as Element).closest('.has-sub')) setMoveOpen(false)
+    if (sub !== null && !(e.target as Element).closest('.has-sub')) setSub(null)
   }
 
   const nothing = sections.length === 0 && view.unassigned.length === 0
@@ -1090,6 +1137,19 @@ export function Sidebar(p: Props) {
               <button
                 type="button"
                 role="menuitem"
+                data-testid="chat-menu-popout"
+                onClick={() => {
+                  const chat = menu.chat
+                  setMenu(null)
+                  p.onPopoutChat(chat.id)
+                }}
+              >
+                <MenuIcon name="popout" />
+                Open in new window
+              </button>
+              <button
+                type="button"
+                role="menuitem"
                 data-testid="chat-menu-export"
                 onClick={() => {
                   const chat = menu.chat
@@ -1100,6 +1160,7 @@ export function Sidebar(p: Props) {
                 <MenuIcon name="download" />
                 Export…
               </button>
+              {repeatItem(menu.chat)}
               {CHANNEL_PLATFORMS.map((platform) => {
                 const linked = menu.chat.channel?.platform === platform
                 return (

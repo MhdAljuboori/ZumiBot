@@ -247,7 +247,10 @@ function SyncSettings() {
     <div data-testid="settings-sync">
       <div className="set-card">
         {shell?.sync ? (
-          <Row label="Sync this PC and VPS" hint="Copies ZumiBot data and ~/.zumi both ways. The app reconnects when it finishes.">
+          <Row
+            label="Sync this PC and VPS"
+            hint="Copies agents, skills, agent memory and plugins both ways. Tick Sync with chats and projects in the Sync window to also copy chats; the app then reconnects when it finishes."
+          >
             <button type="button" className="btn" data-testid="sync" onClick={() => shell.sync?.()}>
               Sync…
             </button>
@@ -255,7 +258,7 @@ function SyncSettings() {
         ) : shell ? (
           <Row
             label="Sync this PC and VPS"
-            hint="Update the ZumiBot desktop app to use Sync. Until then, close the app and run npm run sync from your source checkout."
+            hint="Update the ZumiBot desktop app to use Sync. Until then, run npm run sync from your source checkout (add -- --with-chats, with the app closed, to also copy chats)."
           />
         ) : phone ? (
           <Row

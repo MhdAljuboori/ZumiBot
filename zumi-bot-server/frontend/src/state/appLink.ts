@@ -56,3 +56,24 @@ export function islandLinkTarget(path: string): IslandOpenTarget {
   }
   return { chatId: chatIdFromPath(pathname), live: null }
 }
+
+/**
+ * What a click on an in-app link does: a context that opens links elsewhere (the island, a popout) takes every click; a
+ * modified click is the browser's (a new tab); the page already shown has nothing to open; anything else moves the app.
+ */
+export function appLinkClick(
+  e: { button: number; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean },
+  path: string,
+  here: string,
+  openApp: ((path: string) => void) | null
+): 'context' | 'browser' | 'same' | 'push' {
+  if (openApp) return 'context'
+  if (!plainClick(e)) return 'browser'
+  return path === here ? 'same' : 'push'
+}
+
+/** The in-app path another window (a popout) asks this page to show, or null when it is not one or already shown. */
+export function pathToOpen(path: string, origin: string, here: string): string | null {
+  const p = appPath(path, origin)
+  return p === null || p === here ? null : p
+}

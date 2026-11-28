@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import QRCode from 'qrcode'
 import { SITE } from '../src/serverInstall.ts'
 import { USDT_TRC20 } from '../src/sponsor.ts'
+import viteConfig from '../vite.config.ts'
 
 const site = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -74,7 +75,9 @@ describe('sponsor page', () => {
   }
 
   it('is served at /sponsor: an html entry in the build, with clean URLs on', () => {
-    expect(readFileSync(join(site, 'vite.config.ts'), 'utf8')).toContain("'./sponsor.html'")
+    // vite.config.ts builds every root *.html; the input name sets the chunk names.
+    const input = viteConfig.build?.rolldownOptions?.input as Record<string, string>
+    expect(input.sponsor).toBe(join(site, 'sponsor.html'))
     const vercel = JSON.parse(readFileSync(join(site, 'vercel.json'), 'utf8')) as { cleanUrls?: boolean }
     expect(vercel.cleanUrls).toBe(true)
     expect(html).toContain('src="/src/sponsorMain.tsx"')

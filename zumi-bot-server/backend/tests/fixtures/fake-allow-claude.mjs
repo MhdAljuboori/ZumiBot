@@ -3,7 +3,8 @@
 // first turn: a Bash call the auto-mode classifier refuses (permission_denied, the error tool_result and the result's
 // permission_denials, as the real CLI orders them). A first message that says "merge" refuses `cd $FAKE_OUTSIDE && gh pr merge
 // 1 --merge` instead, a cd into a folder outside the chat's; one that says "heredoc" refuses a `python3` heredoc followed by
-// `gh pr merge`, a part no rule can allow. A resumed run appends its argv to FAKE_ARGV_FILE, one JSON line each, and replies
+// `gh pr merge`, a part no rule can allow; one that says "remote branch" refuses `cd $FAKE_OUTSIDE && git push origin --delete
+// old`, git after a cd into another folder. A resumed run appends its argv to FAKE_ARGV_FILE, one JSON line each, and replies
 // "ok". No model, quota or personal HOME is used.
 import { appendFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
@@ -42,7 +43,14 @@ setTimeout(() => process.exit(13), 15_000).unref()
 function run() {
   const merge = process.env.FAKE_OUTSIDE && buffered.includes('merge')
   const heredoc = buffered.includes('heredoc')
-  const command = merge ? `cd ${process.env.FAKE_OUTSIDE} && gh pr merge 1 --merge` : heredoc ? HEREDOC : COMMAND
+  const gitAfterCd = process.env.FAKE_OUTSIDE && buffered.includes('remote branch')
+  const command = merge
+    ? `cd ${process.env.FAKE_OUTSIDE} && gh pr merge 1 --merge`
+    : gitAfterCd
+      ? `cd ${process.env.FAKE_OUTSIDE} && git push origin --delete old`
+      : heredoc
+        ? HEREDOC
+        : COMMAND
   emit({ type: 'system', subtype: 'init', session_id: session, cwd: process.cwd(), model: 'claude-haiku-5-5', permissionMode: 'auto' })
   if (resumed) {
     if (process.env.FAKE_ARGV_FILE) appendFileSync(process.env.FAKE_ARGV_FILE, JSON.stringify(argv) + '\n')

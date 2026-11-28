@@ -2,6 +2,17 @@
 
 What changed in each ZumiBot release, newest first. The release notes on GitHub come from here.
 
+## v0.1.5 — 2026-11-28
+
+- Make repeatable: when a finished chat did something you will want again, choose **Make repeatable** above the chat or in its menu in the sidebar, and Zumi Bot turns it into a slash command, a skill, a routine or a workflow, or picks the one that fits. What stays the same is kept, and what would change next time, such as a pull request number, a link or a date, becomes a parameter.
+- Turn X-ray: choose it beside an agent's message to see that reply as a timeline, with every model request, tool call, subagent and approval wait, plus the time, tokens, cache share and cost of each step. It works on a reply that is still running too.
+- Recall: in Agent Studio, an agent can now look up earlier chats when you ask about something said before, such as "what did we decide last week?". Choose **Own chats** or **This folder**; it is off by default, and the agent can only search and read those chats, never change them.
+- Hold Ctrl (Cmd on a Mac) and click a chat or room, click it with the middle mouse button, or choose **Open in new window** from its menu to open it in a window of its own, in the desktop app and in the browser. In the desktop app that window can stay on top of your other windows.
+- Sync now keeps only your agents, skills, agent memory and plugins the same on your computer and your server by default, without restarting anything. Tick **Sync with chats and projects** to merge chats and the rest too, as before.
+- Sync stops early with a clear message when the server folder it is given has no ZumiBot server in it.
+- When an agent changes into another folder and runs git there, the Allow card now offers the git parts as `git -C <folder>`, which Auto mode can allow, and tells the agent to run git that way. If the agent still uses `cd`, the card's **Ask to use git -C** button asks it again.
+- Each routine in the Routines list now has an On/Off switch, like workflows, which applies at once, and a routine's menu matches a workflow's.
+
 ## v0.1.4 — 2026-11-27
 
 - A message you send into a running reply now gets its own short line confirming it, such as "Got it, I'll get only the unread notifications.", right under your message, so you see the agent took it before it carries on.

@@ -125,6 +125,16 @@ function ExportIcon() {
   )
 }
 
+// Bars on a time axis, staggered: the reply's steps as Turn X-ray draws them.
+function XrayIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M2.5 2.5v11h11" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 5h3.5M7 8h4.5M6 11h2.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 function UnreadIcon() {
   return (
     <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -255,10 +265,23 @@ interface Props {
   onMarkUnread: () => void
   /** Opens Export with this reply picked; absent where no Export dialog can open (the island popup). */
   onExport?: () => void
+  /** Opens this reply's Turn X-ray in the side panel; absent where there is no side panel (the island popup). */
+  onXray?: () => void
 }
 
-/** The buttons beside an agent message, shown while it is hovered: react, reply, copy, resend, fork, export and mark unread. */
-export function MessageActions({ text, onReply, onReact, onResend, resendBusy = false, onFork, forkBusy, onMarkUnread, onExport }: Props) {
+/** The buttons beside an agent message, shown while it is hovered: react, reply, copy, resend, fork, X-ray, export and mark unread. */
+export function MessageActions({
+  text,
+  onReply,
+  onReact,
+  onResend,
+  resendBusy = false,
+  onFork,
+  forkBusy,
+  onMarkUnread,
+  onExport,
+  onXray
+}: Props) {
   const [picker, setPicker] = useState<CSSProperties | null>(null)
   const closePicker = useCallback(() => setPicker(null), [])
   useDismiss(picker !== null, closePicker)
@@ -309,6 +332,11 @@ export function MessageActions({ text, onReply, onReact, onResend, resendBusy = 
       {onFork && (
         <ActionButton testId="fork-button" label="Fork" disabled={forkBusy} onClick={onFork}>
           <ForkIcon />
+        </ActionButton>
+      )}
+      {onXray && (
+        <ActionButton testId="xray-button" label="Turn X-ray" onClick={onXray}>
+          <XrayIcon />
         </ActionButton>
       )}
       {onExport && (

@@ -237,3 +237,27 @@ describe('SearchIndex', () => {
     expect(idx.size()).toBe(0)
   })
 })
+
+describe('SearchIndex time range', () => {
+  it('keeps only hits inside from and to, both inclusive', () => {
+    const idx = index()
+    idx.note('c', [user('old', 'we decided on postgres', 100), reply('mid', 'decided: postgres it is', 200), user('new', 'postgres decided', 300)])
+    idx.flush()
+    const at = (range: { from?: number; to?: number }) => idx.search('decided', 0, all, 30, range).hits.map((h) => h.itemId)
+    expect(at({})).toEqual(['new', 'mid', 'old'])
+    expect(at({ from: 200 })).toEqual(['new', 'mid'])
+    expect(at({ to: 200 })).toEqual(['mid', 'old'])
+    expect(at({ from: 150, to: 250 })).toEqual(['mid'])
+    expect(idx.search('decided', 0, all, 30, { from: 150, to: 250 }).total).toBe(1)
+  })
+})
+
+describe('searchableOf', () => {
+  it('is what the index holds: user and agent text, never a Run result or a tool', async () => {
+    const { searchableOf } = await import('../../src/core/search/searchIndex')
+    expect(searchableOf(user('u', 'hi', 5, 'bob'))).toEqual({ role: 'user', agent: 'bob', ts: 5, text: 'hi' })
+    expect(searchableOf(reply('a', 'yo', 6, 'ann'))).toEqual({ role: 'assistant', agent: 'ann', ts: 6, text: 'yo' })
+    expect(searchableOf(reply('e', '  ', 6))).toBeNull()
+    expect(searchableOf(tool('t', 'x'))).toBeNull()
+  })
+})

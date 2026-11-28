@@ -10,6 +10,8 @@ it('resolves source worker paths without importing Playwright or requiring a bro
   expect(dirname(r.todoBridgeEntry)).toBe(dirname(r.bridgeEntry))
   expect(r.vaultBridgeEntry).toMatch(/vaultBridge\.(ts|mjs)$/)
   expect(dirname(r.vaultBridgeEntry)).toBe(dirname(r.bridgeEntry))
+  expect(r.recallBridgeEntry).toMatch(/recallBridge\.(ts|mjs)$/)
+  expect(dirname(r.recallBridgeEntry)).toBe(dirname(r.bridgeEntry))
   expect(r.automationBridgeEntry).toMatch(/automationBridge\.(ts|mjs)$/)
   expect(dirname(r.automationBridgeEntry)).toBe(dirname(r.bridgeEntry))
   expect(r.playwrightDir).toMatch(/node_modules[\\/]playwright-core$/)

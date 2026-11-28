@@ -72,6 +72,8 @@ import { chatCaps, cliMissing, missingFeaturesTitle, roomMissingFeaturesTitle } 
 import { TasksTray } from './TasksTray'
 import { ReplyOptions } from './ReplyOptions'
 import { PausingLine } from './PausingLine'
+import { MakeRepeatableMenu } from './MakeRepeatableMenu'
+import { canMakeRepeatable, repeatableKinds, type RepeatablePick } from '../state/makeRepeatable'
 
 interface Props {
   chat: ChatMeta
@@ -138,6 +140,8 @@ interface Props {
   onMarkUnread: (itemId: string) => void
   /** Opens Export with an agent message's reply picked. */
   onExportReply: (itemId: string) => void
+  /** Opens an agent message's Turn X-ray in the side panel. */
+  onXrayReply: (itemId: string) => void
   /** Removes a queued message before it is sent; resolves false when that failed. */
   onDropTask: (taskId: string) => Promise<boolean>
   /** Sends a queued message now; offered only while the queue holds its tasks (a paused group, or a held chat). */
@@ -166,6 +170,8 @@ interface Props {
   onOpenSide: (id: string) => void
   /** A room: opens the Clone room dialog. */
   onCloneRoom: () => void
+  /** Make repeatable: hands the finished chat to Zumi Bot as the picked kind. */
+  onMakeRepeatable: (pick: RepeatablePick) => void
   /** A cloned room's handoff card: whether the room it came from is still listed, and opening it. */
   handoffSourceExists: boolean
   onOpenHandoffSource: () => void
@@ -198,6 +204,8 @@ interface Props {
    * cold notice or workflow bar; the history, older pages and the New line stay.
    */
   compact?: boolean
+  /** A popout window: its own header (App) names the chat and holds the side panel's icon, so this row does not. */
+  popout?: boolean
 }
 
 // Stable, so the island's list does not see a new array on every render.
@@ -339,6 +347,7 @@ export function ChatView({
   onFork,
   onMarkUnread,
   onExportReply,
+  onXrayReply,
   onDropTask,
   onSendTask,
   onCompact,
@@ -355,6 +364,7 @@ export function ChatView({
   sides,
   onOpenSide,
   onCloneRoom,
+  onMakeRepeatable,
   handoffSourceExists,
   onOpenHandoffSource,
   askedSourceExists,
@@ -371,7 +381,8 @@ export function ChatView({
   git,
   changesOpen,
   onToggleChanges,
-  compact = false
+  compact = false,
+  popout = false
 }: Props) {
   // The row over the chat names it (its agent or members, then its title) and holds the side panel's icon: Files and the
   // browser are chosen inside the panel. On a small screen the mobile bar (App) does both, so this row shows only for
@@ -407,28 +418,33 @@ export function ChatView({
     </div>
   )
   const title = chatTitle(chat, agents)
+  const repeatKinds = repeatableKinds(chat, agents)
   const titleIcon = chat.group ? (
     <MemberStack agents={memberAgents(chat.group.members, agents)} size={22} working={workingMembers(chat)} max={3} />
   ) : agent ? (
     <BotIcon icon={agent.icon} color={agent.error === null ? agent.color : null} builtIn={agent.builtIn} working={false} size={22} />
   ) : null
-  const top = narrow ? (
-    archivedNote && <div className="chat-top">{archivedNote}</div>
-  ) : (
-    <>
-      <div className="chat-top">
-        <div className="chat-title" data-testid="chat-title">
-          {titleIcon}
-          <h1 className="chat-title-text" data-tip={title}>
-            {title}
-          </h1>
+  const top =
+    narrow || popout ? (
+      archivedNote && <div className="chat-top">{archivedNote}</div>
+    ) : (
+      <>
+        <div className="chat-top">
+          <div className="chat-title" data-testid="chat-title">
+            {titleIcon}
+            <h1 className="chat-title-text" data-tip={title}>
+              {title}
+            </h1>
+          </div>
+          {!compact && onOpenProcesses && <ProcessMark mark={processMark} onOpen={onOpenProcesses} />}
+          {!compact && repeatKinds.length > 0 && (
+            <MakeRepeatableMenu kinds={repeatKinds} disabled={!canMakeRepeatable(chat, agents)} onPick={onMakeRepeatable} />
+          )}
+          <SidePanelToggle open={sideOpen} onToggle={onToggleSide} />
         </div>
-        {!compact && onOpenProcesses && <ProcessMark mark={processMark} onOpen={onOpenProcesses} />}
-        <SidePanelToggle open={sideOpen} onToggle={onToggleSide} />
-      </div>
-      {archivedNote && <div className="chat-top">{archivedNote}</div>}
-    </>
-  )
+        {archivedNote && <div className="chat-top">{archivedNote}</div>}
+      </>
+    )
   // The trays the user collapsed: remembered per browser, the same in every chat.
   const [collapsed, setCollapsed] = useState(() => loadSet(TRAYS_KEY))
   const toggleTray = (tray: TrayName): void => {
@@ -586,7 +602,7 @@ export function ChatView({
       onSwitchVersion={onSwitchVersion}
       onFork={onFork}
       onMarkUnread={onMarkUnread}
-      {...(compact ? {} : { onExport: onExportReply })}
+      {...(compact ? {} : { onExport: onExportReply, onXray: onXrayReply })}
       // A room's running turns are drawn after its finished ones and move when they end, so the line is looked for among those.
       newLineBefore={newLineItem(chat.group ? threadItems(state.items) : state.items, since, (state.start ?? 0) > 0)}
       showRequest={showRequest}

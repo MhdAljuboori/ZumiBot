@@ -556,6 +556,13 @@ describe('ExtensionsService.loadout', SLOW, () => {
     expect(names(plain, 'servers')).not.toContain('zumibot_desktop')
   })
 
+  it('lists the recall bridge only for an agent with recall on', async () => {
+    agentList.push(summary('rememberer', { recall: 'folder' }))
+    const s = make()
+    expect(names(await s.loadout(folder, 'rememberer', false), 'servers')).toContain('zumibot_recall')
+    expect(names(await s.loadout(folder, 'helper', false), 'servers')).not.toContain('zumibot_recall')
+  })
+
   it('probes a Codex agent with codex, lists no plugins and builds no per-agent config', async () => {
     const answers: ProbeAnswers = {
       version: '0.164.0',
@@ -921,6 +928,16 @@ describe('ExtensionsService plugins, skills and hooks', SLOW, () => {
     expect(readJson(USER_SETTINGS())).toEqual({ ...userSettings, skillOverrides: { a: 'off' } })
     await s.setSkill('a', true)
     expect(readJson(USER_SETTINGS())).toEqual(userSettings)
+  })
+
+  it('lists the user skills by name with their descriptions, skipping a folder with no readable SKILL.md', async () => {
+    const s = make()
+    mkdirSync(join(claudeDir, 'skills', 'empty-folder'))
+    await s.saveSkill('user', folder, { name: 'a-first', description: 'First', body: 'b' })
+    expect(await s.userSkills()).toEqual([
+      { name: 'a-first', description: 'First' },
+      { name: 'mine', description: 'My own' }
+    ])
   })
 
   it('creates, reads, edits and removes a user skill, and never overwrites one on create', async () => {

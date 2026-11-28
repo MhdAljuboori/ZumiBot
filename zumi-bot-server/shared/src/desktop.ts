@@ -48,6 +48,10 @@ export interface DesktopBridge {
   island?: IslandSettingsBridge
   /** Optional like the rest: the island asks the main window to open a chat and, maybe, a live view. */
   onIslandOpen?(cb: (t: IslandOpenTarget) => void): () => void
+  /** Optional like the rest: opens the chat in a popout window of its own (an older shell lacks it). */
+  openChatWindow?(chatId: string): void
+  /** Optional like the rest: a popout asks the main window to show an app path (another chat, Settings, a run). */
+  onOpenPath?(cb: (path: string) => void): () => void
 }
 
 // Computer use: the contract between the backend's DesktopManager, the MCP bridge and the viewer.

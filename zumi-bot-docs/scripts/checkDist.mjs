@@ -1,6 +1,7 @@
 // Runs after `astro build`. Exits 1 when a built page has no CSP meta tag, has inline code the meta does not hash, or loads anything from another
-// host, or holds an HTML comment: the site loads nothing third-party at view time.
-import { readdirSync, readFileSync } from 'node:fs'
+// host, or holds an HTML comment: the site loads nothing third-party at view time. Also exits 1 when the sitemap that
+// robots.txt names is missing (Starlight writes it only while `site` is set).
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { unhashedInline } from '../src/lib/cspHashes.ts'
@@ -27,6 +28,8 @@ for (const file of htmlFiles(dist)) {
   // Astro and Starlight write no HTML comments, so one means a page's source left a note in its text.
   for (const c of htmlComments(html)) problems.push(`${name}: HTML comment in the page (${c})`)
 }
+
+if (!existsSync(join(dist, 'sitemap-index.xml'))) problems.push('sitemap-index.xml: missing, robots.txt and Search Console point to it')
 
 if (problems.length > 0) {
   console.error(`checkDist: ${problems.length} problem(s)\n${problems.join('\n')}`)

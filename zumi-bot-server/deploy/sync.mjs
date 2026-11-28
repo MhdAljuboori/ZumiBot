@@ -41,6 +41,8 @@ const CLAUDE_DIRS = [
   ['file-history', []],
   ['agent-memory', []]
 ]
+// The plain sync's share of CLAUDE_DIRS: the Claude setup, never the session logs a chat leaves behind.
+const SETUP_DIRS = ['agents', 'skills', 'agent-memory']
 // The lock and socket belong to the running server; auth.json is the VPS sign-in, which Local mode never uses.
 // The notify files are each side's own push keys and subscriptions (a subscription only works with the keys it was made under), so like auth.json they never cross.
 // Per-machine runtime state (profiles, installs, kept screenshots, desktop homes, the CLI's temp folders) and the audit log (each
@@ -964,16 +966,239 @@ async function syncVault({ env, home, data, pulled, remoteHome, ssh, log, now })
   return merged !== null
 }
 
-const pluginNames = (text) => {
+// Plugin ids and marketplace sources come from the other machine's files and end up on a command line, so only plain names pass.
+// Every part starts with a letter or digit: a leading '-' would reach claude as a flag (-y accepts a plugin's own command), and
+// '..' as a repo part reads as a local path. A URL takes no userinfo, so no token rides into argv or a logged error.
+const PLUGIN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*$/
+const PLUGIN_REPO = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/
+const PLUGIN_GIT_URL = /^https:\/\/[A-Za-z0-9][A-Za-z0-9.-]*(:\d+)?(\/[A-Za-z0-9._~-]+)+\/?$/
+// A network install that hangs must not hold the sync forever.
+const PLUGIN_TIMEOUT_MS = 300_000
+
+const objectAt = (text, pick) => {
   try {
-    return Object.keys(JSON.parse(text).plugins ?? {})
+    const v = pick(JSON.parse(text))
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : {}
   } catch {
-    return []
+    return {}
   }
+}
+
+/** One side's plugin files. Only enabledPlugins is taken from settings.json: it can also hold hooks and env values. */
+export function pluginSide({ installed, marketplaces, settings }) {
+  const enabled = objectAt(settings, (s) => s?.enabledPlugins)
+  return {
+    installed: objectAt(installed, (f) => f?.plugins),
+    marketplaces: objectAt(marketplaces, (m) => m),
+    enabled: Object.fromEntries(Object.entries(enabled).filter(([, v]) => typeof v === 'boolean'))
+  }
+}
+
+/**
+ * Plugins to install on the side that lacks them. Only plugins that are on where they come from are copied, so a plugin turned
+ * off stays where it is (and is the way to keep one off a machine); an install at any scope counts as having it.
+ */
+export function planPluginInstalls(pc, vps) {
+  const installs = []
+  const skipped = []
+  const adding = new Set()
+  for (const [to, src, dst] of [
+    ['vps', pc, vps],
+    ['local', vps, pc]
+  ]) {
+    for (const [id, entries] of Object.entries(src.installed)) {
+      if (Object.hasOwn(dst.installed, id) || src.enabled[id] !== true) continue
+      const skip = (reason) => skipped.push({ id, to, reason })
+      if (!PLUGIN_ID.test(id)) {
+        skip('its name has characters sync does not pass on')
+        continue
+      }
+      // A project or local install names a folder on its own machine.
+      if (!Array.isArray(entries) || !entries.some((e) => e?.scope === 'user')) {
+        skip('it is installed for one project only')
+        continue
+      }
+      const name = id.slice(id.lastIndexOf('@') + 1)
+      const source = Object.hasOwn(src.marketplaces, name) ? src.marketplaces[name]?.source : undefined
+      if (!source) {
+        skip('its marketplace is not on record')
+        continue
+      }
+      const arg = source.source === 'github' ? source.repo : source.source === 'git' ? source.url : null
+      if (arg === null) {
+        skip('its marketplace is a folder on the other machine')
+        continue
+      }
+      if (typeof arg !== 'string' || !(source.source === 'github' ? PLUGIN_REPO : PLUGIN_GIT_URL).test(arg)) {
+        skip('its marketplace source has characters sync does not pass on')
+        continue
+      }
+      const add = !Object.hasOwn(dst.marketplaces, name) && !adding.has(`${to}:${name}`)
+      if (add) adding.add(`${to}:${name}`)
+      installs.push({ id, to, addMarketplace: add ? arg : null })
+    }
+  }
+  return { installs, skipped }
+}
+
+const PLUGIN_MARK = '--zumibot-sync-file--'
+const listParses = (text) => {
+  if (!text.trim()) return true
+  try {
+    const plugins = JSON.parse(text)?.plugins
+    return plugins === undefined || (plugins !== null && typeof plugins === 'object' && !Array.isArray(plugins))
+  } catch {
+    return false
+  }
+}
+const PLUGIN_FILES = {
+  installed: 'plugins/installed_plugins.json',
+  marketplaces: 'plugins/known_marketplaces.json',
+  settings: 'settings.json'
+}
+
+// A failed install never fails the sync: the log names the plugin and the command to run by hand.
+async function syncPlugins({ target, ssh, run, claude, log }) {
+  const keys = Object.keys(PLUGIN_FILES)
+  const unreadable = new Set()
+  const readLocal = (f) => {
+    try {
+      return existsSync(join(claude, f)) ? readFileSync(join(claude, f), 'utf8') : ''
+    } catch {
+      unreadable.add('local')
+      return ''
+    }
+  }
+  const local = Object.fromEntries(keys.map((k) => [k, readLocal(PLUGIN_FILES[k])]))
+  // One ssh call for all three files: each one is another connection, and a full sync already makes many.
+  const out = await ssh(
+    keys.map((k) => `printf '%s\\n' ${shq(PLUGIN_MARK)}; cat ~/.claude/${PLUGIN_FILES[k]} 2>/dev/null || true`).join('\n')
+  )
+  if (out.code !== 0) unreadable.add('vps')
+  const parts = out.stdout.split(`${PLUGIN_MARK}\n`).slice(1)
+  const vps = Object.fromEntries(keys.map((k, i) => [k, parts[i] ?? '']))
+  // A list that exists but does not parse is not an empty one: installing there could turn on a plugin turned off.
+  for (const [side, files] of [
+    ['local', local],
+    ['vps', vps]
+  ])
+    if (!listParses(files.installed)) unreadable.add(side)
+  const plan = planPluginInstalls(pluginSide(local), pluginSide(vps))
+  const where = (to) => (to === 'vps' ? 'the VPS' : 'this PC')
+  for (const side of unreadable) log(`Plugins were not installed on ${where(side)}: its plugin list could not be read.`)
+  for (const s of plan.skipped) if (!unreadable.has(s.to)) log(`Plugin ${s.id} was not installed on ${where(s.to)}: ${s.reason}.`)
+  // A login shell, so claude is on PATH (it often lives in ~/.local/bin). Never -y: a plugin's own install command needs a person.
+  const claudeOn = (to, cmd) =>
+    to === 'vps'
+      ? run('ssh', [...SSH_OPTS, target, `bash -lc ${shq(cmd)}`], { timeoutMs: PLUGIN_TIMEOUT_MS })
+      : run('bash', ['-lc', cmd], { timeoutMs: PLUGIN_TIMEOUT_MS })
+  for (const p of plan.installs) {
+    if (unreadable.has(p.to)) continue
+    let r = p.addMarketplace ? await claudeOn(p.to, `claude plugin marketplace add ${shq(p.addMarketplace)}`) : { code: 0 }
+    if (r.code === 0) r = await claudeOn(p.to, `claude plugin install ${shq(p.id)}`)
+    if (r.code === 0) {
+      log(`Installed plugin ${p.id} on ${where(p.to)}.`)
+      continue
+    }
+    const why =
+      r.stderr
+        .split('\n')
+        .map((l) => l.trim())
+        .find(Boolean) ?? `exit ${r.code}`
+    log(`Plugin ${p.id} could not be installed on ${where(p.to)}: ${why}. To add it there: claude plugin install ${p.id}`)
+  }
+}
+
+// The Claude setup both modes share: these ~/.claude folders and CLAUDE.md both ways, newest wins, then plugins that are on.
+// False when an rsync fails (the caller stops there).
+async function syncClaudeSetup({ dirs, target, ssh, rsync, run, bk, rbk, claude, log }) {
+  for (const [d, extra] of dirs) {
+    log(`Syncing ~/.claude/${d}...`)
+    mkdirSync(join(claude, d), { recursive: true })
+    const down = await rsync(
+      '--update',
+      ...extra,
+      '--backup',
+      `--backup-dir=${join(bk, `${d}-overwritten`)}`,
+      `${target}:.claude/${d}/`,
+      `${join(claude, d)}/`
+    )
+    const up =
+      down.code === 0
+        ? await rsync(
+            '--update',
+            ...extra,
+            '--backup',
+            `--backup-dir=${rbk}/${d}-overwritten`,
+            `${join(claude, d)}/`,
+            `${target}:.claude/${d}/`
+          )
+        : down
+    if (up.code !== 0) {
+      log(`Syncing ~/.claude/${d} failed: ${up.stderr.trim()}`)
+      return false
+    }
+  }
+  const remoteHas = (await ssh('[ -f ~/.claude/CLAUDE.md ] && echo yes || true')).stdout.trim() === 'yes'
+  if (remoteHas) await rsync('--update', '--backup', `--backup-dir=${bk}`, `${target}:.claude/CLAUDE.md`, join(claude, 'CLAUDE.md'))
+  if (existsSync(join(claude, 'CLAUDE.md')))
+    await rsync('--update', '--backup', `--backup-dir=${rbk}`, join(claude, 'CLAUDE.md'), `${target}:.claude/CLAUDE.md`)
+  await syncPlugins({ target, ssh, run, claude, log })
+  const remoteSettings = (await ssh('md5sum < ~/.claude/settings.json 2>/dev/null | cut -d" " -f1 || true')).stdout.trim()
+  if (remoteSettings && remoteSettings !== md5(join(claude, 'settings.json')))
+    log('~/.claude/settings.json differs between the machines. It is not synced (it lists plugins); compare it by hand.')
+  return true
+}
+
+// Plain sync: the Claude setup only. It never reads either ZumiBot data folder, so nothing is checked, stopped or restarted:
+// the server watches the agents folder, and the CLI reads skills, memory and CLAUDE.md on each run.
+async function syncSetupOnly({ target, ssh, rsync, run, home, claude, log, now }) {
+  const remoteHome = (await ssh('printf %s "$HOME"')).stdout.trim()
+  if (!SAFE_DIR.test(remoteHome)) {
+    log('Could not read the home folder on the VPS.')
+    return 1
+  }
+  const name = `zumibot-sync-backup-${stamp(new Date(now()))}`
+  const bk = join(home, name)
+  const rbk = `${remoteHome}/${name}`
+  log(`Backing up to ${bk} (this PC) and ${rbk} (VPS)...`)
+  // Private like the full sync's: agent files and CLAUDE.md are the user's alone.
+  mkdirSync(bk, { recursive: true, mode: 0o700 })
+  chmodSync(bk, 0o700)
+  for (const f of ['agents', 'CLAUDE.md']) {
+    if (existsSync(join(claude, f))) cpSync(join(claude, f), join(bk, f), { recursive: true, preserveTimestamps: true })
+  }
+  const rb = await ssh(
+    [
+      'set -e',
+      'umask 077',
+      `B=${shq(rbk)}`,
+      'mkdir -p -m 700 "$B"',
+      'chmod 700 "$B"',
+      'mkdir -p ~/.claude/agents ~/.claude/skills ~/.claude/agent-memory',
+      'for f in agents CLAUDE.md; do [ ! -e ~/.claude/$f ] || cp -a ~/.claude/$f "$B/"; done'
+    ].join('\n')
+  )
+  if (rb.code !== 0) {
+    log(`Backup on the VPS failed: ${rb.stderr.trim()}`)
+    return 1
+  }
+  const dirs = CLAUDE_DIRS.filter(([d]) => SETUP_DIRS.includes(d))
+  if (!(await syncClaudeSetup({ dirs, target, ssh, rsync, run, bk, rbk, claude, log }))) return 1
+  log(`Synced agents, skills, agent memory and plugins. Backups: ${bk} (this PC), ${rbk} (VPS).`)
+  return 0
+}
+
+/** The CLI's mode: no argument is the plain sync, --with-chats the full one; anything else is refused (null). */
+export function parseSyncArgs(argv) {
+  if (argv.length === 0) return { chats: false }
+  if (argv.length === 1 && argv[0] === '--with-chats') return { chats: true }
+  return null
 }
 
 export async function sync({
   env = {},
+  chats = false,
   run = realRun,
   log = console.log,
   alive = isAlive,
@@ -1000,9 +1225,17 @@ export async function sync({
   const home = env.HOME || ''
   const data = join(home, DATA)
   const claude = join(home, '.claude')
+  if (!chats) return syncSetupOnly({ target, ssh, rsync, run, home, claude, log, now })
 
   // A reply running on either side would write chats while they are being joined.
   const busy = await ssh(busyCmd)
+  // 127: the remote shell found no launcher, so VPS_DIR is wrong (a ClaudeBot-era sync.env names ~/claudebot).
+  if (busy.code === 127) {
+    log(
+      `No ZumiBot server at ${dir} on the VPS. Set VPS_DIR to the folder it is installed in (the installer's default is /home/${user}/zumibot).`
+    )
+    return 1
+  }
   const count = busy.code === 0 ? /^\d+$/m.exec(busy.stdout)?.[0] : undefined
   if (count !== '0') {
     log(
@@ -1195,37 +1428,7 @@ export async function sync({
       cpSync(join(vps, 'file-snapshots'), join(data, 'file-snapshots'), { recursive: true, force: false, preserveTimestamps: true })
     tightenDirs(join(data, 'file-snapshots'))
 
-    for (const [d, extra] of CLAUDE_DIRS) {
-      log(`Syncing ~/.claude/${d}...`)
-      mkdirSync(join(claude, d), { recursive: true })
-      const down = await rsync(
-        '--update',
-        ...extra,
-        '--backup',
-        `--backup-dir=${join(bk, `${d}-overwritten`)}`,
-        `${target}:.claude/${d}/`,
-        `${join(claude, d)}/`
-      )
-      const up =
-        down.code === 0
-          ? await rsync(
-              '--update',
-              ...extra,
-              '--backup',
-              `--backup-dir=${rbk}/${d}-overwritten`,
-              `${join(claude, d)}/`,
-              `${target}:.claude/${d}/`
-            )
-          : down
-      if (up.code !== 0) {
-        log(`Syncing ~/.claude/${d} failed: ${up.stderr.trim()}`)
-        return 1
-      }
-    }
-    const remoteHas = (await ssh('[ -f ~/.claude/CLAUDE.md ] && echo yes || true')).stdout.trim() === 'yes'
-    if (remoteHas) await rsync('--update', '--backup', `--backup-dir=${bk}`, `${target}:.claude/CLAUDE.md`, join(claude, 'CLAUDE.md'))
-    if (existsSync(join(claude, 'CLAUDE.md')))
-      await rsync('--update', '--backup', `--backup-dir=${rbk}`, join(claude, 'CLAUDE.md'), `${target}:.claude/CLAUDE.md`)
+    if (!(await syncClaudeSetup({ dirs: CLAUDE_DIRS, target, ssh, rsync, run, bk, rbk, claude, log }))) return 1
 
     const remoteHistory = await ssh('cat ~/.claude/history.jsonl 2>/dev/null || true')
     const localHistory = existsSync(join(claude, 'history.jsonl')) ? readFileSync(join(claude, 'history.jsonl'), 'utf8') : ''
@@ -1310,21 +1513,6 @@ export async function sync({
     const after = (await ssh(`md5sum < ~/${DATA}/chats.json | cut -d" " -f1`)).stdout.trim()
     if (after !== md5(join(data, 'chats.json'))) log('Warning: the chat list on the VPS does not match this PC after the sync. Sync again.')
 
-    // Plugins need installing, not copying, so they are only reported.
-    const remotePlugins = pluginNames((await ssh('cat ~/.claude/plugins/installed_plugins.json 2>/dev/null || true')).stdout)
-    const localPlugins = pluginNames(
-      existsSync(join(claude, 'plugins', 'installed_plugins.json'))
-        ? readFileSync(join(claude, 'plugins', 'installed_plugins.json'), 'utf8')
-        : ''
-    )
-    for (const p of localPlugins.filter((x) => !remotePlugins.includes(x)))
-      log(`Plugin ${p} is only on this PC. To add it on the VPS: claude plugin install ${p}`)
-    for (const p of remotePlugins.filter((x) => !localPlugins.includes(x)))
-      log(`Plugin ${p} is only on the VPS. To add it here: claude plugin install ${p}`)
-    const remoteSettings = (await ssh('md5sum < ~/.claude/settings.json 2>/dev/null | cut -d" " -f1 || true')).stdout.trim()
-    if (remoteSettings && remoteSettings !== md5(join(claude, 'settings.json')))
-      log('~/.claude/settings.json differs between the machines. It is not synced (it lists plugins); compare it by hand.')
-
     log(`Synced ${m.chats.length} chats. Backups: ${bk} (this PC), ${rbk} (VPS).`)
     return 0
   } finally {
@@ -1343,5 +1531,9 @@ function isEntry() {
 if (isEntry()) {
   const file = join(here, 'deploy.env')
   const fromFile = existsSync(file) ? parseEnvFile(readFileSync(file, 'utf8')) : {}
-  process.exitCode = await sync({ env: { ...fromFile, ...process.env } })
+  const args = parseSyncArgs(process.argv.slice(2))
+  if (args === null) {
+    console.error('Usage: node sync.mjs [--with-chats]')
+    process.exitCode = 1
+  } else process.exitCode = await sync({ env: { ...fromFile, ...process.env }, chats: args.chats })
 }

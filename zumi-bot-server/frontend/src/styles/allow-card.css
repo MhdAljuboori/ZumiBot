@@ -7,6 +7,14 @@
   max-height: 9em;
   overflow: auto;
 }
+/* The global .hint is a flex row, which would set each inline <code> of a sentence in a column of its own. */
+.allow-card p.hint {
+  display: block;
+  line-height: 1.45;
+}
+.allow-card p.hint code {
+  overflow-wrap: anywhere;
+}
 .allow-group-label {
   font-size: 12px;
   color: var(--fg-muted);

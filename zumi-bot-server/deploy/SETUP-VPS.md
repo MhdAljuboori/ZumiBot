@@ -26,5 +26,6 @@ the installer never does it for you.
 
 Optional extras (the sections at the end of each doc): [computer use](../../docs/architecture/computer-use.md), [Codex](../../docs/architecture/codex.md), [the vault key backup](../../docs/architecture/vault.md) and [the agent browser](../../docs/architecture/browser.md). Then clone the repos your agents work in, as the server user, and set up the MCP servers, skills and plugins they need. A group run starts several `claude` processes at once, so check `free -m`: under 2 GB, add swap.
 
-Updates ship as a release: the in-app **Update**, or `~/zumibot/bin/zumibot-update`. Both download from the showcase site with no token. To copy your chats and
-agents between your PC and the VPS, use `npm run sync` (it restarts the server with `systemctl --user restart zumibot`).
+Updates ship as a release: the in-app **Update**, or `~/zumibot/bin/zumibot-update`. Both download from the showcase site with no token. To copy your agents,
+skills, agent memory and plugins between your PC and the VPS, use `npm run sync`; to copy chats too, use
+`npm run sync -- --with-chats` (that one restarts the server with `systemctl --user restart zumibot`).

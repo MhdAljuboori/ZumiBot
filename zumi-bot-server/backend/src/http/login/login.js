@@ -11,6 +11,21 @@ const errorBox = document.getElementById('error')
 
 let useRecovery = false
 
+// Where the sign-in was asked from (an expired session, a reloaded chat or popout): back there after it, never off this
+// site. The same rule as safeNextPath in shared/src/appPaths.ts, which this static page cannot import.
+function nextPath() {
+  const raw = new URLSearchParams(location.search).get('next')
+  if (!raw || raw.length > 512 || !raw.startsWith('/') || raw.startsWith('//') || raw.includes('\\')) return '/'
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001f\u007f]/.test(raw) || raw === '/login' || /^\/login[?/]/.test(raw) || raw.startsWith('/api/')) return '/'
+  try {
+    const u = new URL(raw, location.origin)
+    return u.origin === location.origin ? u.pathname + u.search : '/'
+  } catch {
+    return '/'
+  }
+}
+
 function showError(message) {
   errorBox.textContent = message
   errorBox.hidden = !message
@@ -40,7 +55,7 @@ form.addEventListener('submit', async (event) => {
       body: JSON.stringify({ password: password.value, code: (useRecovery ? recovery : code).value })
     })
     if (res.status === 204) {
-      window.location.replace('/')
+      window.location.replace(nextPath())
       return
     }
     let message = 'Something went wrong. Try again.'

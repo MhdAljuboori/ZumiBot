@@ -33,6 +33,7 @@ test('parses fields', () => {
     computerUse: null,
     autoCompactWindow: null,
     dailySpendCap: null,
+    recall: null,
     provider: null,
     ...NO_EXT_FIELDS,
     mcpServers: { entries: [{ name: 'workiom', def: null }], editable: true }
@@ -83,6 +84,7 @@ test('new agent from template', () => {
       computerUse: null,
       autoCompactWindow: null,
       dailySpendCap: null,
+      recall: null,
       provider: null,
       ...NO_EXT_FIELDS
     },
@@ -109,6 +111,7 @@ test('validateFields', () => {
     computerUse: null,
     autoCompactWindow: null,
     dailySpendCap: null,
+    recall: null,
     provider: null,
     ...NO_EXT_FIELDS
   }
@@ -131,6 +134,7 @@ test('validateFields: an ACP agent needs a readable launch with a command', () =
     computerUse: null,
     autoCompactWindow: null,
     dailySpendCap: null,
+    recall: null,
     provider: null,
     ...NO_EXT_FIELDS
   }
@@ -176,6 +180,7 @@ test('parses icon', () => {
     computerUse: null,
     autoCompactWindow: null,
     dailySpendCap: null,
+    recall: null,
     provider: null,
     ...NO_EXT_FIELDS
   })
