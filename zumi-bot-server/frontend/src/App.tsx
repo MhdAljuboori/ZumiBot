@@ -37,6 +37,7 @@ import { useBoard } from './useBoard'
 import { TodosPanel } from './components/TodosPanel'
 import { useDispatch } from './useDispatch'
 import { DispatchPanel } from './components/DispatchPanel'
+import { XrayPanel } from './components/XrayPanel'
 import { ProcessesPanel } from './components/ProcessesPanel'
 import { useProcessCounts, useProcesses } from './useProcesses'
 import { processesBadge, processMark } from './state/processes'
@@ -372,6 +373,8 @@ export default function App() {
   // A reply chip asks the To-dos view to scroll to that reply's group (keyed by the reply's item id).
   const [todosFocus, setTodosFocus] = useState<{ chatId: string; itemId: string; n: number } | null>(null)
   const [dispatchFocus, setDispatchFocus] = useState<{ chatId: string; id: string; n: number } | null>(null)
+  // Turn X-ray's reply; `n` makes a repeat of the same reply load again.
+  const [xrayFocus, setXrayFocus] = useState<{ chatId: string; itemId: string; n: number } | null>(null)
   const [processFocus, setProcessFocus] = useState<{ chatId: string; id: string; n: number } | null>(null)
   const askingSides = useRef(new Set<string>())
   const startingRuns = useRef(new Set<string>()) // chats with a /run-workflow on its way
@@ -1598,6 +1601,12 @@ export default function App() {
     setSide('dispatch')
   }
 
+  // An agent message's X-ray button: the panel opens on that reply's timeline.
+  const openXrayAt = (chatId: string, itemId: string): void => {
+    setXrayFocus((prev) => ({ chatId, itemId, n: (prev?.n ?? 0) + 1 }))
+    setSide('xray')
+  }
+
   // A shell block's run status: the panel opens on that run's log.
   const openProcessAt = (chatId: string, id: string): void => {
     setProcessFocus((prev) => ({ chatId, id, n: (prev?.n ?? 0) + 1 }))
@@ -2493,6 +2502,7 @@ export default function App() {
       onFork: (itemId) => forkFrom(id, itemId),
       onMarkUnread: (itemId) => markUnread(id, itemId),
       onExportReply: (itemId) => setExportTarget({ chat, item: itemId }),
+      onXrayReply: (itemId) => openXrayAt(id, itemId),
       onDropTask: (taskId) => dropTask(id, taskId),
       onSendTask: (taskId) => sendTask(id, taskId),
       onCompact: (note, member) => void compactChat(id, note, member),
@@ -2744,6 +2754,7 @@ export default function App() {
                   selectedId={routineView?.id ?? null}
                   onNew={fromNav(() => openRoutineGuarded(null))}
                   onOpen={fromNav(openRoutineGuarded)}
+                  onError={report}
                 />
               ) : mode === 'workflows' ? (
                 <WorkflowsNav
@@ -3002,7 +3013,8 @@ export default function App() {
                     )}
                   </div>
                   {/* One view in the side panel at a time: a browser or desktop is hidden while a chat view shows and comes back when it closes. */}
-                  {shownSideView === 'menu' && shownChat ? (
+                  {/* An X-ray belongs to one chat's reply: on another chat the panel shows its list instead. */}
+                  {(shownSideView === 'menu' || (shownSideView === 'xray' && xrayFocus?.chatId !== shownChat?.id)) && shownChat ? (
                     <SidePanelMenu
                       chat={shownChat}
                       filesCount={filesCount(chatFiles.list)}
@@ -3072,6 +3084,15 @@ export default function App() {
                       focusId={dispatchFocus?.chatId === shownChat.id ? dispatchFocus.id : null}
                       focusRequest={dispatchFocus?.n ?? 0}
                       waiting={dispatchWaiting}
+                      onBack={() => setSide('menu')}
+                      onClose={closeSideView}
+                    />
+                  ) : shownSideView === 'xray' && shownChat && xrayFocus?.chatId === shownChat.id ? (
+                    <XrayPanel
+                      chatId={shownChat.id}
+                      itemId={xrayFocus.itemId}
+                      focusRequest={xrayFocus.n}
+                      connected={connection === 'connected'}
                       onBack={() => setSide('menu')}
                       onClose={closeSideView}
                     />

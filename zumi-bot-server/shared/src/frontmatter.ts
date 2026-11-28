@@ -5,6 +5,7 @@ import { parseCommands, type AgentCommand } from './commands'
 import { parseHooks, parseMcpDef, type AgentExtensions, type AgentOwnServer, type HooksConfig, type McpServerDef } from './extensions'
 import { parseSpendCap } from './spendCaps'
 import { parseProvider, type Provider } from './engine'
+import { parseRecall, type RecallScope } from './recall'
 import { ACP_TEXT, acpLaunchError, parseAcpLaunch, refusedArg, type AcpLaunch } from './acp'
 import { AGUI_TEXT, aguiLaunchError, parseAguiLaunch, type AguiLaunch } from './agui'
 
@@ -68,6 +69,8 @@ export interface AgentFields {
   autoCompactWindow: number | null
   /** ZumiBot-only daily spend cap in USD (spendCaps.ts); null means absent or not a valid amount. */
   dailySpendCap: number | null
+  /** ZumiBot-only Hive recall scope (recall.ts); null means absent or anything but `agent` / `folder` (= off). */
+  recall: RecallScope | null
   /** ZumiBot-only: servers this agent does not get, by the name the CLI lists; null means absent. */
   serversOff: string[] | null
   /** ZumiBot-only: skills this agent does not get; null means absent. */
@@ -203,6 +206,7 @@ function fieldsOf(doc: YAML.Document.Parsed): AgentFields | null {
     computerUse: data.computerUse === undefined || data.computerUse === null ? null : data.computerUse === true,
     autoCompactWindow: parseWindow(data.autoCompactWindow),
     dailySpendCap: parseSpendCap(data.dailySpendCap),
+    recall: parseRecall(data.recall),
     // Strict, like computerUse: "Codex" or "codex " must not switch the engine.
     provider: parseProvider(data.provider),
     serversOff: parseNames(data.serversOff),
@@ -316,6 +320,7 @@ export function serializeAgent(original: string, fields: AgentFields, body: stri
     before.provider === fields.provider &&
     before.autoCompactWindow === fields.autoCompactWindow &&
     before.dailySpendCap === fields.dailySpendCap &&
+    before.recall === fields.recall &&
     same(before.serversOff, fields.serversOff) &&
     same(before.skillsOff, fields.skillsOff) &&
     same(before.plugins, fields.plugins) &&
@@ -363,6 +368,11 @@ export function serializeAgent(original: string, fields: AgentFields, body: stri
   if (before.dailySpendCap !== fields.dailySpendCap) {
     if (fields.dailySpendCap === null) doc.delete('dailySpendCap')
     else doc.set('dailySpendCap', fields.dailySpendCap)
+  }
+  if (before.recall !== fields.recall) {
+    // Off is the absence of the key, so the file never says `recall: off`.
+    if (fields.recall === null) doc.delete('recall')
+    else doc.set('recall', fields.recall)
   }
   if (!sameTools(before.tools, fields.tools)) {
     if (fields.tools === null) doc.delete('tools')

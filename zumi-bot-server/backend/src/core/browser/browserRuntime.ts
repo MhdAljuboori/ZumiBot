@@ -26,6 +26,7 @@ export interface BrowserRuntime {
   containerEntry: string
   // Not in checkAssets either: processes are not part of the browser.
   processBridgeEntry: string
+  recallBridgeEntry: string
   playwrightDir: string
   executablePath: string | null
   electronNode: boolean
@@ -81,6 +82,7 @@ export function resolveBrowserRuntime(options: RuntimeOptions = {}): BrowserRunt
     sandboxFileHookEntry: entry('sandboxFileHook'),
     containerEntry: entry('containerEntry'),
     processBridgeEntry: entry('processBridge'),
+    recallBridgeEntry: entry('recallBridge'),
     playwrightDir,
     executablePath,
     electronNode: Boolean((options.versions ?? (process.versions as { electron?: string })).electron)

@@ -32,7 +32,8 @@ import { Glyph } from './Sidebar'
 import { TriggerCard } from './TriggerCard'
 
 interface Props {
-  /** The routine to edit, or null for a new one. Read once on mount: App remounts the editor per routine. */
+  /** The routine to edit, or null for a new one. Read once on mount (App remounts the editor per routine), except its
+   *  `enabled`, which the sidebar's switch can change while the editor is open. */
   routine: Routine | null
   handle: RefObject<EditorHandle | null>
   onSaved: (saved: Routine) => void
@@ -120,6 +121,15 @@ export function RoutineEditor({
   const restoredFrom = useRef<number | null>(null)
 
   useDismiss(menuOpen, () => setMenuOpen(false))
+
+  // The sidebar's switch changed the saved routine: the saved state follows, and so does the draft unless the user flipped it here.
+  const liveEnabled = routine?.enabled
+  useEffect(() => {
+    if (liveEnabled === undefined || baselineRef.current.enabled === liveEnabled) return
+    const was = baselineRef.current.enabled
+    setBaseline((b) => ({ ...b, enabled: liveEnabled }))
+    setDraft((d) => (d.enabled === was ? { ...d, enabled: liveEnabled } : d))
+  }, [liveEnabled])
 
   // Never drop while a save is pending or after one succeeded: the draft is then the routine's own webhook.
   const dropDraftHook = (): void => {

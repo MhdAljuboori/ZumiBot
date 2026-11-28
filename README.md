@@ -193,7 +193,8 @@ Run all of these from the repository root.
 | `npm run build:deb` | Full build, then packages `zumi-bot-desktop/dist/ZumiBot_<version>_amd64.deb` |
 | `npm run install:deb` | `sudo apt install` of the `.deb` for the current version |
 | `npm run package` | Packages `release/zumibot-server.tar.gz` + `SHA256SUMS` from the built server (what a tag publishes) |
-| `npm run sync` | Merges this PC’s chats and Claude data with the VPS, with backups; close the local app first |
+| `npm run sync` | Syncs agents, skills, agent memory and plugins with the VPS, with backups; restarts nothing |
+| `npm run sync -- --with-chats` | Also merges chats and ZumiBot data with the VPS, with backups; close the local app first, and the VPS restarts |
 | `npm run bump:patch` | Bumps all workspaces `x.y.z` → `x.y.(z+1)` and syncs `package-lock.json` |
 | `npm run bump:minor` | Bumps all workspaces `x.y.z` → `x.(y+1).0` and syncs `package-lock.json` |
 | `npm run bump:major` | Bumps all workspaces `x.y.z` → `(x+1).0.0` and syncs `package-lock.json` |
@@ -280,13 +281,13 @@ On the installed app’s first sync, use **Choose deploy.env…** to import your
 
 `npm run e2e:sync` checks this flow with temporary home folders and fake SSH/rsync commands; it never contacts the real VPS.
 
-Sync uses the same implementation as `npm run sync`. It refuses while replies are running, saves or discards unsaved agent edits with your confirmation, stops an idle local server, and reconnects afterward even if sync fails. Keep the app open until it finishes. A custom `ZUMIBOT_DATA_DIR` or `XDG_DATA_HOME` pointing elsewhere is refused because the CLI sync uses `~/.local/share/zumibot`. Browser profiles and runtimes stay private on each machine.
+Sync uses the same implementation as `npm run sync`. By default it syncs only agents, skills, agent memory and plugins and restarts nothing; tick **Sync with chats and projects** to also merge chats (the `--with-chats` sync). Both save or discard unsaved agent edits with your confirmation; a sync with chats also refuses while replies are running, stops an idle local server, and reconnects afterward even if sync fails. Keep the app open until it finishes. A custom `ZUMIBOT_DATA_DIR` or `XDG_DATA_HOME` pointing elsewhere is refused because the CLI sync uses `~/.local/share/zumibot`. Browser profiles and runtimes stay private on each machine.
 
 ## First-time VPS setup
 
 Install with [install.sh](#install-on-a-linux-host-without-docker) as a plain user, then put a reverse proxy (nginx + certbot, or Caddy) in front of `127.0.0.1:4317`: the commands are in [zumi-bot-server/deploy/SETUP-VPS.md](zumi-bot-server/deploy/SETUP-VPS.md). Then open `https://<your host>/setup`, paste the one-time code from `journalctl --user -u zumibot -n 20`, and it walks you through the password, the authenticator QR code, the recovery codes (shown once) and a check that the `claude` CLI is signed in. Afterwards, clone the repos your agents work in, and set up the MCP servers, skills and plugins they need, on the VPS.
 
-To copy chats and agents between your PC and the VPS, copy `zumi-bot-server/deploy/deploy.env.example` to `deploy.env` (git-ignored), fill in `VPS_HOST` and `VPS_USER` (and `VPS_DIR` if not `/home/<VPS_USER>/zumibot`), and run `npm run sync`.
+To copy agents, skills, agent memory and plugins between your PC and the VPS, copy `zumi-bot-server/deploy/deploy.env.example` to `deploy.env` (git-ignored), fill in `VPS_HOST` and `VPS_USER` (and `VPS_DIR` if not `/home/<VPS_USER>/zumibot`), and run `npm run sync`. To copy chats too, run `npm run sync -- --with-chats`.
 
 ## Desktop app
 

@@ -63,9 +63,23 @@ export const RSYNC_SSH = ['-e', `ssh ${SSH_OPTS.join(' ')}`]
 export const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`
 
 // opts.input goes to the child's stdin (a secret travels there, never in argv); without it stdin is closed.
+// opts.timeoutMs: a network step (a plugin install) must not stall the whole sync; 124 as timeout(1) reports it.
 export function realRun(cmd, args, opts = {}) {
-  return new Promise((resolve) => {
+  return new Promise((resolveRun) => {
+    let timer
+    let done = false
+    const resolve = (r) => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      resolveRun(r)
+    }
     const child = spawn(cmd, args, { cwd: opts.cwd, stdio: [opts.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'] })
+    if (opts.timeoutMs)
+      timer = setTimeout(() => {
+        child.kill('SIGTERM')
+        resolve({ code: 124, stdout, stderr: `${stderr}timed out` })
+      }, opts.timeoutMs)
     if (opts.input !== undefined) {
       // A child that exits without reading would make the write fail; its exit code reports that instead.
       child.stdin.on('error', () => {})

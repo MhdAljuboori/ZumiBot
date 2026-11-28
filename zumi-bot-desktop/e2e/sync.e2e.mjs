@@ -65,6 +65,8 @@ try {
   await put(join(remote, 'busy'), '0\n')
   await put(join(remote, 'zumibot/bin/zumibot-server'), `#!/bin/sh\ncat '${remote}/busy'\n`, true)
   await put(join(bin, 'sudo'), '#!/bin/sh\nexit 0\n', true)
+  // The VPS restart is a user unit now: without this the real systemctl ran, failed, and could restart a real unit.
+  await put(join(bin, 'systemctl'), '#!/bin/sh\nexit 0\n', true)
   await put(join(bin, 'claude'), '#!/bin/sh\nexit 1\n', true)
   // Never contact a network host: run remote shell commands only under this fixture's HOME.
   await put(
@@ -130,6 +132,9 @@ process.exitCode=spawnSync('/usr/bin/rsync',args,{stdio:'inherit'}).status??1;
   assert.equal(await page.evaluate(() => typeof window.zumibotSync), 'undefined')
 
   await put(join(root, 'slow'), '')
+  // The full sync: this run checks the local server stops and reconnects.
+  assert.equal(await progress.locator('#chats').isChecked(), false)
+  await progress.check('#chats')
   await progress.click('#start')
   await until(() => progress.evaluate(async () => (await window.zumibotSync.status()).active))
   await app.evaluate(({ app, BrowserWindow }) => {
@@ -154,6 +159,7 @@ process.exitCode=spawnSync('/usr/bin/rsync',args,{stdio:'inherit'}).status??1;
   const ended = (l) => /^Sync (complete|failed)|reconnecting failed/.test(l)
   const syncAgain = async () => {
     const before = (await lines()).filter(ended).length
+    await progress.check('#chats') // the vault syncs only with chats
     await progress.click('#start')
     await until(async () => (await lines()).filter(ended).length > before)
     await until(() => progress.evaluate(async () => !(await window.zumibotSync.status()).active))
@@ -161,6 +167,24 @@ process.exitCode=spawnSync('/usr/bin/rsync',args,{stdio:'inherit'}).status??1;
     assert.equal(all.filter(ended).at(-1), 'Sync complete.')
     return all
   }
+  // The plain sync (box unticked): agents move, chats stay put, and the local server is never stopped.
+  await put(join(remote, '.claude/agents/plain.md'), '---\nname: plain\ndescription: Plain fixture\n---\nFixture.')
+  const remoteChats = await readFile(join(remote, '.local/share/zumibot/chats.json'), 'utf8')
+  const lockBefore = await readFile(join(data, 'server.lock'), 'utf8')
+  const plainFrom = (await lines()).length
+  await progress.uncheck('#chats')
+  await progress.click('#start')
+  await until(async () => (await lines()).slice(plainFrom).some(ended))
+  await until(() => progress.evaluate(async () => !(await window.zumibotSync.status()).active))
+  const plainLog = (await lines()).slice(plainFrom)
+  assert.equal(plainLog.filter(ended).at(-1), 'Sync complete.')
+  assert.ok(plainLog.some((l) => l.startsWith('Syncing agents, skills, memory and plugins with bot@vps.test')))
+  assert.ok(!plainLog.includes('Joining chats...'))
+  await access(join(home, '.claude/agents/plain.md'))
+  assert.equal(await readFile(join(remote, '.local/share/zumibot/chats.json'), 'utf8'), remoteChats)
+  assert.equal(await readFile(join(data, 'server.lock'), 'utf8'), lockBefore)
+  console.log('PASS plain sync moves agents only and never stops the local server')
+
   const body = (id, updatedAt) => ({ id, updatedAt, kind: 'login', name: id, agents: [], password: `pw-${id}-secret` })
   const live = (key, id, updatedAt) => ({ id, updatedAt, deleted: false, sealed: sealItem(key, id, updatedAt, body(id, updatedAt)) })
   const putKey = async (file, key) => {
@@ -239,6 +263,7 @@ process.exitCode=spawnSync('/usr/bin/rsync',args,{stdio:'inherit'}).status??1;
   console.log('PASS the vault key never appears in the sync log or a backup')
 
   await put(join(root, 'fail'), '')
+  await progress.check('#chats')
   await progress.click('#start')
   await until(async () => (await progress.locator('#log').innerText()).includes('Fixture SSH unavailable'))
   await until(() => progress.evaluate(async () => !(await window.zumibotSync.status()).active))
@@ -321,6 +346,7 @@ process.exitCode=spawnSync('/usr/bin/rsync',args,{stdio:'inherit'}).status??1;
   await until(async () => app.windows().some((w) => w.url().endsWith('/sync.html')))
   const fromPicker = app.windows().find((w) => w.url().endsWith('/sync.html'))
   await fromPicker.waitForSelector('#start')
+  await fromPicker.check('#chats')
   await fromPicker.click('#start')
   await until(async () => /Sync (complete|failed)|reconnecting failed/.test(await fromPicker.locator('#log').innerText()))
   assert.match(await fromPicker.locator('#log').innerText(), /Sync complete/)
@@ -342,6 +368,7 @@ process.exitCode=spawnSync('/usr/bin/rsync',args,{stdio:'inherit'}).status??1;
   await app.evaluate(({ dialog }) => {
     dialog.showMessageBox = async () => ({ response: 1 })
   })
+  await afterError.check('#chats')
   await afterError.click('#start')
   await until(async () => /Sync (complete|failed)|reconnecting failed/.test(await afterError.locator('#log').innerText()))
   assert.match(await afterError.locator('#log').innerText(), /Sync complete/)
@@ -368,6 +395,8 @@ process.exitCode=spawnSync('/usr/bin/rsync',args,{stdio:'inherit'}).status??1;
     .evaluate(() => window.zumibotDesktop.sync())
   const badSync = await reopened
   await badSync.waitForSelector('#start')
+  // The last window had the box ticked; a new one never remembers it.
+  assert.equal(await badSync.locator('#chats').isChecked(), false)
   await badSync.click('#start')
   await until(async () => /Sync failed/.test(await badSync.locator('#status').innerText()))
   assert.match(await badSync.locator('#status').innerText(), /^Sync failed: Choose a deploy\.env/)

@@ -1,0 +1,257 @@
+/* Turn X-ray: a reply's summary (time, cost, tokens, cache, the time split), then its steps on one time axis. */
+.xray-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.xray-who {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12.5px;
+}
+.xray-agent {
+  font-weight: 600;
+  color: var(--fg);
+}
+.xray-when {
+  color: var(--fg-muted);
+}
+.xray-live {
+  margin-inline-start: auto;
+  padding: 0 7px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+  color: var(--success);
+  font-size: 11px;
+  font-weight: 600;
+}
+.xray-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.xray-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-raised);
+  min-width: 0;
+}
+.xray-stat-value {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.xray-stat-label {
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+.xray-split {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--bg-hover);
+}
+.xray-split-part.model,
+.xray-key.model {
+  background: var(--accent);
+}
+.xray-split-part.tools,
+.xray-key.tools {
+  background: color-mix(in srgb, var(--fg-muted) 55%, transparent);
+}
+.xray-split-part.wait,
+.xray-key.wait {
+  background: var(--warning);
+}
+.xray-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 11.5px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+.xray-key {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-inline-end: 3px;
+  border-radius: 2px;
+  vertical-align: -0.5px;
+}
+.xray-counts {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.xray-dim {
+  opacity: 0.8;
+}
+.xray-gap {
+  padding: 7px 9px;
+  border-radius: var(--radius-control);
+  background: var(--bg-raised);
+  border: 1px dashed var(--border);
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.xray-rows {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0 12px;
+}
+.xray-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 16px 7px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  min-width: 0;
+}
+.xray-row.step {
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+.xray-row-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12.5px;
+}
+.xray-row-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--fg);
+}
+.xray-model {
+  font-weight: 600;
+  color: var(--accent-text);
+}
+.xray-tool {
+  font-weight: 600;
+}
+.xray-summary-text {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--fg-muted);
+}
+.xray-row-time {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+.xray-fold {
+  flex: none;
+  width: 18px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--fg-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.xray-fold:hover {
+  color: var(--fg);
+}
+.xray-fold:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+.xray-track {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-hover);
+}
+.xray-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+}
+.xray-bar.model {
+  background: var(--accent);
+}
+.xray-bar.tool {
+  background: color-mix(in srgb, var(--fg-muted) 60%, transparent);
+}
+.xray-bar.agent {
+  background: var(--link);
+}
+.xray-bar.bad {
+  background: var(--error);
+}
+.xray-bar.running {
+  animation: xray-pulse 1.6s ease-in-out infinite;
+}
+/* The card's wait over the start of its call's bar. */
+.xray-bar.wait {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--warning) 0 3px,
+    color-mix(in srgb, var(--warning) 55%, transparent) 3px 6px
+  );
+}
+@keyframes xray-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .xray-bar.running {
+    animation: none;
+  }
+}
+.xray-row-meta {
+  font-size: 11.5px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+.xray-row-meta.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.xray-wait {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.xray-outcome {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.xray-outcome.error,
+.xray-outcome.blocked {
+  color: var(--error);
+  border-color: currentColor;
+}
+.xray-outcome.running {
+  color: var(--success);
+  border-color: currentColor;
+}

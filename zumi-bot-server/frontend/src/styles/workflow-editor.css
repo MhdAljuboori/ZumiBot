@@ -25,10 +25,6 @@
 .wf-head .status-pill {
   flex: none;
 }
-.wf-head .rt-pop-right {
-  min-width: 170px;
-  white-space: nowrap;
-}
 .wf-banner {
   display: flex;
   flex-direction: column;

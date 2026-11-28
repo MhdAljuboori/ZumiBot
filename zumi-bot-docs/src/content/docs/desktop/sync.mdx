@@ -1,11 +1,11 @@
 ---
 title: Sync
-description: Merge the chats and Claude data on your computer with the ones on your server, both ways, with backups, from the desktop app's Sync window.
+description: Keep your agents, skills, agent memory and plugins the same on your computer and your server, and merge chats too when you choose, from the desktop app's Sync window.
 sidebar:
   order: 3
 ---
 
-If you use ZumiBot both in Local mode and on a server, each side has its own chats. Sync joins them. It copies chats and Claude data both ways between this computer and your server, and it never deletes anything. Every file it replaces is backed up first.
+If you use ZumiBot both in Local mode and on a server, Sync keeps your Claude setup the same on both: your agents, skills, agent memory and plugins. Chats stay on each machine unless you tick **Sync with chats and projects**, which also merges chats and the rest of ZumiBot's data. Sync copies both ways, never deletes anything, and backs up every file it replaces first.
 
 Sync suits advanced users. It needs some know-how with SSH, and a small settings file that you write yourself.
 
@@ -25,37 +25,47 @@ Sync runs from the desktop app on Linux. {/* macOS: written when the macOS pages
   `VPS_HOST` is the server's address and `VPS_USER` is the user that runs ZumiBot there. You can add a line `VPS_DIR=` with the folder ZumiBot is installed in on the server. It must be an absolute path, starting with `/`, and use only letters, numbers and the characters `.`, `_`, `-` and `/`. If you leave it out, ZumiBot uses `/home/` followed by the user name and `/zumibot`.
 
   Save the file anywhere on this computer. The app reads it once, when you choose it in the Sync window, and keeps only the server's address, user and folder in its own settings. It does not need the file again.
-- **No replies running,** on this computer or on the server. Sync checks and stops if one runs.
+- **For a sync with chats: no replies running,** on this computer or on the server. Sync checks and stops if one runs. A sync without chats does not need this.
 - **The app's own data folder.** Sync works on ZumiBot's standard data folder. If you moved it, Sync stops and says so.
 
 ## Run a sync
 
 1. **Open Sync.** In **Settings**, choose **Sync & server**. In the row "Sync this PC and VPS", choose **Sync…**. A window called "Sync ZumiBot" opens, with the heading "Sync this PC and VPS".
 2. **Choose your settings file, the first time.** The line under the heading reads "Choose deploy.env to set up your VPS connection." Choose **Choose deploy.env…** and pick the file. The log says "VPS settings imported. SSH keys stay on this PC." The app keeps only the server's address, user and folder. You can pick another file later with the same button. Once a server is set, the line shows it as `user@host` and its folder.
-3. **Choose Sync now.** The first time, the app asks "Sync this PC with" followed by your server as `user@host`, and says that the VPS will restart. Choose **Sync** to go on, or **Cancel**.
-4. **Answer about unsaved edits.** If an agent editor has unsaved changes, the app asks first: "You have unsaved changes to this agent." Choose **Save**, **Discard** or **Cancel**.
-5. **Wait.** While it runs, the button counts the time ("Syncing… 0:42"), the status line says "Keep ZumiBot open until sync finishes.", and the other buttons are off. The app stops its local server during the sync and reconnects afterward, even if the sync fails. The log lists each step. A long step can be quiet for minutes.
-6. **Read the end of the log.** "Sync complete." means it worked. The log also reports how many chats it synced and names the two backup folders. If a step failed, the last line says "Sync failed" and the lines above it say why. Choose **Close** when you are done.
+3. **Choose what to sync.** Leave **Sync with chats and projects** unticked to sync only agents, skills, agent memory and plugins. Tick it to also merge chats, projects, the vault and automations. The box starts unticked every time you open the window.
+4. **Choose Sync now.** The first time, the app asks you to confirm. Without chats it asks "Sync agents, skills, memory and plugins with" followed by your server as `user@host`, and says nothing restarts. With chats it asks "Sync this PC with" followed by your server, and says that the VPS will restart. Choose **Sync** to go on, or **Cancel**.
+5. **Answer about unsaved edits.** If an agent editor has unsaved changes, the app asks first: "You have unsaved changes to this agent." Choose **Save**, **Discard** or **Cancel**.
+6. **Wait.** While it runs, the button counts the time ("Syncing… 0:42"), the status line says "Keep ZumiBot open until sync finishes.", and the other buttons are off. With chats, the app stops its local server during the sync and reconnects afterward, even if the sync fails; without chats, the app keeps running. The log lists each step. A long step can be quiet for minutes.
+7. **Read the end of the log.** "Sync complete." means it worked. The log names the two backup folders, and after a sync with chats it also reports how many chats it synced. If a step failed, the last line says "Sync failed" and the lines above it say why. Choose **Close** when you are done.
 
 The settings page can also start a sync from a browser. There, **Sync** shows an **Open ZumiBot** button that hands over to the desktop app on the same computer, and the app asks you to confirm the server. A phone or tablet cannot start it: the page tells you to use the desktop app on your computer instead.
 
 ## What gets merged
 
+**Every sync:**
+
+- **Your agents, skills and agent memory,** and your global Claude instructions, are copied both ways. Where a file changed on both sides, the newer one wins and the other is kept in the backup folder.
+- **Plugins** that are turned on on one side and not installed on the other are installed there. A plugin that is turned off stays where it is. If a plugin needs you to approve its install, or can't be installed, the log names it with the command to install it yourself; the rest of the sync goes on.
+- **Claude's own settings file is only reported.** The log says when it differs between the two machines.
+
+**Only with Sync with chats and projects ticked:**
+
 - **Chats are joined.** A chat with new messages on both sides keeps both, in time order, and the log names it. If you edited or resent a message in different ways on each side, one side's version is kept as a separate chat, so nothing is lost.
+- **Claude's session history for each chat:** for each agent's saved Claude session, only the newer side is kept.
 - **Settings and the sidebar:** whichever side changed last wins. The same goes for the claude.ai connector switches. Usage records from both sides are joined.
-- **Your agents and Claude Code's data** in your Claude folder: agents, skills and agent memory are copied both ways. For each agent's saved Claude session, only the newer side is kept.
 - **To-dos, Inbox messages, attachments and file snapshots** are joined.
 - **The Vault** is merged item by item. If the two sides used different keys, this computer's items are sealed again with the server's key, and the log says so.
 - **Routines, workflows and channels** go one way, from the server to this computer, and arrive switched off here. A routine or workflow that exists only on this computer is not on the list afterward. The backup folder keeps the old file.
 - **Stays on its own side:** the server's sign-in, notification devices, webhook secrets, Telegram and Slack bot tokens, the audit log, agent browsers and desktops, and background processes.
-- **Plugins and Claude's own settings file are only reported.** The log lists plugins found on one side only, with the command to install them on the other.
 
 ## Tips and limits
 
-- **The server restarts at the end,** so your server is unavailable for a moment, and any [background processes](/projects/background-processes/) on it stop. The log warns you how many.
-- **Nothing is deleted.** A file you deleted on one side can come back from the other.
+- **A sync without chats restarts nothing.** You can run it while you work, and while replies run.
+- **With chats, the server restarts at the end,** so your server is unavailable for a moment, and any [background processes](/projects/background-processes/) on it stop. The log warns you how many.
+- **Nothing is deleted.** A file you deleted on one side can come back from the other. The same goes for plugins: one you uninstall on one machine is installed again while it is turned on on the other. To keep a plugin off one machine, leave it installed there and turn it off.
 - **Backups.** Before anything changes, Sync copies the data it will replace to a folder named `zumibot-sync-backup` with the time, in your home folder on this computer and on the server. The log gives both names. Sync does not remove old ones, so delete them yourself when you no longer need them.
-- **A reply on the server blocks Sync.** The log says "N replies running on the VPS. Sync again once they finish." On this computer it says "N replies running on this PC. Wait for them to finish, then retry."
+- **With chats, a reply on the server blocks Sync.** The log says "N replies running on the VPS. Sync again once they finish." On this computer it says "N replies running on this PC. Wait for them to finish, then retry."
+- **A wrong server folder stops Sync before anything changes.** If ZumiBot is not installed in the folder `VPS_DIR` names, the log says "No ZumiBot server at" followed by that folder, and gives the installer's default. Choose a settings file with the right `VPS_DIR`, or none, with **Choose deploy.env…**, then sync again.
 - **You cannot quit while it runs.** Quitting is held until Sync ends.
 - **Telegram and Slack bots.** Because channels arrive switched off on this computer, only the server runs your bots.
 - **Local mode and a server stay separate otherwise.** Sync is how they meet. See [Local mode and server mode](/desktop/local-vs-server/).

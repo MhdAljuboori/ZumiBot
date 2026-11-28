@@ -21,7 +21,7 @@ const origin = arg('origin')
 if (location.protocol === 'file:' && arg('sync-page') === '1') {
   contextBridge.exposeInMainWorld('zumibotSync', {
     status: () => ipcRenderer.invoke('sync:status'),
-    start: () => ipcRenderer.invoke('sync:start'),
+    start: (o?: { chats?: boolean }) => ipcRenderer.invoke('sync:start', { chats: o?.chats === true }),
     configure: () => ipcRenderer.invoke('sync:configure')
   })
 } else if (location.protocol === 'file:') {

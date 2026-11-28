@@ -16,7 +16,7 @@
 //   question-option (+ data-label), question-other, question-other-input, question-back, question-next,
 //   question-send, question-skip, plan-card (+ data-status), plan-body, plan-approve, plan-keep, plan-feedback-input,
 //   plan-send, plan-feedback, limit-policy, missed-policy, run-policy, limit-notice (+ data-state), limit-continue, limit-cancel, error-bubble,
-//   routine-more, routine-duplicate, routine-discard, routine-enabled, target-kind-group, target-members,
+//   routine-more, routine-duplicate, routine-discard, routine-enabled, routine-row-enabled, target-kind-group, target-members,
 //   target-member-option (+ data-agent-name), target-title, target-section, user-section, group-row (+ data-chat-id),
 //   routine-history, history-dialog, history-row (+ data-current), history-restore, history-close, routine-restore-note.
 // The usage-limit steps script a rejected rate_limit_event whose reset is 55 s past, so the wait lasts about 5 s.
@@ -880,6 +880,20 @@ async function main() {
   ok(
     'Discard changes put the saved routine back; Save and duplicate saved the edit and opened an off "(2)" copy with no runs; Duplicate of it made "(3)"'
   )
+
+  // 11b. the row's switch, as the workflow rows': it applies at once, and the open editor's switch follows with no unsaved edit.
+  const thirdId = path().split('/').pop()
+  const rowSwitch = page.locator(`${tid('routine-row')}[data-routine-id="${thirdId}"] + ${tid('routine-row-enabled')}`)
+  assert((await rowSwitch.getAttribute('aria-checked')) === 'false', "the copy's row switch reads on")
+  await rowSwitch.click()
+  await waitFor(async () => (await readJson('routines.json')).find((r) => r.id === thirdId)?.enabled === true, T, 'the row switch to turn it on')
+  await waitFor(async () => (await page.locator(tid('routine-enabled')).getAttribute('aria-checked')) === 'true', T, "the editor's switch to follow")
+  await waitFor(async () => (await rowSwitch.getAttribute('aria-checked')) === 'true', T, 'the row switch to show on')
+  assert(await page.locator(tid('routine-save')).isDisabled(), 'the row switch left an unsaved edit in the editor')
+  await rowSwitch.click()
+  await waitFor(async () => (await readJson('routines.json')).find((r) => r.id === thirdId)?.enabled === false, T, 'the row switch to turn it off')
+  await waitFor(async () => (await page.locator(tid('routine-enabled')).getAttribute('aria-checked')) === 'false', T, "the editor's switch to follow off")
+  ok("a row's switch turns the routine on and off at once, and the open editor's switch follows without an unsaved edit")
 
   // 12. a new room's own title and sidebar section: a single chat has no section to pick, a room lists the user's
   // sections, and each run's room carries the title and lands first in that section, on the page too.

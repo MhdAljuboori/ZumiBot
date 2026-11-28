@@ -140,6 +140,8 @@ interface Props {
   onMarkUnread: (itemId: string) => void
   /** Opens Export with an agent message's reply picked. */
   onExportReply: (itemId: string) => void
+  /** Opens an agent message's Turn X-ray in the side panel. */
+  onXrayReply: (itemId: string) => void
   /** Removes a queued message before it is sent; resolves false when that failed. */
   onDropTask: (taskId: string) => Promise<boolean>
   /** Sends a queued message now; offered only while the queue holds its tasks (a paused group, or a held chat). */
@@ -343,6 +345,7 @@ export function ChatView({
   onFork,
   onMarkUnread,
   onExportReply,
+  onXrayReply,
   onDropTask,
   onSendTask,
   onCompact,
@@ -595,7 +598,7 @@ export function ChatView({
       onSwitchVersion={onSwitchVersion}
       onFork={onFork}
       onMarkUnread={onMarkUnread}
-      {...(compact ? {} : { onExport: onExportReply })}
+      {...(compact ? {} : { onExport: onExportReply, onXray: onXrayReply })}
       // A room's running turns are drawn after its finished ones and move when they end, so the line is looked for among those.
       newLineBefore={newLineItem(chat.group ? threadItems(state.items) : state.items, since, (state.start ?? 0) > 0)}
       showRequest={showRequest}

@@ -27,6 +27,7 @@ import { CapBlocked, SpendCapInput } from './SpendCapInput'
 import { ToolsPicker } from './ToolsPicker'
 import { pickedTools, visibleTools } from '../state/toolsPicker'
 import { SearchSelect } from './SearchSelect'
+import { recallChoices } from '../state/recallCard'
 
 interface Props {
   fields: AgentFields
@@ -296,6 +297,33 @@ export function AgentForm({
               <p className="card-note">
                 The agent summarizes its conversation once it reaches this size. Lower uses fewer tokens on every message; older details are
                 kept only as a summary.
+              </p>
+            </section>
+          )}
+
+          {cards.recall && (
+            <section className="card" aria-labelledby="card-recall">
+              <CardHead id="card-recall" icon="list" title="Recall" meta="Past chats" />
+              <div className="choices compact-sizes" role="group" aria-labelledby="card-recall">
+                {recallChoices(fields.recall).map((c) => (
+                  <button
+                    key={c.label}
+                    type="button"
+                    className="choice"
+                    aria-pressed={c.active}
+                    data-testid="recall-choice"
+                    onClick={() => !c.active && onFields({ recall: c.value })}
+                  >
+                    {c.label}
+                    <span className="choice-sub" aria-hidden="true">
+                      {c.hint}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p className="card-note">
+                Lets the agent search and read earlier chats, never change them: its own chats and rooms, or every chat in the folder it
+                works in, whatever agent it was with. It never sees the chat it is in through these tools.
               </p>
             </section>
           )}

@@ -80,6 +80,9 @@ import {
   mergeTodos,
   mergeUsageRecords,
   mergeWorkflowMessages,
+  parseSyncArgs,
+  planPluginInstalls,
+  pluginSide,
   stopUnfinishedWorkflowRuns,
   sync,
   unionHistory
@@ -1180,13 +1183,15 @@ describe.skipIf(process.platform !== 'linux')('sync', () => {
   afterEach(() => rmSync(root, { recursive: true, force: true }))
 
   // ssh runs the remote command locally with HOME at the fake VPS; rsync runs for real with the host mapped to it.
-  function fakeRun(onRun?: (c: Call) => void) {
-    return async (cmd: string, args: string[], opts?: { input?: string }): Promise<Result> => {
+  // `path` is the fake commands' PATH: a test that must not find the developer's own claude passes a bare one.
+  function fakeRun(onRun?: (c: Call) => void, path = `${join(root, 'bin')}:${process.env.PATH}`) {
+    return async (cmd: string, args: string[], opts?: { input?: string; timeoutMs?: number }): Promise<Result> => {
       calls.push({ cmd, args, input: opts?.input })
       onRun?.({ cmd, args })
-      const env = { ...process.env, HOME: vps, PATH: `${join(root, 'bin')}:${process.env.PATH}` }
+      const env = { ...process.env, HOME: vps, PATH: path }
       let r
       if (cmd === 'ssh') r = spawnSync('bash', ['-c', args[args.length - 1]!], { env, encoding: 'utf8', input: opts?.input })
+      else if (cmd === 'bash') r = spawnSync('bash', args, { env: { ...env, HOME: pc }, encoding: 'utf8' })
       else {
         const local: string[] = []
         for (let i = 0; i < args.length; i++) {
@@ -1204,10 +1209,12 @@ describe.skipIf(process.platform !== 'linux')('sync', () => {
     }
   }
 
-  const go = (run = fakeRun(), alive = () => false, extra: Record<string, string> = {}) => {
+  // chats defaults to the full sync here, which every test written before the plain mode describes.
+  const go = (run = fakeRun(), alive = () => false, extra: Record<string, string> = {}, chats = true) => {
     let t = 0
     return sync({
       env: { VPS_HOST: 'vps.example', VPS_USER: 'bot', VPS_DIR: join(vps, 'zumibot'), HOME: pc, ...extra },
+      chats,
       run,
       alive,
       log: (m: string) => logs.push(m),
@@ -1678,6 +1685,107 @@ describe.skipIf(process.platform !== 'linux')('sync', () => {
     expect(calls.every((c) => c.cmd === 'ssh')).toBe(true)
   })
 
+  it('plain sync merges agents, skills, memory and CLAUDE.md, and nothing of chats', async () => {
+    write(join(pc, '.claude/agent-memory/a/m.md'), 'pc mem')
+    write(join(vps, '.claude/CLAUDE.md'), 'vps rules')
+    const pcChats = readFileSync(data(pc, 'chats.json'), 'utf8')
+    const vpsChats = readFileSync(data(vps, 'chats.json'), 'utf8')
+    expect(await go(fakeRun(), () => false, {}, false)).toBe(0)
+    for (const home of [pc, vps]) {
+      expect(existsSync(join(home, '.claude/agents/pc-agent.md')) && existsSync(join(home, '.claude/agents/vps-agent.md'))).toBe(true)
+      expect(readFileSync(join(home, '.claude/agent-memory/a/m.md'), 'utf8')).toBe('pc mem')
+      expect(readFileSync(join(home, '.claude/CLAUDE.md'), 'utf8')).toBe('vps rules')
+    }
+    expect(readFileSync(join(pc, '.claude/projects/p/s.jsonl'), 'utf8')).toBe('old')
+    expect(readFileSync(join(pc, '.claude/history.jsonl'), 'utf8')).toBe('{"timestamp":2}\n')
+    expect(readFileSync(data(pc, 'chats.json'), 'utf8')).toBe(pcChats)
+    expect(readFileSync(data(vps, 'chats.json'), 'utf8')).toBe(vpsChats)
+    expect(existsSync(join(vps, 'systemctl.log'))).toBe(false)
+    expect(calls.some((c) => c.args.some((a) => a.includes('zumibot-server') || a.includes('.local/share/zumibot')))).toBe(false)
+    expect(logs.at(-1)).toMatch(/^Synced agents, skills, agent memory and plugins\. Backups: /)
+    const bk = /Backups: (\S+) \(this PC\)/.exec(logs.at(-1)!)![1]!
+    expect(existsSync(join(bk, 'agents/pc-agent.md'))).toBe(true)
+    expect(existsSync(join(bk, 'zumibot-data'))).toBe(false)
+  })
+
+  const pcPlugins = (plugins: Record<string, boolean>) => {
+    write(join(pc, '.claude/plugins/installed_plugins.json'), {
+      version: 2,
+      plugins: Object.fromEntries(Object.keys(plugins).map((id) => [id, [{ scope: 'user' }]]))
+    })
+    write(join(pc, '.claude/plugins/known_marketplaces.json'), { m: { source: { source: 'github', repo: 'o/m' } } })
+    write(join(pc, '.claude/settings.json'), { enabledPlugins: plugins })
+  }
+
+  it('installs plugins that are on, logs failures, and still succeeds', async () => {
+    pcPlugins({ 'a@m': true, 'fail@m': true })
+    write(
+      join(root, 'bin/claude'),
+      `#!/bin/sh\nprintf '%s %s\\n' "$HOME" "$*" >> ${join(root, 'claude.log')}\ncase "$*" in *fail@*) echo 'Plugin needs approval' >&2; exit 1;; esac\n`
+    )
+    chmodSync(join(root, 'bin/claude'), 0o755)
+    expect(await go(fakeRun(), () => false, {}, false)).toBe(0)
+    expect(readFileSync(join(root, 'claude.log'), 'utf8').split('\n').filter(Boolean)).toEqual([
+      `${vps} plugin marketplace add o/m`,
+      `${vps} plugin install a@m`,
+      `${vps} plugin install fail@m`
+    ])
+    expect(logs).toContain('Installed plugin a@m on the VPS.')
+    expect(logs).toContain(
+      'Plugin fail@m could not be installed on the VPS: Plugin needs approval. To add it there: claude plugin install fail@m'
+    )
+    expect(calls.some((c) => c.args.join(' ').includes(' -y'))).toBe(false)
+  })
+
+  // An unreadable list is not an empty one: installing there could turn on a plugin the user turned off.
+  it('installs nothing on a side whose plugin list cannot be read', async () => {
+    pcPlugins({ 'a@m': true })
+    write(join(vps, '.claude/plugins/installed_plugins.json'), '{"version": 2, "plugins": {')
+    write(join(root, 'bin/claude'), `#!/bin/sh\nprintf '%s %s\\n' "$HOME" "$*" >> ${join(root, 'claude.log')}\n`)
+    chmodSync(join(root, 'bin/claude'), 0o755)
+    expect(await go(fakeRun(), () => false, {}, false)).toBe(0)
+    expect(existsSync(join(root, 'claude.log'))).toBe(false)
+    expect(logs).toContain('Plugins were not installed on the VPS: its plugin list could not be read.')
+  })
+
+  it('installs nothing on the VPS when reading its plugin files fails', async () => {
+    pcPlugins({ 'a@m': true })
+    write(join(root, 'bin/claude'), `#!/bin/sh\nprintf '%s %s\\n' "$HOME" "$*" >> ${join(root, 'claude.log')}\n`)
+    chmodSync(join(root, 'bin/claude'), 0o755)
+    const base = fakeRun()
+    const failRead = async (cmd: string, args: string[], opts?: { input?: string; timeoutMs?: number }) =>
+      cmd === 'ssh' && args.at(-1)!.includes('--zumibot-sync-file--')
+        ? { code: 255, stdout: '', stderr: 'Connection reset' }
+        : base(cmd, args, opts)
+    expect(await go(failRead, () => false, {}, false)).toBe(0)
+    expect(existsSync(join(root, 'claude.log'))).toBe(false)
+    expect(logs).toContain('Plugins were not installed on the VPS: its plugin list could not be read.')
+  })
+
+  // A bare PATH, so the developer's own claude (often in ~/.local/bin) is never found or run.
+  it('a side with no claude logs each plugin it could not install and still succeeds', async () => {
+    pcPlugins({ 'a@m': true })
+    expect(await go(fakeRun(undefined, `${join(root, 'bin')}:/usr/bin:/bin`), () => false, {}, false)).toBe(0)
+    expect(logs.some((l) => l.startsWith('Plugin a@m could not be installed on the VPS: '))).toBe(true)
+    expect(existsSync(join(root, 'claude.log'))).toBe(false)
+  })
+
+  it('plain sync runs while ZumiBot runs on this PC and a reply runs on the VPS', async () => {
+    write(data(pc, 'server.lock'), '4242 1')
+    write(join(vps, 'busy'), '2\n')
+    expect(await go(fakeRun(), () => true, {}, false)).toBe(0)
+  })
+
+  // A sync.env carried over from ClaudeBot still named ~/claudebot, so the shell's bare "No such file" was all it said.
+  it('names VPS_DIR when no server is installed there, before touching anything', async () => {
+    const dir = join(vps, 'claudebot')
+    expect(await go(fakeRun(), () => false, { VPS_DIR: dir })).toBe(1)
+    expect(logs).toContain(
+      `No ZumiBot server at ${dir} on the VPS. Set VPS_DIR to the folder it is installed in (the installer's default is /home/bot/zumibot).`
+    )
+    expect(calls.every((c) => c.cmd === 'ssh')).toBe(true)
+  })
+
   it('refuses while ZumiBot runs on this PC', async () => {
     write(data(pc, 'server.lock'), '4242 1')
     expect(await go(fakeRun(), () => true)).toBe(1)
@@ -1922,7 +2030,8 @@ describe.skipIf(process.platform !== 'linux')('sync', () => {
         expect((read(data(home, 'vault.json')) as VFile).items.map((i) => i.id).sort()).toEqual(['late', 'p', 'v'])
     })
 
-    it('reads the VPS key from VPS_VAULT_KEY_FILE and refuses an unsafe one', async () => {
+    // Five whole syncs in one test: about a second each, so the 5 s default fails on a loaded machine.
+    it('reads the VPS key from VPS_VAULT_KEY_FILE and refuses an unsafe one', { timeout: 20_000 }, async () => {
       const K = randomBytes(32)
       write(join(vps, 'keys/vault.key'), `${K.toString('base64')}\n`)
       write(data(vps, 'vault.json'), vFile(K, [vLive(K, 'v', 1)]))
@@ -2558,6 +2667,93 @@ describe.skipIf(process.platform !== 'linux')('sync', () => {
   })
 })
 
+describe('planPluginInstalls', () => {
+  const side = (o: { installed?: object; marketplaces?: object; enabled?: object }) =>
+    pluginSide({
+      installed: JSON.stringify({ version: 2, plugins: o.installed ?? {} }),
+      marketplaces: JSON.stringify(o.marketplaces ?? {}),
+      settings: JSON.stringify({ enabledPlugins: o.enabled ?? {}, env: { SECRET: 'x' } })
+    })
+  const user = [{ scope: 'user' }]
+  const gh = { m: { source: { source: 'github', repo: 'o/m' } } }
+
+  it('installs an on plugin on the side that lacks it, adding its marketplace once', () => {
+    const pc = side({ installed: { 'a@m': user, 'b@m': user }, marketplaces: gh, enabled: { 'a@m': true, 'b@m': true } })
+    expect(planPluginInstalls(pc, side({})).installs).toEqual([
+      { id: 'a@m', to: 'vps', addMarketplace: 'o/m' },
+      { id: 'b@m', to: 'vps', addMarketplace: null }
+    ])
+  })
+  it('never copies an off plugin or one with no enabledPlugins entry', () => {
+    const pc = side({ installed: { 'a@m': user, 'b@m': user }, marketplaces: gh, enabled: { 'a@m': false } })
+    expect(planPluginInstalls(pc, side({}))).toEqual({ installs: [], skipped: [] })
+  })
+  it('counts a project-scope install on the target as installed', () => {
+    const pc = side({ installed: { 'a@m': user }, marketplaces: gh, enabled: { 'a@m': true } })
+    const vps = side({ installed: { 'a@m': [{ scope: 'project', projectPath: '/x' }] } })
+    expect(planPluginInstalls(pc, vps).installs).toEqual([])
+  })
+  it('skips project-only, unknown-marketplace, folder-source and unsafe ids with a reason', () => {
+    const pc = side({
+      installed: { 'p@m': [{ scope: 'project' }], 'u@builtin': user, 'd@local': user, 'x;rm@m': user },
+      marketplaces: { ...gh, local: { source: { source: 'directory', path: '/home/me/m' } } },
+      enabled: { 'p@m': true, 'u@builtin': true, 'd@local': true, 'x;rm@m': true }
+    })
+    expect(planPluginInstalls(pc, side({})).skipped).toEqual([
+      { id: 'p@m', to: 'vps', reason: 'it is installed for one project only' },
+      { id: 'u@builtin', to: 'vps', reason: 'its marketplace is not on record' },
+      { id: 'd@local', to: 'vps', reason: 'its marketplace is a folder on the other machine' },
+      { id: 'x;rm@m', to: 'vps', reason: 'its name has characters sync does not pass on' }
+    ])
+  })
+  // A leading '-' would reach claude as a flag (-y accepts a plugin's own command); '..' or userinfo is not a plain source.
+  it('refuses ids and sources a command line could misread', () => {
+    const pc = side({
+      installed: { '-y@m': user, 'a@-m': user, 'r@dash': user, 'd@dots': user, 't@tok': user },
+      marketplaces: {
+        ...gh,
+        '-m': { source: { source: 'github', repo: 'o/m' } },
+        dash: { source: { source: 'github', repo: '-x/m' } },
+        dots: { source: { source: 'github', repo: 'o/..' } },
+        tok: { source: { source: 'git', url: 'https://user:token@example.com/m.git' } }
+      },
+      enabled: { '-y@m': true, 'a@-m': true, 'r@dash': true, 'd@dots': true, 't@tok': true }
+    })
+    expect(planPluginInstalls(pc, side({}))).toEqual({
+      installs: [],
+      skipped: [
+        { id: '-y@m', to: 'vps', reason: 'its name has characters sync does not pass on' },
+        { id: 'a@-m', to: 'vps', reason: 'its name has characters sync does not pass on' },
+        { id: 'r@dash', to: 'vps', reason: 'its marketplace source has characters sync does not pass on' },
+        { id: 'd@dots', to: 'vps', reason: 'its marketplace source has characters sync does not pass on' },
+        { id: 't@tok', to: 'vps', reason: 'its marketplace source has characters sync does not pass on' }
+      ]
+    })
+  })
+  it('still installs from a plain git URL', () => {
+    const pc = side({
+      installed: { 'codex@openai-codex': user },
+      marketplaces: { 'openai-codex': { source: { source: 'git', url: 'https://github.com/openai/codex-plugin-cc.git' } } },
+      enabled: { 'codex@openai-codex': true }
+    })
+    expect(planPluginInstalls(pc, side({})).installs).toEqual([
+      { id: 'codex@openai-codex', to: 'vps', addMarketplace: 'https://github.com/openai/codex-plugin-cc.git' }
+    ])
+  })
+  it('reads bad JSON as empty and takes only enabledPlugins from settings', () => {
+    const s = pluginSide({ installed: '{', marketplaces: '', settings: '{"enabledPlugins":{"a@m":true},"env":{"K":"v"}}' })
+    expect(s).toEqual({ installed: {}, marketplaces: {}, enabled: { 'a@m': true } })
+  })
+  it('installs both ways', () => {
+    const pc = side({ installed: { 'a@m': user }, marketplaces: gh, enabled: { 'a@m': true } })
+    const vps = side({ installed: { 'b@m': user }, marketplaces: gh, enabled: { 'b@m': true } })
+    expect(planPluginInstalls(pc, vps).installs).toEqual([
+      { id: 'a@m', to: 'vps', addMarketplace: null },
+      { id: 'b@m', to: 'local', addMarketplace: null }
+    ])
+  })
+})
+
 describe('sync helpers', () => {
   // The sync sends the vault key to ssh this way, never in argv.
   it('realRun feeds input to stdin, and closes stdin without it', async () => {
@@ -2575,5 +2771,20 @@ describe('sync helpers', () => {
       VPS_USER: 'b c',
       VPS_DIR: '/x'
     })
+  })
+
+  it('parseSyncArgs picks the mode and refuses anything else', () => {
+    expect(parseSyncArgs([])).toEqual({ chats: false })
+    expect(parseSyncArgs(['--with-chats'])).toEqual({ chats: true })
+    expect(parseSyncArgs(['--chats'])).toBeNull()
+    expect(parseSyncArgs(['--with-chats', 'x'])).toBeNull()
+  })
+
+  it('realRun stops a command that runs past timeoutMs', async () => {
+    const t = Date.now()
+    const r = await realRun('sleep', ['5'], { timeoutMs: 50 })
+    expect(r.code).toBe(124)
+    expect(r.stderr).toContain('timed out')
+    expect(Date.now() - t).toBeLessThan(2000)
   })
 })

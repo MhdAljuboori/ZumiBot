@@ -35,7 +35,8 @@ const VERIFY_MAX = 2000
 /** Dead entries stay in the token lists until there are more of them than live ones (and at least this many). */
 const COMPACT_MIN = 5000
 
-function metaOf(it: ChatItem): Meta | null {
+/** What the index holds of an item: a user message or an agent reply with text, as the chat shows it; null for anything else. */
+export function searchableOf(it: ChatItem): Meta | null {
   // A Run's result sent to the agent: the user never sees it, so nobody can search for it.
   if (it.type === 'user') return it.run || it.text.trim() === '' ? null : { role: 'user', agent: it.from ?? null, ts: it.ts, text: it.text }
   if (it.type === 'assistant')
@@ -168,7 +169,7 @@ export class SearchIndex {
     const next = new Map<string, number>()
     for (const it of items) {
       if (next.has(it.id)) continue
-      const meta = metaOf(it)
+      const meta = searchableOf(it)
       if (!meta) continue
       const old = prev?.get(it.id)
       const doc = old === undefined ? undefined : this.docs[old]
@@ -229,13 +230,19 @@ export class SearchIndex {
 
   /**
    * The messages matching `raw`, newest first, `offset` hits in. `listed`: whether a chat still exists (the index can
-   * hold a chat a moment past its removal).
+   * hold a chat a moment past its removal), or is in an agent's recall scope. `range`: message times kept, both ends inclusive.
    */
-  search(raw: string, offset: number, listed: (chatId: string) => boolean, limit = SEARCH_PAGE): SearchResult {
+  search(
+    raw: string,
+    offset: number,
+    listed: (chatId: string) => boolean,
+    limit = SEARCH_PAGE,
+    range: { from?: number; to?: number } = {}
+  ): SearchResult {
     const indexing = !this.built
     const q = parseQuery(raw)
     if (!q) return emptyResult(indexing)
-    const found = this.matching(q, listed)
+    const found = this.matching(q, listed, range)
     let hits = found
     let capped = false
     if (q.phrases.length > 0) {
@@ -247,7 +254,7 @@ export class SearchIndex {
   }
 
   /** Every live message holding all the query's words, newest first. */
-  private matching(q: SearchQuery, listed: (chatId: string) => boolean): number[] {
+  private matching(q: SearchQuery, listed: (chatId: string) => boolean, range: { from?: number; to?: number }): number[] {
     const n = this.docs.length
     if (n === 0) return []
     // Each term's token lists: the word itself, or every token it starts (one pass over the words for all of them).
@@ -278,7 +285,8 @@ export class SearchIndex {
     const out: number[] = []
     for (let doc = 0; doc < n; doc++) {
       const d = this.docs[doc]
-      if (count[doc] === all && d && listed(d.chatId)) out.push(doc)
+      if (count[doc] === all && d && (range.from === undefined || d.ts >= range.from) && (range.to === undefined || d.ts <= range.to) && listed(d.chatId))
+        out.push(doc)
     }
     return out.sort((a, b) => this.docs[b]!.ts - this.docs[a]!.ts || b - a)
   }
