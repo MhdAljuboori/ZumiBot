@@ -508,6 +508,7 @@ export type ChatItem = (
       answers?: QuestionAnswers // present only on 'answered' cards
       feedback?: string // a 'sent-back' plan card's note to the agent, when the user wrote one
       ts: number
+      answeredTs?: number // when the card stopped waiting (answered, or closed unanswered); absent while pending and on cards saved before it existed
       agent?: string
       turn?: string
       risk?: import('./jev').ApprovalRisk // Jev's guess, added while the card waits; absent = no guess
@@ -817,6 +818,11 @@ export interface ZumiBotApi {
     // One entry; with `from`, only its steps from that index on (the answer's `from` 0 means the whole entry came)
     get(chatId: string, id: string, from?: number): Promise<{ entry: DispatchEntry; from: number } | null>
     onChanged(cb: (chatId: string) => void): () => void // fires after every save, never dedupe
+  }
+  // Turn X-ray (docs/architecture/turn-xray.md): one reply's timeline, put together from the stores on each ask; null when
+  // itemId names no agent message of the chat.
+  xray: {
+    get(chatId: string, itemId: string): Promise<import('./xray').TurnXray | null>
   }
   // Background processes the chat's agents started (docs/architecture/processes.md). Output reaches only who reads it.
   processes: {
