@@ -194,8 +194,10 @@ checked on an Intel Mac, macOS 15, Node 22; the two start-time lock tests need B
   arrive later than inotify's). A recursive `fs.watch` runs on an FSEvents stream that starts asynchronously and drops
   events from before it runs, so a test that writes right after starting a watch writes again until the event lands
   (`memoryStore.test.ts`); one that changes the agents folder after boot writes a spare file there now and then, so the
-  watcher's rescan finds the change, a delete too (`untilWatched` in `app.test.ts`). Linux assertions and deadlines are
-  unchanged.
+  watcher's rescan finds the change, a delete too (`untilWatched` in `app.test.ts`). A watch that is not recursive starts
+  the same way on a folder and reports only its direct children, so a folder made once under it cannot be retried by
+  writing inside it: the test first waits for an event on that watch, then makes the folder (`configWatch.test.ts`).
+  Linux assertions and deadlines are unchanged.
 
 ## The claude CLI in a container
 

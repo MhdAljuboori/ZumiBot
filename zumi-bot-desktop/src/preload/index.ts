@@ -9,6 +9,7 @@ import {
   type IslandOpenTarget,
   type IslandSettings
 } from '@zumibot/shared/island'
+import { popoutChatFrom, type PopoutBridge } from '@zumibot/shared/popout'
 import type { ServerMode, ThemePref } from '@zumibot/shared/types'
 
 // Passed by the main process (webPreferences.additionalArguments). Empty for the picker and error pages.
@@ -21,7 +22,7 @@ const origin = arg('origin')
 if (location.protocol === 'file:' && arg('sync-page') === '1') {
   contextBridge.exposeInMainWorld('zumibotSync', {
     status: () => ipcRenderer.invoke('sync:status'),
-    start: () => ipcRenderer.invoke('sync:start'),
+    start: (o?: { chats?: boolean }) => ipcRenderer.invoke('sync:start', { chats: o?.chats === true }),
     configure: () => ipcRenderer.invoke('sync:configure')
   })
 } else if (location.protocol === 'file:') {
@@ -73,6 +74,20 @@ if (location.protocol === 'file:' && arg('sync-page') === '1') {
     }
     contextBridge.exposeInMainWorld('zumibotIsland', island)
   }
+} else if (arg('popout') === '1') {
+  // A chat's popout window gets its own small bridge on its own page only, never zumibotDesktop: it is no notification
+  // device, no save-before-close target and no quit flow (a login redirect gets nothing).
+  const chatId = origin !== '' && location.origin === origin ? popoutChatFrom(location.pathname, location.search) : null
+  if (chatId !== null) {
+    const popout: PopoutBridge = {
+      chatId,
+      pin: (on) => ipcRenderer.invoke('popout:pin', on === true) as Promise<boolean>,
+      openMain: (path) => ipcRenderer.send('popout:openMain', typeof path === 'string' ? path : null),
+      openAttachment: (url, name) => ipcRenderer.invoke('popout:openAttachment', String(url), String(name)) as Promise<boolean>,
+      setTitleBarColors: (background, symbols) => ipcRenderer.send('popout:titleBar', String(background), String(symbols))
+    }
+    contextBridge.exposeInMainWorld('zumibotPopout', popout)
+  }
 } else if (origin !== '' && location.origin === origin) {
   // A remote page runs here: only the connected server's own origin gets the desktop bridge.
   const saveCallbacks = new Set<() => Promise<boolean>>()
@@ -96,6 +111,11 @@ if (location.protocol === 'file:' && arg('sync-page') === '1') {
   ipcRenderer.on('desktop:islandOpen', (_e, raw: unknown) => {
     const t = parseIslandOpenTarget(raw) // checked again here, so the page only ever gets a well-formed target
     if (t) for (const cb of [...islandOpenCallbacks]) cb(structuredClone(t))
+  })
+  const openPathCallbacks = new Set<(path: string) => void>()
+  ipcRenderer.on('desktop:openPath', (_e, raw: unknown) => {
+    const path = safeOpenPath(raw) // checked again here, so the page only ever gets a safe app path
+    if (path !== null) for (const cb of [...openPathCallbacks]) cb(path)
   })
   const bridge: DesktopBridge = {
     mode: (arg('mode') === 'local' ? 'local' : 'vps') as ServerMode,
@@ -135,6 +155,11 @@ if (location.protocol === 'file:' && arg('sync-page') === '1') {
     onIslandOpen(cb) {
       islandOpenCallbacks.add(cb)
       return () => void islandOpenCallbacks.delete(cb)
+    },
+    openChatWindow: (chatId) => ipcRenderer.send('desktop:openChatWindow', String(chatId)),
+    onOpenPath(cb) {
+      openPathCallbacks.add(cb)
+      return () => void openPathCallbacks.delete(cb)
     }
   }
   contextBridge.exposeInMainWorld('zumibotDesktop', bridge)

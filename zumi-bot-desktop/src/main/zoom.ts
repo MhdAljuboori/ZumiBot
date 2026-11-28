@@ -44,6 +44,15 @@ export function nextZoom(current: number, key: ZoomKey): number {
   return [...ZOOM_STEPS].reverse().find((s) => s < current - 0.001) ?? MIN
 }
 
+/**
+ * The factor a key press sets, from the page's current one, or null for any other key. Read from the page, not kept
+ * here: Chromium shares zoom per origin, so a popout's press zooms the main window too, and the other way round.
+ */
+export function zoomStep(i: KeyInput, mac: boolean, current: number): number | null {
+  const k = zoomKey(i, mac)
+  return k === null ? null : nextZoom(current, k)
+}
+
 export function parseZoom(raw: unknown): number {
   const f = raw && typeof raw === 'object' ? (raw as { factor?: unknown }).factor : undefined
   return typeof f === 'number' && Number.isFinite(f) && f >= MIN && f <= MAX ? f : 1

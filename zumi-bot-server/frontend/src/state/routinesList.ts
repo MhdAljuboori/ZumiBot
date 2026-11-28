@@ -8,7 +8,7 @@ export interface RoutineRow {
   icon: 'schedule' | 'manual' | 'webhook'
   subline: string
   dot: 'done' | 'waiting' | 'failed' | null
-  paused: boolean
+  enabled: boolean
   warning: string | null
 }
 
@@ -53,12 +53,12 @@ function newestDot(runs: RoutineRun[]): RoutineRow['dot'] {
 
 function subline(r: Routine, runs: RoutineRun[], now: number): string {
   let base: string
-  if (!r.enabled) base = 'Paused'
-  else if (r.trigger.kind === 'webhook') base = 'Webhook'
+  if (r.trigger.kind === 'webhook') base = 'Webhook'
   else if (r.trigger.kind === 'manual') base = 'Manual'
   else {
     base = describeSchedule(r.trigger.schedule)
-    const at = r.nextRunAt ?? nextRun(r.trigger.schedule, r.timeZone, now)
+    // The row's switch shows Off, so the line keeps the schedule; an Off routine has no next run.
+    const at = r.enabled ? (r.nextRunAt ?? nextRun(r.trigger.schedule, r.timeZone, now)) : null
     if (at !== null) base += ` · next in ${untilLabel(Math.max(0, at - now))}`
   }
   if (runs.some((x) => x.status === 'waiting')) return `${base} · waiting for approval`
@@ -79,7 +79,7 @@ export function routineRows(s: RoutinesSnapshot, agents: AgentSummary[], chats: 
         icon: r.trigger.kind,
         subline: subline(r, runs, now),
         dot: newestDot(runs),
-        paused: !r.enabled,
+        enabled: r.enabled,
         warning: targetWarning(r, agents, chats)
       }
     })

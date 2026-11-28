@@ -3,14 +3,14 @@ import type { DesktopTarget } from '@zumibot/shared/desktop'
 import { engineCaps, engineOfAgent, type Engine, type EngineCaps } from '@zumibot/shared/engine'
 import type { AgentSummary, ChatItem } from '@zumibot/shared/types'
 
-/** What the right side panel holds: its launcher list, Files, git Changes, side questions, to-dos, dispatched agents, background processes, the browser or the desktop; null when closed. */
-export type SideView = 'menu' | 'files' | 'changes' | 'btw' | 'todos' | 'dispatch' | 'processes' | 'browser' | 'desktop'
+/** What the right side panel holds: its launcher list, Files, git Changes, side questions, to-dos, dispatched agents, a reply's X-ray, background processes, the browser or the desktop; null when closed. */
+export type SideView = 'menu' | 'files' | 'changes' | 'btw' | 'todos' | 'dispatch' | 'xray' | 'processes' | 'browser' | 'desktop'
 /** The views that keep running behind a chat view; only one is open at a time. */
 export type LiveView = 'browser' | 'desktop'
 export type SideState = SideView | null
 
 /** The views that belong to the chat on screen, over a live view that may wait behind them. */
-const chatViews: readonly SideState[] = ['menu', 'files', 'changes', 'btw', 'todos', 'dispatch', 'processes']
+const chatViews: readonly SideState[] = ['menu', 'files', 'changes', 'btw', 'todos', 'dispatch', 'xray', 'processes']
 
 /** A chat view the panel draws over the chat on screen (not a live view): Esc closes it. */
 export const isChatView = (side: SideState): boolean => chatViews.includes(side)

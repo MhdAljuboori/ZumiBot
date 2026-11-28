@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { routinesPath, workflowsPath } from '@zumibot/shared/appPaths'
+import { CLAUDE_CODE_SETTINGS, routinesPath, workflowsPath } from '@zumibot/shared/appPaths'
+import { EXT_TEXT } from '@zumibot/shared/extensions'
+import { NAME_PATTERN } from '@zumibot/shared/frontmatter'
 import { STALE_REFUSED, WRITE_REFUSED } from '@zumibot/shared/automations'
 import { ZUMI_BOT_NAME } from '@zumibot/shared/zumiBot'
 import { leadingCommand } from '@zumibot/shared/commands'
@@ -20,6 +22,7 @@ import { routineFromAuthoring, routineToAuthoring, said, workflowFromAuthoring, 
 import { chatStepProblem } from '../workflows/workflowAgentSteps'
 import { ROOM_NOT_FOUND } from '../workflows/workflowRooms'
 import { chatIdFrom, chatTranscript } from './chatTranscript'
+import { OBJECT_MAX } from './automationTools'
 
 // One call of Zumi Bot's routine and workflow tools. Saves and deletes go through the same routineEditing and
 // workflowEditing the editor's RPCs use, so the two can't drift. Every refusal is a plain sentence the agent can act
@@ -41,6 +44,16 @@ export type AutomationCall =
   | { op: 'workflow_save'; workflow: unknown }
   | { op: 'workflow_delete'; id: string; name: string }
   | { op: 'chat_read'; chat: string }
+  | { op: 'skills_list' }
+  | { op: 'skill_get'; name: string }
+  | { op: 'skill_save'; skill: unknown }
+
+/** The user's Claude Code skills (ExtensionsService, user scope). Errors are EXT_TEXT sentences; no result carries a path. */
+export interface AutomationSkills {
+  list(): Promise<{ name: string; description: string }[]>
+  get(name: string): Promise<{ name: string; description: string; body: string; stamp: string }>
+  save(input: { name: string; description: string; body: string; stamp?: string }): Promise<void>
+}
 
 export interface AutomationDeps {
   routines: Pick<RoutineStore, 'get' | 'list'>
@@ -54,6 +67,8 @@ export interface AutomationDeps {
   /** What each engine can do; the shipped caps when absent. */
   caps?(engine: Engine): EngineCaps
   ctx(): Promise<Omit<AuthoringCtx, 'newId'>>
+  /** Absent: the skill tools refuse (a server built without the extensions service). */
+  skills?: AutomationSkills
 }
 
 const NO_ROUTINE = 'No routine with that id'
@@ -63,9 +78,19 @@ const NOT_READ = 'To edit it, read it first and send back the updatedAt it retur
 const NOT_A_NUMBER = 'updatedAt must be the number the get returned'
 // An A→B ask chat takes no message but the asker's (rpc/handlers.ts writable()).
 const READ_ONLY_CHAT = 'That chat is read-only: routines cannot post into it'
+const SKILLS_OFF = 'Skills are not available here.'
+const BAD_SKILL_NAME = 'A skill name may hold only lower-case letters, digits and single hyphens, and be at most 100 characters.'
+const NO_SKILL = 'No skill with that name'
+const SKILL_SHAPE = 'skill must be {name, description, body, stamp?} with text values'
+const SKILL_TOO_LONG = 'The description may be at most 5000 characters.'
+const SKILL_TOO_BIG = 'That skill is too long to edit with these tools; the user can change it in Settings.'
+const SKILL_NAME_MAX = 100
+const SKILL_DESCRIPTION_MAX = 5_000
+// Names a plain object would read through its prototype: never a folder.
+const PROTO_NAMES = new Set(['__proto__', 'constructor', 'prototype'])
 const renamed = (stored: string): string => `That id is now named “${said(stored, 100)}”: check with the user.`
 
-const WRITES: ReadonlySet<AutomationCall['op']> = new Set(['routine_save', 'routine_delete', 'workflow_save', 'workflow_delete'])
+const WRITES: ReadonlySet<AutomationCall['op']> = new Set(['routine_save', 'routine_delete', 'workflow_save', 'workflow_delete', 'skill_save'])
 
 type Obj = Record<string, unknown>
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -90,6 +115,18 @@ async function edited<T extends { updatedAt: number }>(
   if (typeof raw.updatedAt !== 'number') throw new Error(NOT_A_NUMBER)
   if (raw.updatedAt !== found.updatedAt) throw new Error(STALE_REFUSED)
   return found
+}
+
+/** The store's sentences in the tools' own words: a stale stamp reads as any other stale edit, a missing skill by name. */
+async function skillStep<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (err) {
+    const m = err instanceof Error ? err.message : ''
+    if (m === EXT_TEXT.stale) throw new Error(STALE_REFUSED)
+    if (m === EXT_TEXT.notFound) throw new Error(NO_SKILL)
+    throw err
+  }
 }
 
 const given = (v: unknown): boolean => v !== undefined && v !== null
@@ -205,7 +242,35 @@ export class AutomationService {
         const meta = await this.chat(call.chat)
         return chatTranscript(meta, await this.d.chats.loadItems(meta.id))
       }
+      case 'skills_list':
+        return json(await this.skills().list())
+      case 'skill_get': {
+        const text = json(await skillStep(() => this.skills().get(call.name)))
+        // What skill_save could never take back is not handed out, and a huge answer would close the bridge's socket.
+        if (Buffer.byteLength(text) > OBJECT_MAX) throw new Error(SKILL_TOO_BIG)
+        return text
+      }
+      case 'skill_save':
+        return json(await this.skillSave(call.skill))
     }
+  }
+
+  private skills(): AutomationSkills {
+    if (!this.d.skills) throw new Error(SKILLS_OFF)
+    return this.d.skills
+  }
+
+  /** A create (no stamp) never overwrites; an edit needs the stamp skill_get returned, so the user's own edits are never lost. */
+  private async skillSave(raw: unknown) {
+    const skills = this.skills()
+    if (!isObj(raw) || !Object.keys(raw).every((k) => ['name', 'description', 'body', 'stamp'].includes(k))) throw new Error(SKILL_SHAPE)
+    const { name, description, body, stamp } = raw
+    if (typeof name !== 'string' || typeof description !== 'string' || typeof body !== 'string') throw new Error(SKILL_SHAPE)
+    if (stamp !== undefined && typeof stamp !== 'string') throw new Error(SKILL_SHAPE)
+    if (!NAME_PATTERN.test(name) || name.length > SKILL_NAME_MAX || PROTO_NAMES.has(name)) throw new Error(BAD_SKILL_NAME)
+    if (description.length > SKILL_DESCRIPTION_MAX) throw new Error(SKILL_TOO_LONG)
+    await skillStep(() => skills.save({ name, description, body, ...(stamp === undefined ? {} : { stamp }) }))
+    return { name, created: stamp === undefined, path: CLAUDE_CODE_SETTINGS }
   }
 
   private async routine(id: string): Promise<Routine> {

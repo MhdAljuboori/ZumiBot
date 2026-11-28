@@ -8,6 +8,7 @@ import { aguiHost, type AguiLaunch } from '@zumibot/shared/agui'
 import type { Provider } from '@zumibot/shared/engine'
 import { withTodoTools } from '@zumibot/shared/todos'
 import { withProcessTools } from '@zumibot/shared/processes'
+import { withRecallTools } from '@zumibot/shared/recall'
 import { withVaultTools } from '@zumibot/shared/vault'
 import { withAskTool } from '@zumibot/shared/agentAsk'
 import { builtInError } from '@zumibot/shared/zumiBot'
@@ -121,9 +122,11 @@ export class AgentStore {
     if (errors.length > 0) return { ok: false, error: errors.join('; ') }
 
     // With --agent the CLI gives an agent only the tools it lists, so a non-empty list needs the to-do, ask and process tools or they never reach it.
-    // No list (all tools) stays absent. serializeAgent edits only the tools line.
+    // No list (all tools) stays absent. serializeAgent edits only the tools line. The recall tools only while recall is on: a
+    // listed tool whose server is absent does nothing, so turning it off later needs no edit.
     const tools = parsed.fields.tools
-    const full = tools !== null && tools.length > 0 ? withProcessTools(withAskTool(withTodoTools(withVaultTools(tools)))) : null
+    const base = tools !== null && tools.length > 0 ? withProcessTools(withAskTool(withTodoTools(withVaultTools(tools)))) : null
+    const full = parsed.fields.recall !== null ? withRecallTools(base) : base
     const raw =
       full !== null && full.join() !== tools?.join() ? serializeAgent(rawIn, { ...parsed.fields, tools: full }, parsed.body) : rawIn
 
@@ -281,6 +284,7 @@ export class AgentStore {
             model,
             provider,
             dailySpendCap,
+            recall,
             agui
           } = parsed.fields
           // The host only, for the remote chip: never the path or the query, which may carry a team or a token.
@@ -307,6 +311,7 @@ export class AgentStore {
             ...(model !== null ? { model } : {}),
             ...(provider !== null ? { provider } : {}),
             ...(dailySpendCap !== null ? { dailySpendCap } : {}),
+            ...(recall !== null ? { recall } : {}),
             ...(remoteHost !== null ? { remoteHost } : {})
           })
         } else {

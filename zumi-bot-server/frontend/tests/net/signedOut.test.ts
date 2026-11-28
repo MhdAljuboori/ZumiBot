@@ -27,3 +27,16 @@ describe('redirectToLogin', () => {
     expect(s.getItem('zumibot:drafts')).toBeNull()
   })
 })
+
+describe('redirectToLogin back to the page', () => {
+  it('an expired session in a chat or popout comes back to it after sign-in', () => {
+    const assign = vi.fn()
+    redirectToLogin(assign, true, memory(), '/chat/x?popout=1')
+    expect(assign).toHaveBeenCalledWith('/login?next=%2Fchat%2Fx%3Fpopout%3D1')
+  })
+  it('a sign-out starts over at the root', () => {
+    const assign = vi.fn()
+    redirectToLogin(assign, false, memory(), '/chat/x?popout=1')
+    expect(assign).toHaveBeenCalledWith('/login')
+  })
+})

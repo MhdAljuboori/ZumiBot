@@ -1,11 +1,11 @@
 export interface SyncFlowDeps {
-  prepare(): Promise<boolean>
+  prepare(chats: boolean): Promise<boolean>
   isDirty(): boolean
   askUnsaved(): Promise<'save' | 'discard' | 'cancel'>
   save(): Promise<boolean>
   busy(): Promise<number>
   pause(): Promise<void>
-  execute(): Promise<number>
+  execute(chats: boolean): Promise<number>
   restore(): Promise<void>
   log(line: string): void
 }
@@ -17,23 +17,29 @@ export function createSyncFlow(d: SyncFlowDeps) {
   let active = false
   return {
     active: () => active,
-    async run(): Promise<void> {
+    /** chats: the full sync. Without it only the Claude setup syncs, which touches no ZumiBot data, so nothing is paused. */
+    async run(chats = false): Promise<void> {
       if (active) return
       active = true
       let paused = false
       let result = 'Sync cancelled.'
       try {
-        if (!(await d.prepare())) return
+        if (!(await d.prepare(chats))) return
+        // An agent open in the editor is an agent file, so both modes save it first.
         if (d.isDirty()) {
           const answer = await d.askUnsaved()
           if (answer === 'cancel' || (answer === 'save' && !(await d.save()))) return
+        }
+        if (!chats) {
+          result = (await d.execute(false)) === 0 ? 'Sync complete.' : 'Sync failed: see the log above.'
+          return
         }
         const count = await d.busy()
         if (!Number.isSafeInteger(count) || count < 0) throw new Error('Could not check local running replies.')
         if (count > 0) throw new Error(`${count} replies running on this PC. Wait for them to finish, then retry.`)
         paused = true // a partially failed stop still needs recovery
         await d.pause()
-        result = (await d.execute()) === 0 ? 'Sync complete.' : 'Sync failed: see the log above.'
+        result = (await d.execute(true)) === 0 ? 'Sync complete.' : 'Sync failed: see the log above.'
       } catch (err) {
         result = `Sync failed: ${message(err)}`
       } finally {

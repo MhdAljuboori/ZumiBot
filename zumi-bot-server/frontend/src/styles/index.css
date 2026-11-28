@@ -66,6 +66,7 @@
 @import './board.css';
 @import './grid.css';
 @import './dispatch.css';
+@import './xray.css';
 @import './workflows-sidebar.css';
 @import './workflow-editor.css';
 @import './workflow-canvas.css';
@@ -83,4 +84,5 @@
 @import './processes.css';
 @import './updates.css';
 @import './studio.css';
+@import './popout.css';
 @import './tooltip.css';

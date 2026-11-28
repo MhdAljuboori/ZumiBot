@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appPath, islandLinkTarget, plainClick } from '../src/state/appLink'
+import { appLinkClick, appPath, islandLinkTarget, pathToOpen, plainClick } from '../src/state/appLink'
 
 const o = 'https://bot.example.com'
 const click = { button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false }
@@ -77,5 +77,28 @@ describe('islandLinkTarget', () => {
   it('only brings the main window forward for any other page', () => {
     expect(islandLinkTarget('/routines/r1')).toEqual({ chatId: null, live: null })
     expect(islandLinkTarget('/settings/usage')).toEqual({ chatId: null, live: null })
+  })
+})
+
+describe('appLinkClick', () => {
+  const here = '/chat/a'
+  it('hands every click to a context that opens links elsewhere (the island, a popout)', () => {
+    const open = () => {}
+    expect(appLinkClick(click, '/chat/b', here, open)).toBe('context')
+    expect(appLinkClick({ ...click, ctrlKey: true }, '/chat/b', here, open)).toBe('context')
+  })
+  it('leaves a modified click to the browser, does nothing for the page you are on, else moves the app', () => {
+    expect(appLinkClick({ ...click, ctrlKey: true }, '/chat/b', here, null)).toBe('browser')
+    expect(appLinkClick(click, here, here, null)).toBe('same')
+    expect(appLinkClick(click, '/chat/b', here, null)).toBe('push')
+  })
+})
+
+describe('pathToOpen', () => {
+  it('is an in-app path that is not the page already shown', () => {
+    expect(pathToOpen('/settings/usage', o, '/')).toBe('/settings/usage')
+    expect(pathToOpen('/chat/x', o, '/chat/x')).toBeNull()
+    expect(pathToOpen('/api/attachments/x', o, '/')).toBeNull()
+    expect(pathToOpen('https://evil.example/chat/x', o, '/')).toBeNull()
   })
 })

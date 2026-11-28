@@ -7,7 +7,7 @@ import {
   parseAutomationWire
 } from '../../src/core/automations/automationTools'
 
-it('lists the nine tools of the shared names, each closed to unknown keys', () => {
+it('lists the tools of the shared names, each closed to unknown keys', () => {
   expect(automationTools.map((t) => t.name)).toEqual([...AUTOMATION_TOOLS])
   for (const t of automationTools) expect(t.inputSchema.additionalProperties, t.name).toBe(false)
 })
@@ -79,4 +79,23 @@ it('parseAutomationWire reads an already-built call and refuses a stray key', ()
   expect(() => parseAutomationWire({ op: 'chat_read', chat: 'c', chatId: 'o' })).toThrow()
   expect(() => parseAutomationWire({ chat: 'c' })).toThrow()
   expect(() => parseAutomationWire(null)).toThrow()
+})
+
+it('parses the three skill tools and refuses their bad shapes', () => {
+  expect(parseAutomationCall('skills_list', {})).toEqual({ op: 'skills_list' })
+  expect(() => parseAutomationCall('skills_list', { x: 1 })).toThrow('Invalid call: this tool takes no arguments')
+  expect(parseAutomationCall('skill_get', { name: 'pr-review' })).toEqual({ op: 'skill_get', name: 'pr-review' })
+  expect(() => parseAutomationCall('skill_get', {})).toThrow('Invalid call: name must be text of 1 to 100 characters')
+  expect(() => parseAutomationCall('skill_get', { name: 'a', id: 'b' })).toThrow('Invalid call: skill_get takes name')
+  expect(() => parseAutomationCall('skill_get', { name: 'a'.repeat(101) })).toThrow(/name must be text of 1 to 100/)
+  const skill = { name: 'a', description: 'b', body: 'c' }
+  expect(parseAutomationCall('skill_save', { skill })).toEqual({ op: 'skill_save', skill })
+  expect(() => parseAutomationCall('skill_save', { skill: 'x' })).toThrow('Invalid call: skill must be an object')
+  expect(() => parseAutomationCall('skill_save', { skill, name: 'a' })).toThrow('Invalid call: skill_save takes one object, skill')
+})
+
+it('describes skill_save as create without a stamp and edit with one', () => {
+  const text = automationTools.find((t) => t.name === 'skill_save')!.description
+  expect(text).toMatch(/stamp/)
+  expect(text).toMatch(/skill_get/)
 })

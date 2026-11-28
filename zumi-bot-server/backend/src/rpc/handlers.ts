@@ -70,6 +70,7 @@ import type { PullRequests } from '../core/github/pullRequests'
 import type { PrWatcher } from '../core/github/prWatcher'
 import { GH_MISSING, PR_BODY_MAX, PR_TITLE_MAX } from '@zumibot/shared/pullRequest'
 import type { DispatchService } from '../core/dispatch/dispatchService'
+import type { XrayService } from '../core/xray/xrayService'
 import type { ProcessService } from '../core/processes/processService'
 import { runBlock } from '../core/processes/runBlock'
 import { isProcessId } from '@zumibot/shared/processes'
@@ -275,6 +276,8 @@ export interface HandlerDeps {
   >
   /** The chats' dispatched agents; the service tells every tab (`dispatch:changed`) about once a second while a turn runs. */
   dispatch: Pick<DispatchService, 'list' | 'get'>
+  /** Turn X-ray: a reply's timeline, read from the items, dispatch file, audit log, usage records and session logs. */
+  xray?: Pick<XrayService, 'get'>
   /** Background processes; the service tells every tab (`processes:changed`, `processes:output`) itself. */
   processes?: Pick<ProcessService, 'list' | 'read' | 'stop' | 'restart' | 'forget' | 'counts' | 'endChat' | 'removeChat' | 'run'>
   /** The full-text index over every chat's messages, kept up to date by the store's items and removal listeners. */
@@ -1717,6 +1720,12 @@ export function createHandlers(d: HandlerDeps): Handlers {
     'github:sendCheck': (chatId, name) => needGithub().prs.sendCheck(str(chatId, 'chatId'), checkName(name)),
     'dispatch:list': (chatId) => d.dispatch.list(str(chatId, 'chatId')),
     'dispatch:get': (chatId, id, from) => d.dispatch.get(str(chatId, 'chatId'), str(id, 'id'), stepFrom(from)),
+    'xray:get': async (chatId, itemId) => {
+      const id = str(chatId, 'chatId')
+      const item = str(itemId, 'itemId')
+      if (!d.xray) throw new Error('Turn X-ray is not available.')
+      return d.xray.get(id, item)
+    },
     'processes:list': async (chatId) => needProcesses().list(str(chatId, 'chatId')),
     'processes:logs': (chatId, id, from) => needProcesses().read(str(chatId, 'chatId'), processId(id), stepFrom(from)),
     'processes:stop': (chatId, id) => needProcesses().stop(str(chatId, 'chatId'), processId(id), 'user'),

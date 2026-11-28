@@ -109,6 +109,8 @@ export interface MessageHandlers {
   onFork?: (itemId: string) => void
   onMarkUnread: (itemId: string) => void
   onExport?: (itemId: string) => void
+  /** Opens the reply's Turn X-ray; absent where there is no side panel. */
+  onXray?: (itemId: string) => void
   /** Actions with a request on its way (`resend:<id>`, `fork:<id>`): their buttons wait. */
   busy: ReadonlySet<string>
   /** An agent-to-agent chat: nothing can be done to a message but copy it. */
@@ -225,6 +227,7 @@ function AgentItemView({
               forkBusy={handlers.busy.has(`fork:${item.id}`)}
               onMarkUnread={() => handlers.onMarkUnread(item.id)}
               {...(handlers.onExport ? { onExport: () => handlers.onExport?.(item.id) } : {})}
+              {...(handlers.onXray ? { onXray: () => handlers.onXray?.(item.id) } : {})}
             />
           </div>
           {reactions.length > 0 && <Reactions emojis={reactions} onToggle={(emoji) => handlers.onReact(item.id, emoji)} />}
@@ -707,6 +710,8 @@ interface Props {
   onMarkUnread: (itemId: string) => void
   /** Opens Export with this agent message's reply picked; absent in the island popup, which has no Export dialog. */
   onExport?: (itemId: string) => void
+  /** Opens the reply's Turn X-ray in the side panel; absent in the island popup, which has none. */
+  onXray?: (itemId: string) => void
   /** The item the New line sits above (above the whole row holding it); null: no line. */
   newLineBefore: string | null
   /**
@@ -773,6 +778,7 @@ export function MessageList({
   onFork,
   onMarkUnread,
   onExport,
+  onXray,
   newLineBefore,
   showRequest,
   sides,
@@ -961,6 +967,7 @@ export function MessageList({
     busy,
     ...(caps.fork ? { onFork: fork } : {}),
     ...(onExport ? { onExport } : {}),
+    ...(onXray ? { onXray } : {}),
     ...(readOnly ? { readOnly: true } : {})
   }
   const dimmed = dimmedAfter(allItems, editingId)

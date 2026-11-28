@@ -289,6 +289,7 @@ it('ships the to-do bridge beside the others and routes it from a directory with
     'browserBridge.mjs',
     'desktopBridge.mjs',
     'processBridge.mjs',
+    'recallBridge.mjs',
     'todoBridge.mjs',
     'vaultBridge.mjs'
   ])

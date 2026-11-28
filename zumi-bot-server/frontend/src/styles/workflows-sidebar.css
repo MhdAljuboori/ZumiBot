@@ -1,4 +1,4 @@
-/* Workflows: the sidebar's rows and runs. */
+/* Workflows: the sidebar's rows and runs. The Routines column uses the same rows and switch. */
 
 /* ---- workflows: sidebar ---- */
 /* A stopped run is hollow, so it never reads as a skipped call (grey) or a failure (red). */
@@ -33,6 +33,8 @@
 .wf-row[data-enabled='false'] .routine-ic {
   opacity: 0.6;
 }
+/* Off, the track's outline takes the knob's color: --border sat near 1:1 on a selected row in light, so the switch
+   vanished. --fg-muted keeps 3:1 (non-text) on every row surface in every color theme. */
 .wf-row-switch {
   flex: none;
   position: relative;
@@ -40,7 +42,7 @@
   height: 18px;
   margin-right: 10px;
   padding: 0;
-  border: 1px solid var(--border);
+  border: 1px solid var(--fg-muted);
   border-radius: 999px;
   background: var(--bg-selected);
   cursor: pointer;

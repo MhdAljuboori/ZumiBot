@@ -28,6 +28,7 @@ import * as desktopProcess from '../src/core/desktop/desktopProcess'
 import { DesktopManager } from '../src/core/desktop/desktopManager'
 import { loadConfig } from '../src/config'
 import { resolveBrowserRuntime } from '../src/core/browser/browserRuntime'
+import * as browserRuntime from '../src/core/browser/browserRuntime'
 import type { ChatItem, ChatMeta, ChatPush, ItemsPage, WirePush } from '@zumibot/shared/types'
 import type { RpcEvent, RpcResponse } from '@zumibot/shared/rpc'
 import { stopServer } from './support/stopServer'
@@ -699,80 +700,102 @@ describe('startServer', () => {
     c.ws.close()
   })
 
-  it("a fresh side base for an A to B chat carries the asked paragraph first, as its main run does, and the chat's effort; a normal chat does not", async () => {
-    await writeFile(join(agentsDir, 'abe.md'), '---\nname: abe\ndescription: First one\n---\nAbe.')
-    const scripts = join(root, 'scripts')
-    await mkdir(scripts)
-    const l = (o: object) => JSON.stringify(o)
-    const say = (sid: string, text: string) => [
-      l({ type: 'system', subtype: 'init', session_id: sid, model: 'claude-haiku-5-5', permissionMode: 'default' }),
-      l({
-        type: 'assistant',
-        message: {
-          model: 'claude-haiku-5-5',
-          id: `msg_${sid}`,
-          type: 'message',
-          role: 'assistant',
-          content: [{ type: 'text', text }],
-          stop_reason: null,
-          usage: { input_tokens: 2, output_tokens: 2 }
-        },
-        parent_tool_use_id: null,
-        session_id: sid,
-        uuid: randomUUID()
-      }),
-      l({ type: 'result', subtype: 'success', is_error: false, result: text, session_id: sid, uuid: randomUUID() })
-    ]
-    const call = `#MCP_CALL ${l({ server: 'zumibot_agents', tool: 'side_question', args: { agent: 'abe', question: 'Why?' }, id: 'toolu_side' })}`
-    const sidA = '0a1b2c3d-4e5f-4a60-8172-93a4b5c6d7e8'
-    await writeFile(
-      join(scripts, 'tester.jsonl'),
-      [l({ type: 'system', subtype: 'init', session_id: sidA }), call, ...say(sidA, 'Done').slice(1)].join('\n') + '\n'
-    )
-    await writeFile(join(scripts, 'abe.side.jsonl'), say('1b2c3d4e-5f60-4b71-8283-a4b5c6d7e8f9', 'Because').join('\n') + '\n')
-    const fromId = 'a0000000-0000-4000-8000-000000000001',
-      askedId = 'a0000000-0000-4000-8000-000000000002'
-    const meta = (id: string, agentName: string, extra: object = {}) => ({
-      id,
-      agentName,
-      sessionId: null,
-      cwd: root,
-      title: 'Plan',
-      createdAt: 1,
-      updatedAt: 1,
-      inFlight: false,
-      ...extra
-    })
-    await writeFile(
-      join(dataDir, 'chats.json'),
-      JSON.stringify({
-        chats: [
-          meta(fromId, 'tester'),
-          meta(askedId, 'abe', { effort: 'high', asked: { by: 'tester', from: fromId, fromTitle: 'Plan', chain: [] } })
-        ]
+  describe('with an ask bridge built from this source', () => {
+    // The ask bridge is a built file: a server run from source starts it from backend/dist, which only `npm run build:server`
+    // makes, so on a fresh checkout its MCP server exited and no side run ever came. Built here, from this source, never stale.
+    let bridgeDir: string
+    beforeAll(async () => {
+      bridgeDir = await mkdtemp(join(tmpdir(), 'cb-ask-bridge-'))
+      await build({ root: backendDir, logLevel: 'silent', build: { outDir: bridgeDir, emptyOutDir: true } })
+    }, 60_000)
+    afterAll(() => rm(bridgeDir, { recursive: true, force: true }))
+
+    it("a fresh side base for an A to B chat carries the asked paragraph first, as its main run does, and the chat's effort; a normal chat does not", async () => {
+      await writeFile(join(agentsDir, 'abe.md'), '---\nname: abe\ndescription: First one\n---\nAbe.')
+      const scripts = join(root, 'scripts')
+      await mkdir(scripts)
+      const l = (o: object) => JSON.stringify(o)
+      const say = (sid: string, text: string) => [
+        l({ type: 'system', subtype: 'init', session_id: sid, model: 'claude-haiku-5-5', permissionMode: 'default' }),
+        l({
+          type: 'assistant',
+          message: {
+            model: 'claude-haiku-5-5',
+            id: `msg_${sid}`,
+            type: 'message',
+            role: 'assistant',
+            content: [{ type: 'text', text }],
+            stop_reason: null,
+            usage: { input_tokens: 2, output_tokens: 2 }
+          },
+          parent_tool_use_id: null,
+          session_id: sid,
+          uuid: randomUUID()
+        }),
+        l({ type: 'result', subtype: 'success', is_error: false, result: text, session_id: sid, uuid: randomUUID() })
+      ]
+      const call = `#MCP_CALL ${l({ server: 'zumibot_agents', tool: 'side_question', args: { agent: 'abe', question: 'Why?' }, id: 'toolu_side' })}`
+      const sidA = '0a1b2c3d-4e5f-4a60-8172-93a4b5c6d7e8'
+      await writeFile(
+        join(scripts, 'tester.jsonl'),
+        [l({ type: 'system', subtype: 'init', session_id: sidA }), call, ...say(sidA, 'Done').slice(1)].join('\n') + '\n'
+      )
+      await writeFile(join(scripts, 'abe.side.jsonl'), say('1b2c3d4e-5f60-4b71-8283-a4b5c6d7e8f9', 'Because').join('\n') + '\n')
+      const fromId = 'a0000000-0000-4000-8000-000000000001',
+        askedId = 'a0000000-0000-4000-8000-000000000002'
+      const meta = (id: string, agentName: string, extra: object = {}) => ({
+        id,
+        agentName,
+        sessionId: null,
+        cwd: root,
+        title: 'Plan',
+        createdAt: 1,
+        updatedAt: 1,
+        inFlight: false,
+        ...extra
       })
-    )
-    process.env.FAKE_STDOUT_DIR = scripts
-    process.env.FAKE_INVOCATIONS_OUT = join(root, 'invocations.jsonl')
-    const s = await boot(),
-      c = await connect(s.port)
-    await c.call('chats:send', fromId, 'go', [])
-    const runs = async () =>
-      (await readFile(join(root, 'invocations.jsonl'), 'utf8').catch(() => ''))
-        .split('\n')
-        .filter(Boolean)
-        .map((x) => (JSON.parse(x) as { args: string[] }).args)
-        // Agent runs only: the ack call (acknowledge.ts) is a claude call of its own, with no --agent.
-        .filter((a) => a.includes('--agent'))
-    await until(async () => (await runs()).some((a) => a.includes('--no-session-persistence')))
-    const side = (await runs()).find((a) => a.includes('--no-session-persistence'))!
-    expect(side[side.indexOf('--agent') + 1]).toBe('abe')
-    expect(side[side.indexOf('--effort') + 1]).toBe('high')
-    const prompt = side[side.indexOf('--append-system-prompt') + 1]
-    const asked = askedSystem('tester', 'Plan')
-    expect(prompt.startsWith(asked)).toBe(true)
-    expect(prompt.indexOf(TODO_SYSTEM)).toBeGreaterThan(asked.length)
-    c.ws.close()
+      await writeFile(
+        join(dataDir, 'chats.json'),
+        JSON.stringify({
+          chats: [
+            meta(fromId, 'tester'),
+            meta(askedId, 'abe', { effort: 'high', asked: { by: 'tester', from: fromId, fromTitle: 'Plan', chain: [] } })
+          ]
+        })
+      )
+      process.env.FAKE_STDOUT_DIR = scripts
+      process.env.FAKE_INVOCATIONS_OUT = join(root, 'invocations.jsonl')
+      vi.stubEnv('FAKE_MCP_RESULTS_OUT', join(root, 'mcp-results.jsonl'))
+      const real = browserRuntime.resolveBrowserRuntime
+      vi.spyOn(browserRuntime, 'resolveBrowserRuntime').mockImplementation((o) => ({
+        ...real(o),
+        askBridgeEntry: join(bridgeDir, 'askBridge.mjs')
+      }))
+      const s = await boot(),
+        c = await connect(s.port)
+      await c.call('chats:send', fromId, 'go', [])
+      // The turn ends only after its side ask has, so a broken bridge fails here with the tool's error, not as a wait that times out.
+      const results = (await readFile(join(root, 'mcp-results.jsonl'), 'utf8')).split('\n').filter(Boolean)
+      expect(results.map((x) => JSON.parse(x) as object)).toEqual([
+        expect.objectContaining({ id: 'toolu_side', text: 'Because', isError: false })
+      ])
+      const runs = async () =>
+        (await readFile(join(root, 'invocations.jsonl'), 'utf8').catch(() => ''))
+          .split('\n')
+          .filter(Boolean)
+          .map((x) => (JSON.parse(x) as { args: string[] }).args)
+          // Agent runs only: the ack call (acknowledge.ts) is a claude call of its own, with no --agent.
+          .filter((a) => a.includes('--agent'))
+      await until(async () => (await runs()).some((a) => a.includes('--no-session-persistence')))
+      const side = (await runs()).find((a) => a.includes('--no-session-persistence'))!
+      expect(side[side.indexOf('--agent') + 1]).toBe('abe')
+      expect(side[side.indexOf('--effort') + 1]).toBe('high')
+      const prompt = side[side.indexOf('--append-system-prompt') + 1]
+      const asked = askedSystem('tester', 'Plan')
+      expect(prompt.startsWith(asked)).toBe(true)
+      expect(prompt.indexOf(TODO_SYSTEM)).toBeGreaterThan(asked.length)
+      c.ws.close()
+    })
   })
 
   it("a Codex agent's fresh side base forks its last turn on Codex, ephemeral, read-only and asking first, and declines what it asks", async () => {

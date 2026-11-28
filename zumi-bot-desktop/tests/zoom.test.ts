@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { loadZoom, nextZoom, parseZoom, saveZoom, zoomKey, ZOOM_STEPS } from '../src/main/zoom'
+import { loadZoom, nextZoom, parseZoom, saveZoom, zoomKey, zoomStep, ZOOM_STEPS } from '../src/main/zoom'
 
 const key = (o: Partial<{ type: string; key: string; control: boolean; alt: boolean; meta: boolean }>) => ({
   type: 'keyDown',
@@ -77,5 +77,18 @@ describe('loadZoom and saveZoom', () => {
     expect(loadZoom(file)).toBe(1.5)
     writeFileSync(file, '{not json')
     expect(loadZoom(file)).toBe(1)
+  })
+})
+
+describe('zoomStep', () => {
+  const key = (k: string, control = true) => ({ type: 'keyDown', key: k, control, alt: false, meta: false })
+  it("steps from the page's current factor, which a popout and the main window share per origin", () => {
+    expect(zoomStep(key('='), false, 1.25)).toBe(1.5)
+    expect(zoomStep(key('-'), false, 1.25)).toBe(1.1)
+    expect(zoomStep(key('0'), false, 2)).toBe(1)
+  })
+  it('is null for any other key', () => {
+    expect(zoomStep(key('a'), false, 1)).toBeNull()
+    expect(zoomStep(key('=', false), false, 1)).toBeNull()
   })
 })

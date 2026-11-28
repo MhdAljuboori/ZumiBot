@@ -9,16 +9,16 @@ ZumiBot is a UI for chatting with Claude Code agents (`~/.claude/agents/*.md`), 
 Run everything from the repo root (npm workspaces, Node >= 22).
 
 ```bash
-npm test                         # all unit tests (vitest projects: shared, frontend, backend, zumibot)
+npm test               # all unit tests (vitest projects: shared, frontend, backend, zumibot)
 npx vitest run zumi-bot-server/backend/tests/core/chatService.test.ts   # one file
-npx vitest run --project backend -t "some test name"                      # one project, filtered by name
-npm run typecheck                # tsc --noEmit in every workspace
-npm run build:server             # frontend (vite) then backend -> zumi-bot-server/backend/dist/
-npm run build                    # build:server + desktop shell (electron-vite)
-npm run dev                      # build:server, then electron-vite dev for the desktop shell
-npm run build:deb                # .deb in zumi-bot-desktop/dist/
-npm run bump:patch               # bump every workspace + add a CHANGELOG section (also :minor, :major, bump:set -- X.Y.Z)
-npm run desktop:check            # computer use: desktop programs found or missing
+npx vitest run --project backend -t "some test name"   # one project, filtered by name
+npm run typecheck      # tsc --noEmit in every workspace
+npm run build:server   # frontend (vite) then backend -> zumi-bot-server/backend/dist/
+npm run build          # build:server + desktop shell (electron-vite)
+npm run dev            # build:server, then electron-vite dev for the desktop shell
+npm run build:deb      # .deb in zumi-bot-desktop/dist/
+npm run bump:patch     # bump every workspace + add a CHANGELOG section (also :minor, :major, bump:set -- X.Y.Z)
+npm run desktop:check  # computer use: desktop programs found or missing
 ```
 
 E2E suites, probes and the Codex smoke run: [docs/architecture/e2e.md](docs/architecture/e2e.md). After every Claude Code update run `npm run e2e` (it checks the hidden `--resume-session-at`/`--fork-session` flags edit and resend use) and `probe:sandbox`. `npm run sync` and the desktop Sync window: [Deploy and sync](docs/architecture/deploy-and-sync.md).
@@ -51,7 +51,7 @@ E2E suites, probes and the Codex smoke run: [docs/architecture/e2e.md](docs/arch
 
 ## Docs by area
 
-Feature detail lives in `docs/architecture/`, one doc per area. Before changing an area, read its doc; a folder that belongs to one area has a `CLAUDE.md` pointing to it. When a change lands, update that doc in the same change. A new area gets a new doc, an index line here, and a pointer `CLAUDE.md` if it has a folder of its own. Never put feature detail in this file: it stays under 16 KB, and `zumi-bot-server/shared/tests/repoDocs.test.ts` fails past that. Frontend files have no pointers: match the area by name prefix (`Workflow*`, `Routine*`, `Vault*`, `Todo*`, `Inbox*`, `Island*`), or run `grep -l <FileName> docs/architecture/*.md`.
+Feature detail lives in `docs/architecture/`, one doc per area. Before changing an area, read its doc; a folder that belongs to one area has a `CLAUDE.md` pointing to it. When a change lands, update that doc in the same change. A new area gets a new doc, an index line here, and a pointer `CLAUDE.md` if it has a folder of its own. Never put feature detail here: `shared/tests/repoDocs.test.ts` fails past 16 KB. Frontend files have no pointers: match the area by name prefix (`Workflow*`, `Routine*`, `Vault*`, `Todo*`, `Inbox*`, `Island*`), or run `grep -l <FileName> docs/architecture/*.md`.
 
 - [Engines](docs/architecture/engines.md): `core/engines/`, `shared/src/engine.ts`
 - [Protocol engines](docs/architecture/protocol-engines.md): ACP and AG-UI, `core/acp/`, `core/agui/`
@@ -82,6 +82,7 @@ Feature detail lives in `docs/architecture/`, one doc per area. Before changing 
 - [Notifications](docs/architecture/notifications.md): `core/notify/`, service worker, `NotificationsSettings.tsx`
 - [Files panel and Restore](docs/architecture/files-panel.md): `core/files/`, `FilesPanel`, `fileRestore.ts`
 - [Dispatched agents](docs/architecture/dispatched-agents.md): `core/dispatch/`, `shared/src/dispatch.ts`
+- [Turn X-ray](docs/architecture/turn-xray.md): `core/xray/`, `shared/src/xray.ts`, `XrayPanel.tsx`
 - [Background processes](docs/architecture/processes.md): `core/processes/`, `shared/src/processes.ts`, `Process*.tsx`
 - [Run button](docs/architecture/run-blocks.md): `runBlock.ts`, `runResults.ts`
 - [Pause and Resume](docs/architecture/pause-resume.md): `pause*.ts`, `chatTmp.ts`, Pause/Resume UI
@@ -89,6 +90,7 @@ Feature detail lives in `docs/architecture/`, one doc per area. Before changing 
 - [Usage limit waits](docs/architecture/usage-limit-waits.md): `limitResumes.ts`, `limitNotice.ts`
 - [Unread markers and Archive](docs/architecture/unread-and-archive.md): `readMarks.ts`, `unread.ts`, `archive.ts`, `ArchivedNav.tsx`
 - [Message search](docs/architecture/message-search.md): `core/search/`, `shared/src/search.ts`, `MessageHits.tsx`
+- [Hive recall](docs/architecture/recall.md): `core/recall/`, `shared/src/recall.ts`
 - [Chat export](docs/architecture/chat-export.md): `core/export/`, `chatExport.ts`, `ExportDialog.tsx`
 - [To-dos, cards and the task board](docs/architecture/todos.md): `core/todos/`, `shared/src/todos.ts`, `Todo*.tsx`
 - [Inbox](docs/architecture/inbox.md): `Inbox*.tsx`, `state/inbox.ts`, `workflowMessages.ts`
@@ -110,7 +112,7 @@ Feature detail lives in `docs/architecture/`, one doc per area. Before changing 
 
 ## Testing notes
 
-- All vitest projects use the `node` environment. Frontend tests cover only the pure modules in `src/state/` and `src/net/` (there are no component/DOM tests), so keep logic out of components where you can.
+- All vitest projects use the `node` environment. Frontend tests cover only the pure modules in `src/state/` and `src/net/`, so keep logic out of components where you can.
 - The backend's HTTP/WebSocket tests use `tests/http/helpers.ts`. The frontend's socket tests use `tests/net/fakeSocket.ts`.
 
 ## Conventions

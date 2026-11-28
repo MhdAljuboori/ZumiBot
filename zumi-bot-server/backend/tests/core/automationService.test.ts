@@ -12,7 +12,9 @@ import { RoutineStore } from '../../src/core/routines/routineStore'
 import { routineEditing } from '../../src/core/routines/routineEditing'
 import { WorkflowStore } from '../../src/core/workflows/workflowStore'
 import { workflowEditing } from '../../src/core/workflows/workflowEditing'
-import { AutomationService, type AutomationCall, type AutomationOwner } from '../../src/core/automations/automationService'
+import { AutomationService, type AutomationCall, type AutomationOwner, type AutomationSkills } from '../../src/core/automations/automationService'
+import { EXT_TEXT } from '@zumibot/shared/extensions'
+import { CLAUDE_CODE_SETTINGS } from '@zumibot/shared/appPaths'
 
 const SECRET = 'a-secret-long-enough-1234'
 // What the bridge's IPC passes on to the agent (automationIpc.ts errorText): plain characters, no bare "/", at most 400.
@@ -52,8 +54,9 @@ afterEach(async () => {
 })
 
 const problems = async (w: Pick<Workflow, 'trigger' | 'steps' | 'edges'>) => problemsOf(w, agents, ZUMI_BOT_NAME)
-const service = () =>
+const service = (skills?: AutomationSkills) =>
   new AutomationService({
+    ...(skills ? { skills } : {}),
     routines,
     workflows,
     routineEditing: routineEditing({ store: routines, scheduler: { rearm: async () => {} }, changed: () => {}, newSecret: () => SECRET }),
@@ -918,5 +921,131 @@ describe('Chat steps, rooms from agents and run settings', () => {
     })
     expect(saved.enabled).toBe(false) // a workflow with problems is saved off
     expect(saved.problems.join(' ')).toContain('Pick at least two agents')
+  })
+})
+
+describe('skills', () => {
+  // The user scope as ExtensionsService keeps it: a create of a taken name and a stale stamp are refused with its sentences.
+  let stored: Map<string, { description: string; body: string; stamp: string }>
+  let saves: number
+  const fake = (): AutomationSkills => ({
+    list: async () => [...stored].map(([name, s]) => ({ name, description: s.description })),
+    get: async (name) => {
+      const s = stored.get(name)
+      if (!s) throw new Error(EXT_TEXT.notFound)
+      return { name, ...s }
+    },
+    save: async ({ name, description, body, stamp }) => {
+      saves++
+      const s = stored.get(name)
+      if (stamp === undefined && s) throw new Error(EXT_TEXT.nameTaken)
+      if (stamp !== undefined && (!s || s.stamp !== stamp)) throw new Error(s ? EXT_TEXT.stale : EXT_TEXT.notFound)
+      stored.set(name, { description, body, stamp: `${s ? Number(s.stamp) + 1 : 1}` })
+    }
+  })
+  const skillRun = (call: AutomationCall, owner = user) => service(fake()).run(owner, call)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const skillJson = async (call: AutomationCall, owner = user): Promise<any> => JSON.parse(await skillRun(call, owner))
+  const save = (skill: object): AutomationCall => ({ op: 'skill_save', skill })
+  beforeEach(() => {
+    stored = new Map([['daily-brief', { description: 'Morning catch-up', body: 'Read the inbox.', stamp: '1' }]])
+    saves = 0
+  })
+
+  it('lists names and descriptions, with no path', async () => {
+    expect(await skillJson({ op: 'skills_list' })).toEqual([{ name: 'daily-brief', description: 'Morning catch-up' }])
+  })
+
+  it('reads one skill with its stamp and refuses an unknown name', async () => {
+    expect(await skillJson({ op: 'skill_get', name: 'daily-brief' })).toEqual({
+      name: 'daily-brief',
+      description: 'Morning catch-up',
+      body: 'Read the inbox.',
+      stamp: '1'
+    })
+    await expect(skillRun({ op: 'skill_get', name: 'missing' })).rejects.toThrow('No skill with that name')
+  })
+
+  it('creates a skill and links the Claude Code settings page', async () => {
+    expect(await skillJson(save({ name: 'pr-review', description: 'Review a PR', body: 'Review $ARGUMENTS.' }))).toEqual({
+      name: 'pr-review',
+      created: true,
+      path: CLAUDE_CODE_SETTINGS
+    })
+    expect(CLAUDE_CODE_SETTINGS).toBe('/settings/claude-code')
+    expect(stored.get('pr-review')?.body).toBe('Review $ARGUMENTS.')
+  })
+
+  it('edits a skill with the stamp its get returned', async () => {
+    const r = await skillJson(save({ name: 'daily-brief', description: 'Morning', body: 'Read mail.', stamp: '1' }))
+    expect(r).toEqual({ name: 'daily-brief', created: false, path: CLAUDE_CODE_SETTINGS })
+    expect(stored.get('daily-brief')).toMatchObject({ description: 'Morning', body: 'Read mail.' })
+  })
+
+  it('refuses a name Claude Code would not load, before any write', async () => {
+    for (const name of ['PR Review', '__proto__', 'a'.repeat(101), 'a--b', '-a', ''])
+      await expect(skillRun(save({ name, description: 'd', body: 'b' })), name).rejects.toThrow(
+        'A skill name may hold only lower-case letters, digits and single hyphens, and be at most 100 characters.'
+      )
+    expect(saves).toBe(0)
+  })
+
+  it('refuses to read a skill too big to save back, but still lists it', async () => {
+    // Over the save's object limit, an edit could never go back; near the IPC's answer limit the bridge itself would break.
+    stored.set('huge', { description: 'Big', body: 'x'.repeat(60_000), stamp: '1' })
+    await expect(skillRun({ op: 'skill_get', name: 'huge' })).rejects.toThrow(
+      'That skill is too long to edit with these tools; the user can change it in Settings.'
+    )
+    expect((await skillJson({ op: 'skills_list' })).map((s: { name: string }) => s.name)).toContain('huge')
+    expect('That skill is too long to edit with these tools; the user can change it in Settings.').toMatch(PLAIN)
+  })
+
+  it('refuses a stale stamp and leaves the skill as it was', async () => {
+    await expect(skillRun(save({ name: 'daily-brief', description: 'x', body: 'y', stamp: '0' }))).rejects.toThrow(STALE_REFUSED)
+    expect(stored.get('daily-brief')).toMatchObject({ description: 'Morning catch-up', body: 'Read the inbox.' })
+  })
+
+  it('never overwrites a skill of that name on a create', async () => {
+    await expect(skillRun(save({ name: 'daily-brief', description: 'x', body: 'y' }))).rejects.toThrow('That name is already taken here.')
+    expect(stored.get('daily-brief')).toMatchObject({ description: 'Morning catch-up', body: 'Read the inbox.' })
+  })
+
+  it('refuses a stamp for a skill that does not exist', async () => {
+    await expect(skillRun(save({ name: 'nope', description: 'x', body: 'y', stamp: '1' }))).rejects.toThrow('No skill with that name')
+  })
+
+  it('refuses a badly shaped skill or a long description', async () => {
+    for (const skill of [{ name: 'a', description: 'd' }, { name: 'a', description: 'd', body: 3 }, { name: 'a', description: 'd', body: 'b', extra: 1 }, { name: 'a', description: 'd', body: 'b', stamp: 2 }])
+      await expect(skillRun(save(skill))).rejects.toThrow('skill must be {name, description, body, stamp?} with text values')
+    await expect(skillRun(save({ name: 'a', description: 'd'.repeat(5001), body: 'b' }))).rejects.toThrow(
+      'The description may be at most 5000 characters.'
+    )
+    expect(saves).toBe(0)
+  })
+
+  it('refuses a save from a turn the user did not send, but still reads', async () => {
+    await expect(skillRun(save({ name: 'pr-review', description: 'd', body: 'b' }), routineRun)).rejects.toThrow(WRITE_REFUSED)
+    expect(saves).toBe(0)
+    expect(await skillJson({ op: 'skills_list' }, routineRun)).toHaveLength(1)
+    expect(await skillJson({ op: 'skill_get', name: 'daily-brief' }, routineRun)).toMatchObject({ name: 'daily-brief' })
+  })
+
+  it('says skills are not available when the server gave none', async () => {
+    for (const call of [{ op: 'skills_list' }, { op: 'skill_get', name: 'a' }, save({ name: 'a', description: 'd', body: 'b' })] as AutomationCall[])
+      await expect(service().run(user, call)).rejects.toThrow('Skills are not available here.')
+  })
+
+  it('every refusal is plain enough for the bridge to pass on', () => {
+    for (const s of [
+      'Skills are not available here.',
+      'A skill name may hold only lower-case letters, digits and single hyphens, and be at most 100 characters.',
+      'No skill with that name',
+      'skill must be {name, description, body, stamp?} with text values',
+      'The description may be at most 5000 characters.',
+      EXT_TEXT.nameTaken,
+      STALE_REFUSED,
+      WRITE_REFUSED
+    ])
+      expect(s, s).toMatch(PLAIN)
   })
 })

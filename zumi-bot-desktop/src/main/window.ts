@@ -8,7 +8,7 @@ import { runningMessage } from './quitGuard'
 import { isSwitchShortcut } from './switchTrigger'
 import { createScreenWaits, hasRealScreen } from './screenGuard'
 import { createWindowStateTracker, initialBounds, loadWindowState, saveWindowState, showHiddenWindow, showMaximized } from './windowState'
-import { loadZoom, nextZoom, saveZoom, zoomKey } from './zoom'
+import { loadZoom, saveZoom, zoomStep } from './zoom'
 
 const THEME_WAIT_MS = 2_000 // how long a painted window waits for nativeTheme to catch up with the desktop
 const WINDOW_STATE_SAVE_MS = 500 // a move/resize is saved once the window has stayed put this long
@@ -67,7 +67,7 @@ export async function askUnsavedChanges(w: BrowserWindow): Promise<'save' | 'dis
 
 // The app's canvas (tokens.css --bg-sidebar, Blue color theme): on a wide window the nav sits on it and the main pane
 // floats over it. The window cannot know a picked color theme before the page loads, so it starts in the default's.
-const windowBackground = (): string => (nativeTheme.shouldUseDarkColors ? '#0a0c10' : '#eef1f6')
+export const windowBackground = (): string => (nativeTheme.shouldUseDarkColors ? '#0a0c10' : '#eef1f6')
 
 function workAreas(): Electron.Rectangle[] {
   const primary = screen.getPrimaryDisplay()
@@ -117,6 +117,24 @@ function showThenMaximize(w: BrowserWindow): void {
 /** Shows a window hidden to the tray, a maximized one maximized (see showHiddenWindow). Call it with a real screen. */
 export function showHidden(w: BrowserWindow): void {
   showHiddenWindow(w, () => showThenMaximize(w))
+}
+
+/**
+ * Ctrl+= / Ctrl+- / Ctrl+0 (Cmd on a Mac) in a window of the server's pages, before the page sees them: true when the
+ * press was one and was handled. The factor is read from the page, since Chromium shares it per origin between the
+ * main window and the popouts, and saved for the next run.
+ */
+export function zoomOnKey(w: BrowserWindow, zoomFile: string, e: Electron.Event, input: Electron.Input): boolean {
+  const next = zoomStep(input, process.platform === 'darwin', w.webContents.getZoomFactor())
+  if (next === null) return false
+  e.preventDefault()
+  w.webContents.setZoomFactor(next)
+  try {
+    saveZoom(zoomFile, next)
+  } catch (err) {
+    console.error('saving the zoom failed:', err)
+  }
+  return true
 }
 
 /**
@@ -213,27 +231,15 @@ export function createWindow(o: WindowOptions): ShellWindow {
   lockToOrigin(w, o.origin, (url) =>
     o.onFailLoad(w, { url, description: `The server redirected to another site (${new URL(url).origin}), which is blocked.`, code: -1 })
   )
-  // Chromium keeps zoom per origin, so each new document (the picker, then the server) gets the saved factor again.
-  let zoom = loadZoom(o.zoomFile)
   // Handled before the page sees it, so a non-ZumiBot site cannot swallow the way back to the picker.
   w.webContents.on('before-input-event', (e, input) => {
-    const z = zoomKey(input, process.platform === 'darwin')
-    if (z) {
-      e.preventDefault()
-      zoom = nextZoom(zoom, z)
-      w.webContents.setZoomFactor(zoom)
-      try {
-        saveZoom(o.zoomFile, zoom)
-      } catch (err) {
-        console.error('saving the zoom failed:', err)
-      }
-      return
-    }
+    if (zoomOnKey(w, o.zoomFile, e, input)) return
     if (!isSwitchShortcut(input, process.platform === 'darwin')) return
     e.preventDefault()
     o.onSwitchShortcut()
   })
-  w.webContents.on('did-finish-load', () => w.webContents.setZoomFactor(zoom))
+  // Chromium keeps zoom per origin, so each new document (the picker, then the server) gets the saved factor again.
+  w.webContents.on('did-finish-load', () => w.webContents.setZoomFactor(loadZoom(o.zoomFile)))
   w.webContents.on('did-fail-load', (_e, code, description, url, isMainFrame) => {
     if (isMainFrame && code !== -3) o.onFailLoad(w, { url, description, code }) // -3: aborted by a newer navigation
   })

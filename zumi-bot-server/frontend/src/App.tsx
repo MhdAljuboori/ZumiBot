@@ -37,6 +37,7 @@ import { useBoard } from './useBoard'
 import { TodosPanel } from './components/TodosPanel'
 import { useDispatch } from './useDispatch'
 import { DispatchPanel } from './components/DispatchPanel'
+import { XrayPanel } from './components/XrayPanel'
 import { ProcessesPanel } from './components/ProcessesPanel'
 import { useProcessCounts, useProcesses } from './useProcesses'
 import { processesBadge, processMark } from './state/processes'
@@ -89,16 +90,21 @@ import { ChatView } from './components/ChatView'
 import { ClaudeBanner } from './components/ClaudeBanner'
 import { CloneRoomDialog } from './components/CloneRoomDialog'
 import { ExportDialog } from './components/ExportDialog'
+import { MAKE_REPEATABLE, repeatableRequest, type RepeatablePick } from './state/makeRepeatable'
+import { ZUMI_BOT_NAME } from '@zumibot/shared/zumiBot'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { UpdateHost } from './components/UpdateHost'
 import { ConnectionBar, OFFLINE_REASON } from './components/ConnectionBar'
 import { AppLinkContext } from './components/Markdown'
-import { islandLinkTarget } from './state/appLink'
+import { islandLinkTarget, pathToOpen } from './state/appLink'
+import { forkDraftKey, parseForkDraft, staysInPopout } from './state/popout'
 import { IslandNewChat, IslandView, type IslandIcon, type IslandPopup } from './components/IslandView'
 import { CONNECTION_GRACE_MS, connectionBarLabel } from './state/connectionBar'
 import { FolderPickerHost } from './components/FolderPickerHost'
 import { MemberStack } from './components/MemberStack'
 import { MobileBar } from './components/MobileBar'
+import { PopoutGone, PopoutHeader } from './components/PopoutHeader'
+import { isMac } from './components/WorkflowMenu'
 import { NewChatView } from './components/NewChatView'
 import { RoutineEditor } from './components/RoutineEditor'
 import { RoutinesSidebar } from './components/RoutinesSidebar'
@@ -113,12 +119,13 @@ import { WorkflowsMode, WorkflowsNav, type WorkflowsRoute } from './components/W
 import { useWorkflows } from './net/useWorkflows'
 import { anyWaiting as anyWorkflowWaiting } from './state/workflows'
 import { ProcessMark, SidePanelMenu, SidePanelToggle } from './components/SidePanelMenu'
-import { loadRailMode, saveRailMode, type RailMode } from './state/railMode'
+import { loadRailMode, saveRailMode as storeRailMode, type RailMode } from './state/railMode'
 import { anyWaiting } from './state/routinesList'
 import { errorMessage } from './errors'
 import { NARROW_QUERY, useNarrow } from './media'
 import { watchMode } from './net/modeProbe'
 import { islandBridge } from './net/island'
+import { openChatWindow, popoutBridge, popoutChatId } from './net/popout'
 import { onBeforeSignedOut } from './net/signedOut'
 import { accentFromStorage, applyAccent, applyTheme, cacheAccent, cacheTheme, themeFromStorage } from './theme'
 import { applyApprovalCount, mergeApprovalCounts, type ApprovalReply } from './state/approvals'
@@ -253,6 +260,38 @@ const leaveGroupMode = (d: NewChatDraft): NewChatDraft => (d.mode === 'single' ?
 // Only a desktop shell new enough to have the island offers its Settings section.
 const hasIsland = api.desktop?.island !== undefined
 
+// A chat popped out into a window of its own (`/chat/<id>?popout=1`): that one chat, no rail, sidebar, palette or history.
+const popout = popoutChatId !== null
+
+/** The rail mode the main page reopens in. A popout has no rail, so it never overwrites the main window's. */
+function rememberRailMode(m: RailMode): void {
+  if (!popout) storeRailMode(m)
+}
+
+/**
+ * Where a popout sends what it does not show (another chat, a workflow run, Settings): the main window, moved to that
+ * path, on the desktop; a new tab in a browser. Null only brings the main window forward (an agent's editor has no path).
+ */
+function openOutsidePopout(path: string | null): void {
+  if (popoutBridge) popoutBridge.openMain(path)
+  else window.open(path ?? '/', '_blank')
+}
+
+/** The main page's contexts. A popout's own address never changes, so its in-app links open outside it. */
+function MainContexts({
+  todoCardEnv,
+  children
+}: {
+  todoCardEnv: ComponentProps<typeof TodoCardEnvContext.Provider>['value']
+  children: ReactNode
+}) {
+  return (
+    <TodoCardEnvContext.Provider value={todoCardEnv}>
+      <AppLinkContext.Provider value={popout ? openOutsidePopout : null}>{children}</AppLinkContext.Provider>
+    </TodoCardEnvContext.Provider>
+  )
+}
+
 export default function App() {
   const [agents, setAgents] = useState<AgentSummary[]>([])
   const [chats, setChats] = useState<ChatMeta[]>([])
@@ -299,7 +338,7 @@ export default function App() {
   // The island window shares the main window's origin: its page loads the theme once, so a change made in the main
   // window's Settings reaches it through the cached key's storage event. The color theme travels the same way.
   useEffect(() => {
-    if (!islandBridge) return
+    if (!islandBridge && !popout) return // the island and popouts follow the theme the main window picks
     const onStorage = (e: StorageEvent): void => {
       const next = themeFromStorage(e.key, e.newValue)
       if (next) setTheme(next)
@@ -371,6 +410,8 @@ export default function App() {
   // A reply chip asks the To-dos view to scroll to that reply's group (keyed by the reply's item id).
   const [todosFocus, setTodosFocus] = useState<{ chatId: string; itemId: string; n: number } | null>(null)
   const [dispatchFocus, setDispatchFocus] = useState<{ chatId: string; id: string; n: number } | null>(null)
+  // Turn X-ray's reply; `n` makes a repeat of the same reply load again.
+  const [xrayFocus, setXrayFocus] = useState<{ chatId: string; itemId: string; n: number } | null>(null)
   const [processFocus, setProcessFocus] = useState<{ chatId: string; id: string; n: number } | null>(null)
   const askingSides = useRef(new Set<string>())
   const startingRuns = useRef(new Set<string>()) // chats with a /run-workflow on its way
@@ -488,7 +529,7 @@ export default function App() {
         setTodosPage(null)
         setInboxPage(null)
         setMode('agents')
-        saveRailMode('agents')
+        rememberRailMode('agents')
       }
       setEditorKey((k) => k + 1)
       setView(focusMemory ? { kind: 'editor', filePath, focusMemory } : { kind: 'editor', filePath })
@@ -590,10 +631,12 @@ export default function App() {
 
   const openChat = useCallback(
     (chatId: string) => {
+      // A popout shows its own chat only: a fork, an ask card or a link to another chat opens outside it.
+      if (!staysInPopout(popoutChatId, chatId)) return openOutsidePopout(pathFor(chatId))
       // A chat shows in Agents mode: leaving the To-dos page for one (a fork or an ask card in its box) switches to it.
       if (latest.current.todosPage !== null || latest.current.inboxPage !== null) {
         setMode('agents')
-        saveRailMode('agents')
+        rememberRailMode('agents')
       }
       setView({ kind: 'chat', chatId })
       setTodosPage(null) // every way to a chat leaves the To-dos page and the Inbox
@@ -642,7 +685,7 @@ export default function App() {
       return
     }
     setMode('agents')
-    saveRailMode('agents')
+    rememberRailMode('agents')
     openChat(routeChat)
   }, [routeChat, chatsLoaded, agentsLoaded, openChat])
 
@@ -705,6 +748,20 @@ export default function App() {
     [refreshAgents, loadAccount, loadItems, quiet, resyncApprovals]
   )
 
+  // No push tells another page a chat was deleted, so a popout asks for the list again whenever it comes forward: its
+  // own chat gone, it says so instead of keeping a composer whose every send fails.
+  useEffect(() => {
+    if (!popout) return
+    const recheck = (): void => {
+      const listRequest = gates.current.chatList.next()
+      api.chats.list().then((list) => {
+        if (gates.current.chatList.isCurrent(listRequest)) setChats(list)
+      }, quiet)
+    }
+    window.addEventListener('focus', recheck)
+    return () => window.removeEventListener('focus', recheck)
+  }, [quiet])
+
   // A socket that never opens (proxy drops the WS upgrade) must not look like an empty, working app.
   useEffect(() => {
     const t = setTimeout(() => setGraceElapsed(true), CONNECTION_GRACE_MS)
@@ -744,8 +801,8 @@ export default function App() {
   useEffect(() => api.routines.onChanged(setRoutines), [])
   // A /routines or /workflows address opens that mode; it is remembered like a switch there, so the root opens it next time too.
   useEffect(() => {
-    if (loadedAtRoutines !== null) saveRailMode('routines')
-    else if (loadedAtWorkflows !== null) saveRailMode('workflows')
+    if (loadedAtRoutines !== null) rememberRailMode('routines')
+    else if (loadedAtWorkflows !== null) rememberRailMode('workflows')
   }, [])
 
   // The ring shows the session percent, which every reply updates: read the account again after usage changes (trailing,
@@ -840,8 +897,17 @@ export default function App() {
     else go()
   }
 
+  // Ctrl/Cmd+click, a middle click or the row menu: the chat in a window of its own, the view here left as it is. Where
+  // none can open (an older desktop shell, a blocked popup) it opens here, as a click would.
+  const popoutChat = (chatId: string): void => {
+    if (openChatWindow(chatId, api.desktop)) return
+    setNavOpen(false)
+    navigate(() => openChat(chatId))
+  }
+
   // On a small screen Settings opened from the account open on their section list, which is their drawer.
   const openSettings = (section: SettingsSection, usageChat: string | null = null, list = false): void => {
+    if (popout) return openOutsidePopout(settingsPath(section))
     navigate(() => {
       setSettings({ section, usageChat })
       setNavOpen(list && window.matchMedia(NARROW_QUERY).matches)
@@ -926,7 +992,7 @@ export default function App() {
   // Ctrl+K (Cmd+K on a Mac) opens the palette from anywhere, or closes it. Another dialog (unsaved changes, a confirm,
   // Clone room) keeps the keyboard; inside the palette its own box takes the key first.
   useEffect(() => {
-    if (islandBridge) return // the island draws no palette, so the key stays the composer's
+    if (islandBridge || popout) return // the island and popouts draw no palette, so the key stays the composer's
     const onKey = (e: KeyboardEvent): void => {
       if (e.key.toLowerCase() !== 'k' || !(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.defaultPrevented) return
       if (document.querySelector('.modal-backdrop:not(.palette-backdrop)')) return
@@ -977,7 +1043,7 @@ export default function App() {
   // Back and Forward walk the chats and Settings sections this tab opened, through the same unsaved-changes guard as a
   // click.
   useEffect(() => {
-    if (islandBridge) return // the island is one address and never walks history
+    if (islandBridge || popout) return // the island and a popout are one address each and never walk history
     const onPop = (): void => {
       const section = settingsFromPath(location.pathname)
       const archived = archivedFromPath(location.pathname)
@@ -998,7 +1064,7 @@ export default function App() {
           setTodosPage(null)
           setInboxPage(null)
           setMode('routines')
-          saveRailMode('routines')
+          rememberRailMode('routines')
           // A fresh key, as New routine gives: after Discard the old editor would otherwise keep its edits.
           if (routinesAt.routine?.id === null) setNewRoutineKey((k) => k + 1)
           setRoutineView(routinesAt.routine)
@@ -1021,7 +1087,7 @@ export default function App() {
           setTodosPage(null)
           setInboxPage(null)
           setMode('workflows')
-          saveRailMode('workflows')
+          rememberRailMode('workflows')
           setWorkflowsRoute(workflowsAt)
         } else if (archived !== null) {
           setSettings(null)
@@ -1044,7 +1110,7 @@ export default function App() {
           // editor), as the rail's Agents entry does.
           if (latest.current.mode === 'agents' || latest.current.view.kind === 'chat') setView({ kind: 'empty' })
           setMode('agents')
-          saveRailMode('agents')
+          rememberRailMode('agents')
         } else {
           setArchive(false)
           setTodosPage(null)
@@ -1083,7 +1149,7 @@ export default function App() {
                     ? workflowsPath(workflowsRoute.workflowId, workflowsRoute.runId, workflowsRoute.audit === true)
                     : pathFor(view.kind === 'chat' ? view.chatId : null)
   useEffect(() => {
-    if (islandBridge || wantPath === null || pendingNav) return
+    if (islandBridge || popout || wantPath === null || pendingNav) return
     const step = historyStep(location.pathname, wantPath, lastPath.current)
     if (step === 'push') history.pushState(null, '', wantPath)
     else if (step === 'replace') history.replaceState(null, '', wantPath)
@@ -1109,7 +1175,7 @@ export default function App() {
       setInboxPage(null)
       if (m === mode) return
       setMode(m)
-      saveRailMode(m)
+      rememberRailMode(m)
     }
     navigate(go) // either editor may hold unsaved edits
   }
@@ -1148,20 +1214,21 @@ export default function App() {
       setTodosPage(null)
       setInboxPage(null)
       setMode('agents')
-      saveRailMode('agents')
+      rememberRailMode('agents')
       openChat(chatId)
     })
   }
 
   // The bar over a workflow step's chat leaves Agents for the run, through the same guard.
   const openWorkflowRun = (workflowId: string, runId: string): void => {
+    if (popout) return openOutsidePopout(workflowsPath(workflowId, runId, false))
     navigate(() => {
       setSettings(null)
       setArchive(false)
       setTodosPage(null)
       setInboxPage(null)
       setMode('workflows')
-      saveRailMode('workflows')
+      rememberRailMode('workflows')
       setWorkflowsRoute({ workflowId, runId })
     })
   }
@@ -1173,7 +1240,7 @@ export default function App() {
     setTodosPage(null)
     setInboxPage(null)
     setMode(m)
-    saveRailMode(m)
+    rememberRailMode(m)
   }
 
   // A message search hit: its chat, scrolled to the message once its view has mounted (see the jump effect).
@@ -1279,6 +1346,7 @@ export default function App() {
   const openAgentMemory = (agentName: string): void => {
     const agent = agents.find((a) => a.name === agentName)
     if (!agent || agent.builtIn) return
+    if (popout) return openOutsidePopout(null) // the agent editor has no address of its own
     navigate(() => openEditor(agent.filePath, true))
   }
 
@@ -1381,6 +1449,27 @@ export default function App() {
     showAgentStart(agentName)
   }
 
+  // Make repeatable: Zumi Bot's chat (its fixed folder, an empty one reused) gets /make-repeatable for the picked kind, as a
+  // command pick, so the server fills Zumi Bot's prompt rather than sending the text plain.
+  const makeRepeatable = async (chat: ChatMeta, pick: RepeatablePick): Promise<void> => {
+    // The chat as it is now: a sidebar menu holds the copy from when it opened, and a reply may have started since.
+    const text = repeatableRequest(chat.id, latest.current.chats, latest.current.agents, pick)
+    if (text === null) return
+    let cwd: string | null
+    try {
+      cwd = await api.app.lastFolder(ZUMI_BOT_NAME)
+    } catch (e) {
+      report(e)
+      return
+    }
+    const chatId = await newChat(ZUMI_BOT_NAME, cwd === null ? 'none' : { cwd })
+    if (chatId === null) return
+    await sendMessage(chatId, text, emptyDraftFiles, undefined, false, {
+      agent: ZUMI_BOT_NAME,
+      name: MAKE_REPEATABLE
+    })
+  }
+
   const deleteAgent = async (filePath: string): Promise<void> => {
     try {
       await api.agents.trash(filePath)
@@ -1397,6 +1486,26 @@ export default function App() {
     filesRef.current = { ...filesRef.current, [key]: change(filesRef.current[key] ?? emptyDraftFiles) }
     setDraftFiles(filesRef.current)
   }
+
+  // A fork made in a popout opens here with the draft the popout left in storage (forkFrom), taken once.
+  const openedChatId = view.kind === 'chat' ? view.chatId : null
+  useEffect(() => {
+    if (popout || openedChatId === null) return
+    let raw: string | null
+    try {
+      raw = localStorage.getItem(forkDraftKey(openedChatId))
+      if (raw !== null) localStorage.removeItem(forkDraftKey(openedChatId))
+    } catch {
+      return
+    }
+    const draft = parseForkDraft(raw)
+    if (!draft) return
+    setDrafts((prev) => ({ ...prev, [openedChatId]: draft.text }))
+    updateFiles(openedChatId, () => ({
+      files: draft.attachments.map((a) => ({ key: a.id, name: a.name, status: 'ready' as const, attachment: a })),
+      error: null
+    }))
+  }, [openedChatId])
 
   const discardFile = (id: string): void => {
     api.attachments.discard(id).catch(report)
@@ -1575,6 +1684,12 @@ export default function App() {
   const openDispatchAt = (chatId: string, id: string): void => {
     setDispatchFocus((prev) => ({ chatId, id, n: (prev?.n ?? 0) + 1 }))
     setSide('dispatch')
+  }
+
+  // An agent message's X-ray button: the panel opens on that reply's timeline.
+  const openXrayAt = (chatId: string, itemId: string): void => {
+    setXrayFocus((prev) => ({ chatId, itemId, n: (prev?.n ?? 0) + 1 }))
+    setSide('xray')
   }
 
   // A shell block's run status: the panel opens on that run's log.
@@ -1845,7 +1960,14 @@ export default function App() {
   const forkFrom = async (chatId: string, itemId: string): Promise<void> => {
     try {
       const { chat, draft } = await api.chats.fork(chatId, itemId)
-      if (draft) {
+      // A popout opens the fork outside itself: the page that does takes the draft (see the effect that reads it).
+      if (draft && popout) {
+        try {
+          localStorage.setItem(forkDraftKey(chat.id), JSON.stringify(draft))
+        } catch {
+          // storage refused: the fork still opens, its box empty
+        }
+      } else if (draft) {
         setDrafts((prev) => ({ ...prev, [chat.id]: draft.text }))
         updateFiles(chat.id, () => ({
           files: draft.attachments.map((a) => ({ key: a.id, name: a.name, status: 'ready' as const, attachment: a })),
@@ -1906,12 +2028,15 @@ export default function App() {
     : {
         answer: answerApproval,
         open: fromNav((id: string) => navigate(() => openChat(id))),
-        openSide: fromNav((id: string, entryId: string | null) =>
+        openSide: fromNav((id: string, entryId: string | null) => {
+          // In a popout another chat's side question opens with that chat in the main window (no address names the
+          // entry), never in this popout's own side panel.
+          if (!staysInPopout(popoutChatId, id)) return openOutsidePopout(pathFor(id))
           navigate(() => {
             openChat(id)
             openSide(id, entryId)
           })
-        )
+        })
       }
 
   const renameChat = async (chatId: string, title: string): Promise<void> => {
@@ -1970,13 +2095,22 @@ export default function App() {
   const shownChat =
     islandBridge === null &&
     routeChat === null &&
-    settings === null &&
-    (archive || mode === 'agents') &&
+    (popout || (settings === null && (archive || mode === 'agents'))) &&
     view.kind === 'chat' &&
     openChatMeta &&
     (isGroup(openChatMeta) || openChatAgent)
       ? openChatMeta
       : null
+  // A popout window is named after its chat (the taskbar, Alt+Tab), and its header is the window's title bar.
+  useEffect(() => {
+    if (!popout) return
+    document.documentElement.classList.add('popout-page')
+    if (popoutBridge && isMac()) document.documentElement.classList.add('popout-mac') // the traffic lights sit at its start
+  }, [])
+  const popoutTitle = popout && openChatMeta ? chatTitle(openChatMeta, agents) : null
+  useEffect(() => {
+    if (popout) document.title = popoutTitle ?? 'ZumiBot'
+  }, [popoutTitle])
   // On a small screen the shown chat's side panel toggle sits in the mobile bar, not on a row of its own over the chat.
   const narrowScreen = useNarrow()
   // The open chat's branch and uncommitted count: its git chip and the side panel's Changes row both show it.
@@ -2146,11 +2280,15 @@ export default function App() {
     api,
     viewChatId: islandBridge
       ? (popupChat?.id ?? null)
-      : todosShown
-        ? null
-        : routeChat === null && settings === null && (archive || mode === 'agents') && view.kind === 'chat'
+      : popout
+        ? routeChat === null && view.kind === 'chat'
           ? view.chatId
-          : null,
+          : null
+        : todosShown
+          ? null
+          : routeChat === null && settings === null && (archive || mode === 'agents') && view.kind === 'chat'
+            ? view.chatId
+            : null,
     viewOpens: !todosShown,
     pendingByChat: approvals,
     openChatFromNotification,
@@ -2159,7 +2297,8 @@ export default function App() {
       setNavOpen(false)
       openWorkflowRun(workflowId, runId)
     },
-    presenceOnly: islandBridge !== null
+    // The island and popouts are no notification device: they only say which chat they show.
+    presenceOnly: islandBridge !== null || popout
   })
 
   // The island adds its open agent, so closing the popup ends a browser it holds.
@@ -2274,11 +2413,22 @@ export default function App() {
       setTodosPage(null)
       setInboxPage(null)
       setMode('agents')
-      saveRailMode('agents')
+      rememberRailMode('agents')
       openChat(chatId)
       setLiveAsk(ask)
     })
   }
+  // A popout asks this page to show a path (another chat, Settings, a run): it moves there as an in-app link moves it.
+  useEffect(
+    () =>
+      api.desktop?.onOpenPath?.((path) => {
+        const p = pathToOpen(path, location.origin, location.pathname + location.search + location.hash)
+        if (p === null) return
+        history.pushState(null, '', p)
+        window.dispatchEvent(new PopStateEvent('popstate'))
+      }),
+    []
+  )
   const islandOpen = useRef(openFromIsland)
   islandOpen.current = openFromIsland
   useEffect(
@@ -2507,6 +2657,7 @@ export default function App() {
       onFork: (itemId) => forkFrom(id, itemId),
       onMarkUnread: (itemId) => markUnread(id, itemId),
       onExportReply: (itemId) => setExportTarget({ chat, item: itemId }),
+      onXrayReply: (itemId) => openXrayAt(id, itemId),
       onDropTask: (taskId) => dropTask(id, taskId),
       onSendTask: (taskId) => sendTask(id, taskId),
       onLaterCancel: (laterId) => laterAction(id, api.chats.laterCancel(id, laterId)),
@@ -2528,6 +2679,7 @@ export default function App() {
       sides: sideQuestions.list,
       onOpenSide: (sideId) => openSide(id, sideId),
       onCloneRoom: () => setCloneSource(chat),
+      onMakeRepeatable: (pick) => void makeRepeatable(chat, pick),
       handoffSourceExists: handoffFrom !== null && chats.some((c) => c.id === handoffFrom),
       onOpenHandoffSource: () => {
         if (handoffFrom !== null) navigate(() => openChat(handoffFrom))
@@ -2676,33 +2828,35 @@ export default function App() {
     <AgentBrowserContext.Provider value={browser}>
       <AgentDesktopContext.Provider value={desktop}>
         <DesktopShowContext.Provider value={showOnDesktop}>
-          <TodoCardEnvContext.Provider value={todoCardEnv}>
-            <div className="shell">
-              <Rail
-                active={railActive}
-                open={navOpen}
-                agentsPending={pendingElsewhere(approvals, null)}
-                agentsUnread={anyUnread(listedChats(live, agents))}
-                routinesWaiting={routinesWaiting}
-                workflowsWaiting={workflowsWaiting}
-                inboxBadge={countText(inboxWaitingCount)}
-                inboxNew={anyNewMessage(inbox.data)}
-                todosBadge={todosBadge}
-                account={account}
-                claudeFound={claudePath === undefined ? undefined : claudePath !== null}
-                onAccountOpen={loadAccount}
-                onHome={openHome}
-                onAgents={() => switchMode('agents')}
-                onRoutines={() => switchMode('routines')}
-                onWorkflows={() => switchMode('workflows')}
-                onInbox={openInbox}
-                onTodos={openTodos}
-                onArchived={openArchived}
-                onSettings={() => openSettings('general', null, true)}
-                onUsageDetails={() => openSettings('usage')}
-                onPalette={() => setPalette(true)}
-              />
-              {settings !== null ? (
+          <MainContexts todoCardEnv={todoCardEnv}>
+            <div className={popout ? 'shell popout' : 'shell'}>
+              {!popout && (
+                <Rail
+                  active={railActive}
+                  open={navOpen}
+                  agentsPending={pendingElsewhere(approvals, null)}
+                  agentsUnread={anyUnread(listedChats(live, agents))}
+                  routinesWaiting={routinesWaiting}
+                  workflowsWaiting={workflowsWaiting}
+                  inboxBadge={countText(inboxWaitingCount)}
+                  inboxNew={anyNewMessage(inbox.data)}
+                  todosBadge={todosBadge}
+                  account={account}
+                  claudeFound={claudePath === undefined ? undefined : claudePath !== null}
+                  onAccountOpen={loadAccount}
+                  onHome={openHome}
+                  onAgents={() => switchMode('agents')}
+                  onRoutines={() => switchMode('routines')}
+                  onWorkflows={() => switchMode('workflows')}
+                  onInbox={openInbox}
+                  onTodos={openTodos}
+                  onArchived={openArchived}
+                  onSettings={() => openSettings('general', null, true)}
+                  onUsageDetails={() => openSettings('usage')}
+                  onPalette={() => setPalette(true)}
+                />
+              )}
+              {popout ? null : settings !== null ? (
                 <SettingsNav
                   open={navOpen}
                   onClose={closeNav}
@@ -2737,6 +2891,7 @@ export default function App() {
                   unread={unreadElsewhere(listedChats(live, agents), null)}
                   onBack={closeArchived}
                   onOpenChat={fromNav((id) => navigate(() => openChat(id)))}
+                  onPopoutChat={popoutChat}
                   onExportChat={fromNav((chat: ChatMeta) => setExportTarget({ chat, item: null }))}
                   onUnarchive={(ids) => {
                     for (const id of ids) archiveChat(id, false)
@@ -2759,6 +2914,7 @@ export default function App() {
                   selectedId={routineView?.id ?? null}
                   onNew={fromNav(() => openRoutineGuarded(null))}
                   onOpen={fromNav(openRoutineGuarded)}
+                  onError={report}
                 />
               ) : mode === 'workflows' ? (
                 <WorkflowsNav
@@ -2797,11 +2953,13 @@ export default function App() {
                   onNewChat={fromNav((name, folder) => navigate(() => void newChat(name, folder)))}
                   onDeleteAgent={(filePath) => void deleteAgent(filePath)}
                   onOpenChat={fromNav((id) => navigate(() => openChat(id)))}
+                  onPopoutChat={popoutChat}
                   onRenameChat={(id, title) => void renameChat(id, title)}
                   onCloneRoom={fromNav((chat: ChatMeta) => setCloneSource(chat))}
                   onDeleteChat={(id) => void deleteChat(id)}
                   onArchiveChat={(id) => archiveChat(id, true)}
                   onExportChat={fromNav((chat: ChatMeta) => setExportTarget({ chat, item: null }))}
+                  onMakeRepeatable={fromNav((chat: ChatMeta, pick: RepeatablePick) => navigate(() => void makeRepeatable(chat, pick)))}
                   allChats={chats}
                   connected={connection === 'connected'}
                   onOpenMessage={openMessage}
@@ -2809,38 +2967,51 @@ export default function App() {
               )}
               {navOpen && <div className="nav-backdrop" data-testid="nav-backdrop" onClick={closeNav} />}
               <main className="main" inert={navOpen || voicePage !== null}>
-                <MobileBar
-                  title={
-                    settings
-                      ? settingsLabel(shownSection(settings.section, hasIsland), api.desktop !== null)
-                      : inboxPage !== null
-                        ? 'Inbox'
-                        : todosPage !== null
-                          ? 'To-dos'
-                          : archive && view.kind !== 'chat'
-                            ? 'Archived'
-                            : mode === 'routines' && !archive
-                              ? (openRoutine?.name ?? (routineView?.id === null ? 'New routine' : 'Routines'))
-                              : mode === 'workflows' && !archive
-                                ? 'Workflows'
-                                : barTitle(view.kind, openChatMeta, newDraft.mode === 'group', agents)
-                  }
-                  icon={settings || inboxPage !== null || todosPage !== null || (mode !== 'agents' && !archive) ? undefined : barIcon}
-                  navOpen={navOpen}
-                  pending={pendingElsewhere(approvals, openChatMeta?.id ?? null)}
-                  unread={unreadElsewhere(listedChats(live, agents), openChatMeta?.id ?? null)}
-                  onOpenNav={() => setNavOpen(true)}
-                  toggleRef={navToggle}
-                  onTalk={talkShown ? openVoice : undefined}
-                  action={
-                    narrowScreen && shownChat !== null && todosPage === null ? (
-                      <>
-                        <ProcessMark mark={processMark(processCounts[shownChat.id] ?? 0)} onOpen={() => setSide('processes')} />
-                        <SidePanelToggle open={shownSideView !== null} onToggle={toggleSidePanel} />
-                      </>
-                    ) : undefined
-                  }
-                />
+                {popout ? (
+                  <PopoutHeader
+                    chat={openChatMeta ?? null}
+                    agents={agents}
+                    sideOpen={shownSideView !== null}
+                    onToggleSide={toggleSidePanel}
+                    processMark={shownChat ? processMark(processCounts[shownChat.id] ?? 0) : null}
+                    onOpenProcesses={() => setSide('processes')}
+                    bridge={popoutBridge}
+                    colorKey={`${theme}:${accent}`}
+                  />
+                ) : (
+                  <MobileBar
+                    title={
+                      settings
+                        ? settingsLabel(shownSection(settings.section, hasIsland), api.desktop !== null)
+                        : inboxPage !== null
+                          ? 'Inbox'
+                          : todosPage !== null
+                            ? 'To-dos'
+                            : archive && view.kind !== 'chat'
+                              ? 'Archived'
+                              : mode === 'routines' && !archive
+                                ? (openRoutine?.name ?? (routineView?.id === null ? 'New routine' : 'Routines'))
+                                : mode === 'workflows' && !archive
+                                  ? 'Workflows'
+                                  : barTitle(view.kind, openChatMeta, newDraft.mode === 'group', agents)
+                    }
+                    icon={settings || inboxPage !== null || todosPage !== null || (mode !== 'agents' && !archive) ? undefined : barIcon}
+                    navOpen={navOpen}
+                    pending={pendingElsewhere(approvals, openChatMeta?.id ?? null)}
+                    unread={unreadElsewhere(listedChats(live, agents), openChatMeta?.id ?? null)}
+                    onOpenNav={() => setNavOpen(true)}
+                    toggleRef={navToggle}
+                    onTalk={talkShown ? openVoice : undefined}
+                    action={
+                      narrowScreen && shownChat !== null && todosPage === null ? (
+                        <>
+                          <ProcessMark mark={processMark(processCounts[shownChat.id] ?? 0)} onOpen={() => setSide('processes')} />
+                          <SidePanelToggle open={shownSideView !== null} onToggle={toggleSidePanel} />
+                        </>
+                      ) : undefined
+                    }
+                  />
+                )}
                 {connectionLabel && <ConnectionBar label={connectionLabel} />}
                 {error && (
                   <div className="error-strip" role="alert">
@@ -2853,7 +3024,17 @@ export default function App() {
                 {claudePath === null && <ClaudeBanner onPathFound={setClaudePath} />}
                 <div className="browser-workspace">
                   <div className="browser-chat">
-                    {routeChat !== null ? null : settings ? (
+                    {routeChat !== null ? null : popout ? (
+                      shownChat ? (
+                        <DispatchLinkContext.Provider value={dispatchLink}>
+                          <RunLinkContext.Provider value={runLink}>
+                            <ChatView key={shownChat.id} {...chatViewProps(shownChat, openChatAgent ?? null)} popout />
+                          </RunLinkContext.Provider>
+                        </DispatchLinkContext.Provider>
+                      ) : chatsLoaded ? (
+                        <PopoutGone />
+                      ) : null
+                    ) : settings ? (
                       <SettingsPage
                         section={shownSection(settings.section, hasIsland)}
                         vps={vps}
@@ -3016,7 +3197,8 @@ export default function App() {
                     )}
                   </div>
                   {/* One view in the side panel at a time: a browser or desktop is hidden while a chat view shows and comes back when it closes. */}
-                  {shownSideView === 'menu' && shownChat ? (
+                  {/* An X-ray belongs to one chat's reply: on another chat the panel shows its list instead. */}
+                  {(shownSideView === 'menu' || (shownSideView === 'xray' && xrayFocus?.chatId !== shownChat?.id)) && shownChat ? (
                     <SidePanelMenu
                       chat={shownChat}
                       filesCount={filesCount(chatFiles.list)}
@@ -3086,6 +3268,15 @@ export default function App() {
                       focusId={dispatchFocus?.chatId === shownChat.id ? dispatchFocus.id : null}
                       focusRequest={dispatchFocus?.n ?? 0}
                       waiting={dispatchWaiting}
+                      onBack={() => setSide('menu')}
+                      onClose={closeSideView}
+                    />
+                  ) : shownSideView === 'xray' && shownChat && xrayFocus?.chatId === shownChat.id ? (
+                    <XrayPanel
+                      chatId={shownChat.id}
+                      itemId={xrayFocus.itemId}
+                      focusRequest={xrayFocus.n}
+                      connected={connection === 'connected'}
                       onBack={() => setSide('menu')}
                       onClose={closeSideView}
                     />
@@ -3184,7 +3375,7 @@ export default function App() {
                     <DesktopPanel onBack={shownChat ? () => setSide('menu') : undefined} approvalPending={desktopApproval} />
                   ) : null}
                 </div>
-                {narrowScreen && (
+                {narrowScreen && !popout && (
                   <TabBar
                     railActive={railActive}
                     agentsPending={pendingElsewhere(approvals, null)}
@@ -3201,7 +3392,7 @@ export default function App() {
               </main>
               {attachInput}
               <FolderPickerHost />
-              {islandBridge === null && <UpdateHost onWhatsNew={() => openSettings('about')} />}
+              {islandBridge === null && !popout && <UpdateHost onWhatsNew={() => openSettings('about')} />}
               {cloneSource && (
                 <CloneRoomDialog
                   key={cloneSource.id}
@@ -3263,7 +3454,7 @@ export default function App() {
                 />
               )}
             </div>
-          </TodoCardEnvContext.Provider>
+          </MainContexts>
         </DesktopShowContext.Provider>
       </AgentDesktopContext.Provider>
     </AgentBrowserContext.Provider>

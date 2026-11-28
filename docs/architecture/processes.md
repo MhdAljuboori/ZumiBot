@@ -143,7 +143,7 @@ Nothing goes into `ChatMeta`, so `chats.json` does not churn and nothing of it s
 
 Running processes **do not count** in the control socket's `busy` answer: the installer, sync and the desktop treat `busy` as running replies, and a dev server may run for hours, so counting it would block an update until the user stops it. Processes only produce a warning:
 - `control.ts` answers a new line, `processes`, with the running count; an older server answers `error`, read as 0. `zumibot-server processes` prints it.
-- `sync.mjs` (it restarts the server) prints "N background processes will be stopped by the restart." and goes on; `busy` and its refusals are unchanged, as is `install.sh`.
+- `sync.mjs`'s full sync (`--with-chats`, which restarts the server; the plain sync restarts nothing) prints "N background processes will be stopped by the restart." and goes on; `busy` and its refusals are unchanged, as is `install.sh`.
 - The desktop shell's quit (Local mode stops the server) asks too: it polls `processes()` (the control line) beside `busy()`, and `decideClose` asks when either is above 0. With processes only, the dialog reads "N background processes will stop. Quit?" with Cancel and Quit; with replies too, "N replies still running, and M background processes will stop. Stop them and quit?" with Stop & Quit (`runningMessage` in `quitGuard.ts`). An older server answers `error` to the line, read as none. "Switch server…" away from Local mode asks the same way (`createSwitchServer`'s `processes`, `switchMessage`: "2 background processes will stop. Switch server?" with Cancel and Switch; with replies too, Stop & Switch).
 
 ## UI (Phase 2)

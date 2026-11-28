@@ -1,7 +1,6 @@
 import type { SideQuestion } from '@zumibot/shared/btw'
 import { attachmentUrl } from '@zumibot/shared/attachments'
 import type { DesktopBridge } from '@zumibot/shared/desktop'
-import type { IslandBridge } from '@zumibot/shared/island'
 import type { NotifyClear, NotifyPayload } from '@zumibot/shared/notify'
 import type { RoutinesSnapshot } from '@zumibot/shared/routines'
 import type { SidebarLayout } from '@zumibot/shared/sidebarLayout'
@@ -25,8 +24,8 @@ export function createApi(
   o: {
     fetch: typeof fetch
     desktop: DesktopBridge | null
-    /** The island window's bridge, which opens attachments through the shell when there is no `desktop`. */
-    island?: IslandBridge | null
+    /** The island's or a popout's bridge, which opens attachments through the shell when there is no `desktop`. */
+    fileOpener?: { openAttachment(url: string, name: string): Promise<boolean> } | null
     openWindow(url: string): void
     folderPicker: FolderPickerOpener
     /** Installs (or with null removes) the browser's leave-page warning. */
@@ -98,7 +97,8 @@ export function createApi(
       compact: (chatId, note, agent) => call('chats:compact', chatId, note, agent),
       setModel: (chatId, model) => call('chats:setModel', chatId, model),
       setPermissionMode: (chatId, mode) => call('chats:setPermissionMode', chatId, mode),
-      allowBlocked: (chatId, toolUseId, prefixes, scope, folders = []) => call('chats:allowBlocked', chatId, toolUseId, prefixes, scope, folders),
+      allowBlocked: (chatId, toolUseId, prefixes, scope, folders = []) =>
+        call('chats:allowBlocked', chatId, toolUseId, prefixes, scope, folders),
       setEffort: (chatId, effort) => call('chats:setEffort', chatId, effort),
       cancelResume: (chatId) => call('chats:cancelResume', chatId),
       continueNow: (chatId) => call('chats:continueNow', chatId),
@@ -133,7 +133,7 @@ export function createApi(
           // offline: let the open attempt report it
         }
         if (o.desktop) return o.desktop.openAttachment(url, name)
-        if (o.island) return o.island.openAttachment(url, name)
+        if (o.fileOpener) return o.fileOpener.openAttachment(url, name)
         o.openWindow(url)
         return true
       }
@@ -357,6 +357,9 @@ export function createApi(
       list: (chatId) => call('dispatch:list', chatId),
       get: (chatId, id, from) => call('dispatch:get', chatId, id, from ?? null),
       onChanged: (cb) => rpc.on('dispatch:changed', (p: { chatId: string }) => cb(p.chatId))
+    },
+    xray: {
+      get: (chatId, itemId) => call('xray:get', chatId, itemId)
     },
     processes: {
       list: (chatId) => call('processes:list', chatId),

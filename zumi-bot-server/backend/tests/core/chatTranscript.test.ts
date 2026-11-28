@@ -123,3 +123,21 @@ describe('chatTranscript', () => {
     expect(t.endsWith('</chat>')).toBe(true)
   })
 })
+
+describe('chatTranscript worktree line', () => {
+  // The worktree folder may be gone by the time a routine runs: the line comes from the meta, never the disk.
+  const worktree = {
+    root: '/nowhere/.zumibot/wt/fix-build',
+    branch: 'zumibot/fix-build',
+    source: '/home/u/repo',
+    folder: '/home/u/repo',
+    links: []
+  }
+  it('names the folder the user picked, right after the worktree folder', () => {
+    const t = chatTranscript(meta({ cwd: '/nowhere/.zumibot/wt/fix-build', worktree }), [user('u1', 'go')])
+    expect(t).toContain('Folder: /nowhere/.zumibot/wt/fix-build\nWorktree of: /home/u/repo\n')
+  })
+  it('has no worktree line for a plain chat', () => {
+    expect(chatTranscript(meta(), [user('u1', 'go')])).not.toContain('Worktree of:')
+  })
+})
