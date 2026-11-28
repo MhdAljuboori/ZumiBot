@@ -11,7 +11,9 @@
     <main>
       <h1>Sync this PC and VPS</h1>
       <p id="target" class="hint"></p>
-      <p>Merge chats and Claude data in both directions, with backups. The VPS will restart. Wait for active replies to finish first.</p>
+      <p>Merge agents, skills, agent memory and plugins in both directions, with backups. Nothing restarts.</p>
+      <label class="check"><input id="chats" type="checkbox" /> Sync with chats and projects</label>
+      <p class="hint">Also merges chats, projects, the vault and automations. The VPS restarts, and active replies must finish first.</p>
       <p id="status" role="status">Ready to sync.</p>
       <pre id="log" aria-label="Sync log" tabindex="0"></pre>
       <div class="row">
