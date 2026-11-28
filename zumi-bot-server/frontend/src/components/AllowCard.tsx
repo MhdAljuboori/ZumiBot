@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ruleOfFolder, ruleOfPrefix } from '@zumibot/shared/allowRules'
+import { gitCText, ruleOfFolder, ruleOfPrefix } from '@zumibot/shared/allowRules'
 import { displayName } from '@zumibot/shared/frontmatter'
-import type { ChatItem, ChatMeta } from '@zumibot/shared/types'
+import { isGroup, type ChatItem, type ChatMeta } from '@zumibot/shared/types'
 import { api } from '../api'
 import { errorMessage } from '../errors'
 import {
@@ -24,7 +24,7 @@ interface Props {
   item: ToolItem
   /** Never 'hidden': the caller draws nothing for that. */
   state: Exclude<AllowCardState, 'hidden'>
-  /** The rules are stored: the text to send so the agent continues. */
+  /** The text to send so the agent continues: after the rules are stored, or the git -C advice when nothing is left to allow. */
   onAllowed: (text: string) => void
 }
 
@@ -126,6 +126,14 @@ function AllowForm({
   const canSubmit = !locked && newRules.length > 0 && errors.every((e) => e === null)
   const heldRules = [...new Set(initial.flatMap((r) => (r.heldBy === null ? [] : [r.heldBy])))]
   const gitFolder = gitAfterFolder(initial)
+  // The git rows are in their git -C form: the rules are for that form, and the agent is told to use it.
+  const viaGitC = initial.some((r) => r.gitC)
+
+  const retryGitC = (): void => {
+    if (locked || gitFolder === null) return
+    setBusy(true)
+    onAllowed(gitCText(gitFolder, isGroup(chat) ? agent : null))
+  }
 
   const submit = (): void => {
     if (!canSubmit) return
@@ -149,10 +157,16 @@ function AllowForm({
         <div className="question-head">Auto mode refused a command</div>
       </div>
       <pre className="approval-command allow-command">{command}</pre>
-      {gitFolder !== null && (
+      {gitFolder !== null && !viaGitC && (
         <p className="hint" data-testid="allow-git-note">
           Claude Code asks about a command that changes into another folder and then runs git there, whatever is allowed. Ask the
           agent to use <code>git -C {gitFolder}</code> instead.
+        </p>
+      )}
+      {gitFolder !== null && viaGitC && !stuck && (
+        <p className="hint" data-testid="allow-git-note">
+          Claude Code asks about git run after a <code>cd</code> into another folder, whatever is allowed. So the git rules here are
+          for <code>git -C {gitFolder} …</code>, and the agent is asked to run git that way.
         </p>
       )}
       {stuck && blockers.length > 0 ? (
@@ -178,6 +192,33 @@ function AllowForm({
               </li>
             ))}
           </ul>
+        </>
+      ) : stuck && gitFolder !== null && viaGitC ? (
+        // The git -C rules are held, but the agent ran git after the cd again: only running it another way helps.
+        <>
+          <p className="hint" data-testid="allow-git-again">
+            These rules are already allowed, but the agent ran git after <code>cd {gitFolder}</code>, which Claude Code asks about
+            whatever is allowed. Ask it to use <code>git -C {gitFolder}</code> instead.
+          </p>
+          <ul className="allow-rules">
+            {heldRules.map((r) => (
+              <li key={r}>
+                <code>{r}</code>
+              </li>
+            ))}
+          </ul>
+          <div className="approval-actions">
+            <button
+              type="button"
+              className="btn primary"
+              data-testid="allow-git-retry"
+              disabled={locked}
+              data-tip={running ? 'Wait for the reply to finish' : undefined}
+              onClick={retryGitC}
+            >
+              Ask to use git -C
+            </button>
+          </div>
         </>
       ) : stuck ? (
         <>

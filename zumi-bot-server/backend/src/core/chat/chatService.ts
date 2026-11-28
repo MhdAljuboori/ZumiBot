@@ -91,7 +91,7 @@ import { droppedTurn, engineField, enginesAfter, memberStartsBefore, startBefore
 import { branch, switchTo, type UserItem, type Versions } from './versions'
 import { APPROVAL_REQUIRED, isCutRefused, isMissingSession, type RunEvent } from './streamParser'
 import { allowSettingsArgs } from './allowRules'
-import { checkFolder, checkPrefix, continueText, ruleOfFolder, ruleOfPrefix } from '@zumibot/shared/allowRules'
+import { checkFolder, checkPrefix, continueText, gitCFolder, ruleOfFolder, ruleOfPrefix } from '@zumibot/shared/allowRules'
 import type { ModelSpends } from '@zumibot/shared/usageReport'
 import { engineChatModel, isCommandModel, modelFits, turnModel } from '@zumibot/shared/chatModel'
 import {
@@ -1508,7 +1508,7 @@ export class ChatService {
         push({ chatId, kind: 'items', items: [...out], clearStreaming: false })
       }
     }
-    return { rules, text: continueText(rules, scope, agent, isGroup(meta) ? agent : null), agent }
+    return { rules, text: continueText(rules, scope, agent, isGroup(meta) ? agent : null, gitCFolder(prefixes, command)), agent }
   }
 
   /** A single Claude chat's --effort from its next turn; null or Medium puts it back on the default (stored as absent). */

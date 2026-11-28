@@ -6790,6 +6790,19 @@ describe('allowBlocked', () => {
     expect(pushes.filter((p) => p.chatId === c.id).map((p) => p.kind)).toEqual(expect.arrayContaining(['items', 'meta']))
     expect(approvals.cliRules('helper')).toEqual([])
   })
+  it('a git -C form of git after a cd: stores it and tells the agent to run git that way', async () => {
+    const cmd = 'cd /work/repo && git push origin --delete old'
+    const c = await setup([blockedTool({ input: { command: cmd } })])
+    const r = await svc.allowBlocked(c.id, 't1', ['git -C /work/repo push origin --delete'], 'chat', ['/work/repo'])
+    const rules = ['Bash(git -C /work/repo push origin --delete:*)', 'Read(//work/repo/**)']
+    expect(r).toEqual({ rules, text: continueText(rules, 'chat', 'helper', null, '/work/repo'), agent: 'helper' })
+    expect(r.text).toContain('`git -C /work/repo …`')
+    expect((await store.get(c.id))?.allowRules).toEqual(rules)
+  })
+  it('refuses a git -C prefix for a folder the command does not cd into', async () => {
+    const c = await setup([blockedTool({ input: { command: 'cd /work/repo && git push origin x' } })])
+    await refused(c, 'start of one command', ['git -C /work push origin'])
+  })
   it('merges into the existing rules without a duplicate, and dedupes the call', async () => {
     const c = await setup([blockedTool(), blockedTool({ id: 't2' })])
     await store.update(c.id, { allowRules: [RULE] })

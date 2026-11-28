@@ -11,6 +11,9 @@ import {
   folderCoveredBy,
   folderOfRule,
   folderRuleError,
+  gitCFolder,
+  gitCForms,
+  gitCText,
   homeAsFolder,
   isAllowRule,
   isGitPart,
@@ -526,5 +529,62 @@ describe('rule errors with no refused command (Agent Studio)', () => {
     expect(homeAsFolder('d:/Users/me')).toBe('/d/Users/me')
     expect(homeAsFolder('\\\\server\\share\\me')).toBeNull()
     expect(homeAsFolder('me')).toBeNull()
+  })
+})
+
+describe('git after a cd: the git -C form', () => {
+  // The reported command: every rule held, yet refused, since git ran after a cd into another folder.
+  const USER =
+    'cd /home/u/Dev/OC-loc && git fetch origin --prune -q && echo "unmerged:" && git log --oneline origin/develop..origin/i18n-1 && ' +
+    'git push origin --delete i18n-1; git branch -D i18n-1 2>/dev/null; git ls-remote --exit-code --heads origin i18n-1; echo "exit $?"'
+  it('gitCForms gives each git part after the cd as git -C <folder>, and nothing for the other parts', () => {
+    expect(gitCForms(USER).map((f) => f?.part ?? null)).toEqual([
+      null,
+      'git -C /home/u/Dev/OC-loc fetch origin --prune -q',
+      null,
+      'git -C /home/u/Dev/OC-loc log --oneline origin/develop..origin/i18n-1',
+      'git -C /home/u/Dev/OC-loc push origin --delete i18n-1',
+      'git -C /home/u/Dev/OC-loc branch -D i18n-1 2>/dev/null',
+      'git -C /home/u/Dev/OC-loc ls-remote --exit-code --heads origin i18n-1',
+      null
+    ])
+    expect(gitCForms(USER)[1]?.folder).toBe('/home/u/Dev/OC-loc')
+  })
+  it('keeps a path or .exe on git as written', () => {
+    expect(gitCForms('cd /a/b && /usr/bin/git status')[1]?.part).toBe('/usr/bin/git -C /a/b status')
+  })
+  it('gives nothing when it cannot write the form for sure', () => {
+    // git first, a relative or quoted-with-space folder, global options, a folder that holds too much, another cd in between
+    expect(gitCForms('git status; cd /a/b')).toEqual([null, null])
+    expect(gitCForms('cd sub && git status')).toEqual([null, null])
+    expect(gitCForms("cd '/a b/c' && git status")).toEqual([null, null])
+    expect(gitCForms('cd /a/b && git --no-pager log')).toEqual([null, null])
+    expect(gitCForms('cd /a/b && git -C /x status')).toEqual([null, null])
+    expect(gitCForms('cd /tmp && git status')).toEqual([null, null])
+    expect(gitCForms('cd /a/b && cd sub && git status')).toEqual([null, null, null])
+    expect(gitCForms('cd /a/b && cd /c/d && git status')[2]?.folder).toBe('/c/d')
+  })
+  it('checkPrefix takes a prefix of a git -C form, and only of that folder', () => {
+    expect(checkPrefix('git -C /home/u/Dev/OC-loc push origin --delete', USER)).toBeNull()
+    expect(checkPrefix('git -C /home/u/Dev/OC-loc fetch origin --prune -q', USER)).toBeNull()
+    expect(checkPrefix('git push origin --delete', USER)).toBeNull()
+    expect(checkPrefix('git -C /home/u/Dev push origin --delete', USER)).toMatch(/start of one command/)
+    expect(checkPrefix('git -C /home/u/Dev/OC-loc', USER)).toMatch(/git subcommand/)
+    expect(checkPrefix('git -C /a/b status', 'git status')).toMatch(/start of one command/)
+  })
+  it('gitCFolder names the folder only when a prefix grants a git -C form', () => {
+    expect(gitCFolder(['git -C /home/u/Dev/OC-loc push origin --delete', 'echo'], USER)).toBe('/home/u/Dev/OC-loc')
+    expect(gitCFolder(['git push origin --delete', 'echo'], USER)).toBeNull()
+    expect(gitCFolder(['git -C /x status'], 'git -C /x status')).toBeNull()
+  })
+  it('continueText and gitCText tell the agent to use git -C', () => {
+    expect(continueText(['Bash(git -C /a/b push:*)'], 'chat', 'loc', null, '/a/b')).toBe(
+      'I allowed `Bash(git -C /a/b push:*)` for this chat. Run git there as `git -C /a/b …`, not after `cd /a/b`: ' +
+        'Claude Code asks about git after a cd into another folder, whatever is allowed. Continue.'
+    )
+    expect(gitCText('/a/b', 'ui')).toBe(
+      '@ui Run git there as `git -C /a/b …`, not after `cd /a/b`: Claude Code asks about git after a cd into another folder, ' +
+        'whatever is allowed. Continue.'
+    )
   })
 })

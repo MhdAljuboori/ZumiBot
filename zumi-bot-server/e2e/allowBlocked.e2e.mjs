@@ -8,12 +8,15 @@
 // Then the folder case: Agent Studio's Add stores `Bash(gh pr merge:*)` for the agent; a refused `cd <outside folder> && gh pr
 // merge …` shows the gh part already allowed and the folder as a ticked folder row (not the dead "still refused" card); its
 // Allow sends `Read(//<folder>/**)`, and the resumed run gets both rules. Last, a refused `python3` heredoc followed by the
-// held `gh pr merge` names the python part as what no rule can allow, with no Allow button.
+// held `gh pr merge` names the python part as what no rule can allow, with no Allow button. Then git after a cd: a refused
+// `cd <outside folder> && git push origin --delete old` offers the git part as `git -C <folder> push …` with its note, Allow sends
+// that rule and tells the agent to use git -C, and the resumed run gets it; the same command refused in a new chat, with the rule
+// now held, is the stuck card (`allow-git-again`) whose **Ask to use git -C** sends the advice alone.
 //
 // DOM hooks relied on (data-testid): agent-row (+ data-agent-name), new-chat, new-chat-folder, new-chat-choose-folder,
 //   composer-input, send-button, agent-message, allow-card (+ data-status), allow-blocked-part (+ data-part),
 //   allow-blocked-scope (+ data-scope), allow-blocked-submit, allow-blocked-error, allowed-as, allow-unallowable,
-//   allow-unallowable-part (+ data-part), agent-menu-button,
+//   allow-unallowable-part (+ data-part), allow-git-note, allow-git-again, allow-git-retry, agent-menu-button,
 //   agent-menu-edit, rule-add-kind (+ data-kind), rule-add-value, rule-add, rule-remove (+ aria-label).
 
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -235,6 +238,82 @@ async function main() {
     if (size) await page.setViewportSize(size)
   }
   pass('a python heredoc next to a held part: the card names the python part as the blocker, with no Allow button')
+
+  // 10. git after a cd into another folder: the card offers the git -C form and tells the agent to use it
+  const newChat = async (text) => {
+    await row.click()
+    await page.locator(tid('new-chat')).waitFor({ timeout: T })
+    await page.locator(tid('new-chat-folder')).click()
+    await page.locator(tid('new-chat-choose-folder')).click()
+    await page.waitForFunction(() => document.querySelector('[data-testid="new-chat-folder"]')?.getAttribute('data-tip'), null, {
+      timeout: 5_000
+    })
+    await page.locator(tid('composer-input')).fill(text)
+    await page.locator(tid('send-button')).click()
+  }
+  const okReplies = () =>
+    page.evaluate(() => [...document.querySelectorAll('[data-testid="agent-message"]')].filter((e) => e.textContent.trim() === 'ok').length)
+  const settingsAllow = (argvN) =>
+    argvN.flatMap((a, i) => {
+      if (a !== '--settings') return []
+      try {
+        return JSON.parse(argvN[i + 1]).permissions?.allow ?? []
+      } catch {
+        return []
+      }
+    })
+  const gitCPart = `git -C ${outside} push origin --delete old`
+  const gitCRule = `Bash(git -C ${outside} push origin --delete:*)`
+  const advice = `Run git there as git -C ${outside} …, not after cd ${outside}`
+  await newChat('delete the remote branch there')
+  const card4 = page.locator(`${tid('allow-card')}[data-status="pending"]`)
+  await card4.waitFor({ timeout: T })
+  await card4.locator(tid('allow-git-note')).waitFor({ timeout: T })
+  const parts4 = card4.locator(tid('allow-blocked-part'))
+  assert((await parts4.count()) === 2, `two parts listed (${await parts4.count()})`)
+  assert((await parts4.nth(1).getAttribute('data-part')) === gitCPart, `the git part is in its git -C form (${await parts4.nth(1).getAttribute('data-part')})`)
+  assert(
+    (await parts4.nth(1).locator('input.allow-prefix').inputValue()) === `git -C ${outside} push origin --delete`,
+    'its prefix is the git -C form'
+  )
+  await card4.locator('.allow-rules code', { hasText: gitCRule }).waitFor({ timeout: T })
+  if (process.env.SCREENSHOT_DIR) {
+    await card4.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: join(process.env.SCREENSHOT_DIR, 'allow-card-git-c.png') })
+  }
+  await card4.locator(`${tid('allow-blocked-scope')}[data-scope="agent"]`).check()
+  await card4.locator(tid('allow-blocked-submit')).click()
+  await page.locator('.bubble.user', { hasText: advice }).last().waitFor({ timeout: T })
+  await page.waitForFunction(
+    () => [...document.querySelectorAll('[data-testid="agent-message"]')].some((e) => e.textContent.trim() === 'ok'),
+    null,
+    { timeout: 30_000 }
+  )
+  const runs4 = (await readFile(argvFile, 'utf8').catch(() => '')).split('\n').filter(Boolean).map((l) => JSON.parse(l))
+  assert(runs4.length === 3, `three resumed runs recorded (${runs4.length})`)
+  assert(settingsAllow(runs4[2]).includes(gitCRule), `--settings allows ${gitCRule} (${JSON.stringify(settingsAllow(runs4[2]))})`)
+  pass('git after a cd: the card offers the git -C rule, Allow tells the agent to use git -C, and the resumed run gets the rule')
+
+  // 11. the same refused again with the git -C rule held: the stuck card asks the agent to use git -C, storing nothing
+  await newChat('delete the remote branch there')
+  const card5 = page.locator(`${tid('allow-card')}[data-status="pending"]`)
+  await card5.waitFor({ timeout: T })
+  await card5.locator(tid('allow-git-again')).waitFor({ timeout: T })
+  assert((await card5.locator(tid('allow-blocked-submit')).count()) === 0, 'no Allow button: the rules are held')
+  await card5.locator('.allow-rules code', { hasText: gitCRule }).waitFor({ timeout: T })
+  if (process.env.SCREENSHOT_DIR) {
+    await card5.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: join(process.env.SCREENSHOT_DIR, 'allow-card-git-again.png') })
+  }
+  const before = await okReplies()
+  await card5.locator(tid('allow-git-retry')).click()
+  await page.locator('.bubble.user', { hasText: advice }).last().waitFor({ timeout: T })
+  await page.waitForFunction((n) => [...document.querySelectorAll('[data-testid="agent-message"]')].filter((e) => e.textContent.trim() === 'ok').length > n, before, {
+    timeout: 30_000
+  })
+  const runs5 = (await readFile(argvFile, 'utf8').catch(() => '')).split('\n').filter(Boolean).map((l) => JSON.parse(l))
+  assert(runs5.length === 4, `four resumed runs recorded (${runs5.length})`)
+  pass('the same command refused with the git -C rule held: Ask to use git -C sends the advice and the agent continues')
 
   const bad = unexpectedErrors(h.errors, [])
   assert(bad.length === 0, `unexpected console/server errors: ${bad.join(' | ')}`)
