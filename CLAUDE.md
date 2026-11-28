@@ -9,16 +9,16 @@ ZumiBot is a UI for chatting with Claude Code agents (`~/.claude/agents/*.md`), 
 Run everything from the repo root (npm workspaces, Node >= 22).
 
 ```bash
-npm test                         # all unit tests (vitest projects: shared, frontend, backend, zumibot)
+npm test               # all unit tests (vitest projects: shared, frontend, backend, zumibot)
 npx vitest run zumi-bot-server/backend/tests/core/chatService.test.ts   # one file
-npx vitest run --project backend -t "some test name"                      # one project, filtered by name
-npm run typecheck                # tsc --noEmit in every workspace
-npm run build:server             # frontend (vite) then backend -> zumi-bot-server/backend/dist/
-npm run build                    # build:server + desktop shell (electron-vite)
-npm run dev                      # build:server, then electron-vite dev for the desktop shell
-npm run build:deb                # .deb in zumi-bot-desktop/dist/
-npm run bump:patch               # bump every workspace + add a CHANGELOG section (also :minor, :major, bump:set -- X.Y.Z)
-npm run desktop:check            # computer use: desktop programs found or missing
+npx vitest run --project backend -t "some test name"   # one project, filtered by name
+npm run typecheck      # tsc --noEmit in every workspace
+npm run build:server   # frontend (vite) then backend -> zumi-bot-server/backend/dist/
+npm run build          # build:server + desktop shell (electron-vite)
+npm run dev            # build:server, then electron-vite dev for the desktop shell
+npm run build:deb      # .deb in zumi-bot-desktop/dist/
+npm run bump:patch     # bump every workspace + add a CHANGELOG section (also :minor, :major, bump:set -- X.Y.Z)
+npm run desktop:check  # computer use: desktop programs found or missing
 ```
 
 E2E suites, probes and the Codex smoke run: [docs/architecture/e2e.md](docs/architecture/e2e.md). After every Claude Code update run `npm run e2e` (it checks the hidden `--resume-session-at`/`--fork-session` flags edit and resend use) and `probe:sandbox`. `npm run sync` and the desktop Sync window: [Deploy and sync](docs/architecture/deploy-and-sync.md).
@@ -82,6 +82,7 @@ Feature detail lives in `docs/architecture/`, one doc per area. Before changing 
 - [Notifications](docs/architecture/notifications.md): `core/notify/`, service worker, `NotificationsSettings.tsx`
 - [Files panel and Restore](docs/architecture/files-panel.md): `core/files/`, `FilesPanel`, `fileRestore.ts`
 - [Dispatched agents](docs/architecture/dispatched-agents.md): `core/dispatch/`, `shared/src/dispatch.ts`
+- [Turn X-ray](docs/architecture/turn-xray.md): `core/xray/`, `shared/src/xray.ts`, `XrayPanel.tsx`
 - [Background processes](docs/architecture/processes.md): `core/processes/`, `shared/src/processes.ts`, `Process*.tsx`
 - [Run button](docs/architecture/run-blocks.md): `runBlock.ts`, `runResults.ts`
 - [Pause and Resume](docs/architecture/pause-resume.md): `pause*.ts`, `chatTmp.ts`, Pause/Resume UI

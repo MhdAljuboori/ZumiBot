@@ -136,6 +136,7 @@ import { PullRequests } from './core/github/pullRequests'
 import { PrWatcher } from './core/github/prWatcher'
 import { TodoService } from './core/todos/todoService'
 import { DispatchService } from './core/dispatch/dispatchService'
+import { XrayService } from './core/xray/xrayService'
 import { migrateToBoard } from './core/todos/boardMigration'
 import { SearchIndex } from './core/search/searchIndex'
 import { serveTodoIpc } from './core/todos/todoIpc'
@@ -258,8 +259,9 @@ export async function startServer(
     const chats = new ChatStore(dataDir)
     const projectsDir = join(home, '.claude', 'projects')
     const costBaseline = createCostBaseline(projectsDir)
+    const usageStore = new UsageStore(join(dataDir, 'usage-records.jsonl'))
     const usage = new UsageService({
-      store: new UsageStore(join(dataDir, 'usage-records.jsonl')),
+      store: usageStore,
       cache: new EstimateCache(join(dataDir, 'usage-estimates.json')),
       chats,
       projectsDir,
@@ -308,6 +310,15 @@ export async function startServer(
         void auditLog.append(r)
       },
       routineOf: (chatId) => runner?.routineOfChat(chatId) ?? null
+    })
+    // Turn X-ray: put together on each ask from the stores above and the CLI's session logs; it keeps nothing.
+    const xray = new XrayService({
+      chats,
+      dispatch,
+      audit: { each: (f) => auditLog.each(f) },
+      usage: usageStore,
+      projectsDir,
+      now: () => Date.now()
     })
     // Every chat's messages, for chats:search: built in the background once the server listens, kept by these listeners.
     const search = new SearchIndex({ store: chats, log: (l) => console.error(l) })
@@ -2135,6 +2146,7 @@ export async function startServer(
       extensions,
       connectors,
       audit: auditLog,
+      xray,
       isolation,
       channels: { services: channels, store: channelStore }
     })

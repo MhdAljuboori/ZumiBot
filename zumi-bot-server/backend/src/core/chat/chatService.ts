@@ -2331,8 +2331,9 @@ export class ChatService {
     const blockTool = (toolUseId: string | null) => {
       if (toolUseId !== null) patchTool(toolUseId, () => ({ blocked: true }))
     }
+    // answeredTs: when the card stopped waiting on the user, so Turn X-ray can show the wait (set once).
     const setApproval = (id: string, status: ApprovalStatus) => {
-      ref.set(ref.get().map((i) => (ownCard(i, id) ? { ...i, status } : i)))
+      ref.set(ref.get().map((i) => (ownCard(i, id) ? { ...i, status, answeredTs: i.answeredTs ?? now() } : i)))
     }
     const approvalOf = (id: string) => ref.get().find((i) => ownCard(i, id))
     const reply = (message: object): boolean => slot.handle?.send(message) ?? false
@@ -2451,7 +2452,7 @@ export class ChatService {
         tap?.decided(requestId, { kind: 'approvedByUser', scope: 'once' }, { answers })
         spec.onAnswered?.()
       }
-      ref.set(ref.get().map((i) => (ownCard(i, requestId) ? { ...i, ...patch } : i)))
+      ref.set(ref.get().map((i) => (ownCard(i, requestId) ? { ...i, ...patch, answeredTs: i.answeredTs ?? now() } : i)))
       saveAndPush(false)
       pushApprovals()
     }
@@ -2485,7 +2486,7 @@ export class ChatService {
         tap?.decided(requestId, { kind: 'deniedByUser' }, { approved: false, ...(feedback === null ? {} : { feedback }) })
       }
       if (patch.status !== 'unanswered') spec.onAnswered?.()
-      ref.set(ref.get().map((i) => (ownCard(i, requestId) ? { ...i, ...patch } : i)))
+      ref.set(ref.get().map((i) => (ownCard(i, requestId) ? { ...i, ...patch, answeredTs: i.answeredTs ?? now() } : i)))
       saveAndPush(false)
       pushApprovals()
     }
