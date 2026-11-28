@@ -8,6 +8,7 @@ import type { AttachmentStore } from '../core/attachments/attachmentStore'
 import type { Hub } from '../rpc/hub'
 import type { BrowserHub } from './browserSocket'
 import { DESKTOP_FRAME_BYTES, type DesktopHub } from './desktopSocket'
+import { chatIdFromPath, loginPath } from '@zumibot/shared/appPaths'
 import { CLOSE_SIGNED_OUT } from '@zumibot/shared/rpc'
 import type { SnapshotStore } from '../core/files/snapshotStore'
 import { parseAttachmentPath, serveAttachment } from './attachments'
@@ -75,7 +76,9 @@ export function createAppServer(o: AppServerOptions): http.Server {
     const isApi = pathname.startsWith('/api/')
     if (!(await gate.authorize(req))) {
       if (isApi || (method !== 'GET' && method !== 'HEAD')) return sendJson(res, 401, { error: 'Unauthorized' })
-      res.writeHead(302, { Location: '/login', 'Content-Length': 0 })
+      // A chat or its popout comes back to itself after the sign-in (a reload with the session gone); the rest to the root.
+      const here = chatIdFromPath(pathname) === null ? null : (req.url ?? '/').split('#')[0]!
+      res.writeHead(302, { Location: loginPath(here), 'Content-Length': 0 })
       res.end()
       return
     }

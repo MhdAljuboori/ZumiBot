@@ -168,6 +168,26 @@ describe('vps routes', () => {
     }
   })
 
+  it('a chat or popout page without a session goes to /login with the way back; other pages to plain /login', async () => {
+    const chat = await fetch(`${rig.base}/chat/x?popout=1`, { redirect: 'manual' })
+    expect(chat.status).toBe(302)
+    expect(chat.headers.get('location')).toBe('/login?next=%2Fchat%2Fx%3Fpopout%3D1')
+    const settings = await fetch(`${rig.base}/settings/usage`, { redirect: 'manual' })
+    expect(settings.headers.get('location')).toBe('/login')
+  })
+
+  it('/login while signed in goes back to a safe next path, else the root', async () => {
+    const cookie = cookieOf(await rig.login({ password: PASSWORD, code: rig.code() }))
+    const back = await fetch(`${rig.base}/login?next=${encodeURIComponent('/chat/x?popout=1')}`, {
+      headers: { cookie },
+      redirect: 'manual'
+    })
+    expect(back.status).toBe(302)
+    expect(back.headers.get('location')).toBe('/chat/x?popout=1')
+    const evil = await fetch(`${rig.base}/login?next=${encodeURIComponent('//evil.example')}`, { headers: { cookie }, redirect: 'manual' })
+    expect(evil.headers.get('location')).toBe('/')
+  })
+
   it('login sets the cookie with exactly the pinned attributes', async () => {
     const res = await rig.login({ password: PASSWORD, code: rig.code() })
     expect(res.status).toBe(204)

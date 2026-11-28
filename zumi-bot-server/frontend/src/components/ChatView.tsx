@@ -204,6 +204,8 @@ interface Props {
    * cold notice or workflow bar; the history, older pages and the New line stay.
    */
   compact?: boolean
+  /** A popout window: its own header (App) names the chat and holds the side panel's icon, so this row does not. */
+  popout?: boolean
 }
 
 // Stable, so the island's list does not see a new array on every render.
@@ -379,7 +381,8 @@ export function ChatView({
   git,
   changesOpen,
   onToggleChanges,
-  compact = false
+  compact = false,
+  popout = false
 }: Props) {
   // The row over the chat names it (its agent or members, then its title) and holds the side panel's icon: Files and the
   // browser are chosen inside the panel. On a small screen the mobile bar (App) does both, so this row shows only for
@@ -421,26 +424,27 @@ export function ChatView({
   ) : agent ? (
     <BotIcon icon={agent.icon} color={agent.error === null ? agent.color : null} builtIn={agent.builtIn} working={false} size={22} />
   ) : null
-  const top = narrow ? (
-    archivedNote && <div className="chat-top">{archivedNote}</div>
-  ) : (
-    <>
-      <div className="chat-top">
-        <div className="chat-title" data-testid="chat-title">
-          {titleIcon}
-          <h1 className="chat-title-text" data-tip={title}>
-            {title}
-          </h1>
+  const top =
+    narrow || popout ? (
+      archivedNote && <div className="chat-top">{archivedNote}</div>
+    ) : (
+      <>
+        <div className="chat-top">
+          <div className="chat-title" data-testid="chat-title">
+            {titleIcon}
+            <h1 className="chat-title-text" data-tip={title}>
+              {title}
+            </h1>
+          </div>
+          {!compact && onOpenProcesses && <ProcessMark mark={processMark} onOpen={onOpenProcesses} />}
+          {!compact && repeatKinds.length > 0 && (
+            <MakeRepeatableMenu kinds={repeatKinds} disabled={!canMakeRepeatable(chat, agents)} onPick={onMakeRepeatable} />
+          )}
+          <SidePanelToggle open={sideOpen} onToggle={onToggleSide} />
         </div>
-        {!compact && onOpenProcesses && <ProcessMark mark={processMark} onOpen={onOpenProcesses} />}
-        {!compact && repeatKinds.length > 0 && (
-          <MakeRepeatableMenu kinds={repeatKinds} disabled={!canMakeRepeatable(chat, agents)} onPick={onMakeRepeatable} />
-        )}
-        <SidePanelToggle open={sideOpen} onToggle={onToggleSide} />
-      </div>
-      {archivedNote && <div className="chat-top">{archivedNote}</div>}
-    </>
-  )
+        {archivedNote && <div className="chat-top">{archivedNote}</div>}
+      </>
+    )
   // The trays the user collapsed: remembered per browser, the same in every chat.
   const [collapsed, setCollapsed] = useState(() => loadSet(TRAYS_KEY))
   const toggleTray = (tray: TrayName): void => {

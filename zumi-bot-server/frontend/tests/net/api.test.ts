@@ -335,6 +335,17 @@ describe('createApi', () => {
     expect(desktop.openAttachment).toHaveBeenCalledWith(expect.stringContaining('a1'), 'x.png')
   })
 
+  it("attachments.open in a shell window without the desktop bridge (island, popout) goes through that window's opener", async () => {
+    const { rpc } = fakeRpc()
+    const ok = vi.fn().mockResolvedValue(new Response(null, { status: 200 }))
+    const open = vi.fn()
+    const fileOpener = { openAttachment: vi.fn().mockResolvedValue(true) }
+    const api = createApi(rpc, { fetch: ok as never, desktop: null, fileOpener, openWindow: open, folderPicker: vi.fn() })
+    expect(await api.attachments.open('c1', 'a1', 'x.png')).toBe(true)
+    expect(fileOpener.openAttachment).toHaveBeenCalledWith(expect.stringContaining('a1'), 'x.png')
+    expect(open).not.toHaveBeenCalled()
+  })
+
   it('app.setEditorDirty guards the tab in the browser and forwards to the desktop shell', () => {
     const { rpc } = fakeRpc()
     const guard = vi.fn()

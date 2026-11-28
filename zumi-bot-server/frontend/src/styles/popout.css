@@ -1,0 +1,57 @@
+/* A chat popped out into a window of its own (/chat/<id>?popout=1): no rail or sidebar, the pane fills the window, and
+   its header spans the chat and the side panel. */
+
+.shell.popout .main {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.popout-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: 6px 12px 6px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  color: var(--fg);
+}
+/* In the desktop shell the header is the title bar: it drags the window, and the shell draws its buttons over the
+   end (Window Controls Overlay; on a Mac the traffic lights over the start). */
+.popout-head-shell {
+  -webkit-app-region: drag;
+  app-region: drag;
+  min-height: max(48px, env(titlebar-area-height, 0px));
+  padding-right: calc(12px + 100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
+}
+html.popout-mac .popout-head-shell {
+  padding-left: 84px;
+}
+.popout-head-shell :is(button, a, input, [role='button']) {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+.popout-btn {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  border-color: transparent;
+  background: none;
+  color: var(--fg-muted);
+}
+.popout-btn .glyph {
+  width: 16px;
+  height: 16px;
+}
+.popout-btn:hover,
+.popout-btn.open {
+  background: var(--bg-hover);
+}
+.popout-btn.open {
+  color: var(--accent-text);
+}

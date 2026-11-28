@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { safeNextPath } from '@zumibot/shared/appPaths'
 import type { Config } from '../config'
 import { applySecurityHeaders, sendJson } from '../http/headers'
 import type { Hub } from '../rpc/hub'
@@ -103,7 +104,8 @@ export function createAuthRoutes(o: AuthRoutesOptions) {
 
   async function servePage(req: IncomingMessage, res: ServerResponse, path: string): Promise<void> {
     if (path === '/login' && (await guard.authorize(req))) {
-      res.writeHead(302, { Location: '/', 'Content-Length': 0 })
+      const next = safeNextPath(new URL(req.url ?? '/', 'http://x').searchParams.get('next'))
+      res.writeHead(302, { Location: next ?? '/', 'Content-Length': 0 })
       res.end()
       return
     }
