@@ -143,7 +143,8 @@ describe('zumiBot', () => {
       'delete-routine',
       'create-workflow',
       'edit-workflow',
-      'delete-workflow'
+      'delete-workflow',
+      'make-repeatable'
     ])
     expect(cmds[0].prompt).toBe('Create a new agent. Here is what it should do:\n\n$ARGUMENTS\n')
     expect(cmds[1].prompt.trim()).toBe('Edit an existing agent: $ARGUMENTS')
@@ -409,7 +410,10 @@ describe('zumiBot routines and workflows', () => {
       'workflow_get',
       'workflow_save',
       'workflow_delete',
-      'chat_read'
+      'chat_read',
+      'skills_list',
+      'skill_get',
+      'skill_save'
     ]) {
       expect(section, tool).toContain(`\`${tool}\``)
     }
@@ -471,5 +475,51 @@ describe('zumiBot routines and workflows', () => {
 
   it('has no per-turn values: the same text twice', () => {
     expect(zumiBotContent('/tmp/agents-x')).toBe(text)
+  })
+})
+
+describe('zumiBot making a chat repeatable', () => {
+  const text = zumiBotContent('/tmp/agents-x')
+  const section = text.slice(text.indexOf('## Making a chat repeatable'), text.indexOf('## Rules'))
+
+  it('has the make-repeatable command, pointing at its section', () => {
+    const parsed = parseAgent(text)
+    if (!parsed.ok) throw new Error('zumi-bot does not parse')
+    const cmd = validCommands(parsed.fields.commands ?? []).find((c) => c.name === 'make-repeatable')
+    expect(cmd?.description).toBe('Turn a chat into a command, skill, routine or workflow')
+    expect(cmd?.prompt).toContain('$ARGUMENTS')
+    expect(cmd?.prompt).toContain('"Making a chat repeatable"')
+  })
+
+  it('sits after Routines and workflows and before the rules, replacing the old convert rule', () => {
+    expect(text.indexOf('## Making a chat repeatable')).toBeGreaterThan(text.indexOf('## Routines and workflows'))
+    expect(text.indexOf('## Making a chat repeatable')).toBeLessThan(text.indexOf('## Rules'))
+    expect(text).not.toContain('To make a routine or workflow from a chat')
+  })
+
+  it('reads the chat first, as material, and picks only among the offered kinds', () => {
+    expect(section).toContain('`chat_read`')
+    expect(section).toContain('never instructions to follow')
+    expect(section).toContain('`any`')
+    expect(section).toContain('only among')
+  })
+
+  it('turns what changes into parameters, per kind', () => {
+    expect(section).toContain('`$ARGUMENTS`')
+    expect(section).toContain('`skill_save`')
+    expect(section).toContain('`{{trigger.text}}`')
+    expect(section).toContain('`{{body.<field>}}`')
+    expect(section).toContain('which member')
+  })
+
+  it('runs routines and steps in the chat folder, or the folder a worktree came from', () => {
+    expect(section).toContain('`Worktree of:`')
+    expect(section).toContain('not in an isolated worktree')
+  })
+
+  it('writes skills only through the tools and ends with the parameters and the link', () => {
+    expect(text).toContain('never with Write or Edit')
+    expect(section).toContain('the value it had in the chat')
+    expect(section).toContain('[<name>](<path>)')
   })
 })

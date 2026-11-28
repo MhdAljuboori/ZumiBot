@@ -1870,6 +1870,15 @@ export async function startServer(
       workflowProblems: (w) => workflowRunner.problems(w),
       chats,
       agents: () => agents.list(),
+      // The user scope only, through the Settings page's own checks and broadcast; a result never names the folder.
+      skills: {
+        list: () => extensions.userSkills(),
+        get: async (name) => {
+          const v = await extensions.skill('user', home, name)
+          return { name: v.name, description: v.description, body: v.body, stamp: v.stamp }
+        },
+        save: (input) => extensions.saveSkill('user', home, input)
+      },
       // Read per call: the zone the page last reported (else the server's), and the folders the new-chat screen would pick.
       ctx: async () => {
         const s = await settings.get()

@@ -32,7 +32,7 @@ Zumi Bot always works in your agents folder, `~/.claude/agents`, which is why it
 
 Type `/` in a Zumi Bot chat to see its commands. Each one is a shortcut that starts the right job, and the text after the name says what you want.
 
-<Shot name="agents-zumi-bot-commands" alt="The message box of a new Zumi Bot chat with a slash typed. The menu lists /btw, /todo and /run-workflow, then Zumi Bot's own commands: /new-agent, /edit-agent, /suggest-commands, /make-friendly, /create-routine, /edit-routine, /delete-routine, /create-workflow, /edit-workflow and /delete-workflow, each with a one-line description." />
+<Shot name="agents-zumi-bot-commands" alt="The message box of a new Zumi Bot chat with a slash typed. The menu lists /btw, /todo and /run-workflow, then Zumi Bot's own commands: /new-agent, /edit-agent, /suggest-commands, /make-friendly, /create-routine, /edit-routine, /delete-routine, /create-workflow, /edit-workflow, /delete-workflow and /make-repeatable, each with a one-line description." />
 
 - **/new-agent** creates an agent from your description.
 - **/edit-agent** changes an agent you have.
@@ -40,6 +40,7 @@ Type `/` in a Zumi Bot chat to see its commands. Each one is a shortcut that sta
 - **/make-friendly** brings agents written before ZumiBot up to what a new agent gets. Name some agents, or name none to do them all.
 - **/create-routine**, **/edit-routine** and **/delete-routine** manage routines.
 - **/create-workflow**, **/edit-workflow** and **/delete-workflow** manage workflows.
+- **/make-repeatable** turns a chat into a command, a skill, a routine or a workflow. The **Make repeatable** button on a chat sends it for you.
 
 A command is only a shortcut. You can say the same thing in a plain message.
 
@@ -71,6 +72,25 @@ A [routine](/automation/routines/) runs one prompt on a trigger, such as a sched
 - **Deleting asks.** The card reads, for example, "Delete routine" followed by its name, and offers only **Allow once** and **Deny**. It asks every time.
 - **Zumi Bot cannot be a step.** A routine or workflow cannot use Zumi Bot itself as its agent.
 - **Only from your messages.** Zumi Bot changes a routine or workflow only when you send the message. A routine run cannot change another routine.
+
+## Make a chat repeatable
+
+When a chat did something you will want again, Zumi Bot can turn it into something you run with one step.
+
+1. Open the finished chat and choose **Make repeatable** (the two-arrow button above the chat, or **Make repeatable** in the chat's menu in the sidebar).
+2. Pick what to make: **Slash command**, **Skill**, **Routine** or **Workflow**, or **Let Zumi Bot choose** to let it pick the one that fits and say why.
+3. A Zumi Bot chat opens and gets to work. It may ask a question first, such as when a routine should run.
+
+Zumi Bot reads the chat and keeps what stays the same: the agent, the steps, and the corrections you made along the way. What would change next time, such as a pull request number, a link, a date or a file, becomes a parameter. Its reply lists each parameter with the value it had in your chat, and tells you how to run the result.
+
+- **Slash command.** Added to the chat's agent. Type `/` and its name in a chat with that agent, then the values. In a room, Zumi Bot asks which member gets it.
+- **Skill.** Saved with your Claude Code skills, so any Claude agent can use it. Find it in **Settings › Claude Code**.
+- **Routine.** A routine runs the same prompt every time, so Zumi Bot writes the values in and lists them. When a value must change on each run, it offers a webhook routine or a workflow instead.
+- **Workflow.** You type the values when you run it.
+
+Routines and workflows made this way work in the chat's folder. For a chat that ran in its own git worktree, that is the project folder you picked, and their runs work there directly, not in a worktree of their own.
+
+The menu offers only what can work for the chat's agent: no skill for an agent on another tool such as Codex, and only a command for a remote agent. The button waits until the reply is done, and Zumi Bot's own chats do not have it.
 
 ## Tips and limits
 

@@ -923,6 +923,16 @@ describe('ExtensionsService plugins, skills and hooks', SLOW, () => {
     expect(readJson(USER_SETTINGS())).toEqual(userSettings)
   })
 
+  it('lists the user skills by name with their descriptions, skipping a folder with no readable SKILL.md', async () => {
+    const s = make()
+    mkdirSync(join(claudeDir, 'skills', 'empty-folder'))
+    await s.saveSkill('user', folder, { name: 'a-first', description: 'First', body: 'b' })
+    expect(await s.userSkills()).toEqual([
+      { name: 'a-first', description: 'First' },
+      { name: 'mine', description: 'My own' }
+    ])
+  })
+
   it('creates, reads, edits and removes a user skill, and never overwrites one on create', async () => {
     const s = make()
     await s.saveSkill('user', folder, { name: 'new-one', description: 'New', body: 'Steps' })
