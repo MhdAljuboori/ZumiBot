@@ -15,7 +15,9 @@ import {
 } from 'electron'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { cleanAgentList, cleanHotkey, type IslandSettings } from '@zumibot/shared/island'
+import { cleanAgentList, cleanHotkey, type IslandOpenTarget, type IslandSettings } from '@zumibot/shared/island'
+import { safeOpenPath } from '@zumibot/shared/desktop'
+import { cleanChatId, cleanHexColor } from '@zumibot/shared/popout'
 import { LOCAL_RESTART_EXIT, LOCAL_UPDATES_ENV, UPDATE_LOG_FILE } from '@zumibot/shared/update'
 import { SPONSOR_URL } from '@zumibot/shared/sponsor'
 import { resolveDataDir } from '@zumibot/backend/config'
@@ -28,6 +30,7 @@ import { readPortalPrefersDark } from './desktopTheme'
 import { createIslandHost, type IslandHost } from './island'
 import { agentsFor, loadIslandPrefs, renameAgentIn, saveIslandPrefs, withAgents } from './islandPrefs'
 import { createLocalHost, LaunchAborted } from './localHost'
+import { createPopoutHost, setPopoutTitleBar, type PopoutHost, type PopoutWindow } from './popouts'
 import { portInUse, startLocalServer, type LocalServer } from './localServer'
 import { isPermissionAllowed, isSameOrigin } from './navigation'
 import { checkDesktopNotification, createClickRelay, createDesktopNotifier } from './notifications'
@@ -75,6 +78,7 @@ let quitRequested = false
 let exiting = false // the app is really quitting (before-quit let it through): the island window may close
 let tray: Tray | null = null
 let island: IslandHost | null = null // made once the app is ready
+let popouts: PopoutHost | null = null // chats popped out into windows of their own; made once the app is ready
 let voiceHotkey: VoiceHotkey | null = null // the desk shortcut that starts and stops a voice conversation on the island
 // A login start (--hidden) stays out of sight while the server and the network come up.
 let quiet = wantsHidden(process.argv)
@@ -186,6 +190,21 @@ const fromApp = (e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent): boolea
   !!shell && shell.origin !== '' && e.sender === shell.win.webContents && !!e.senderFrame && isSameOrigin(e.senderFrame.url, shell.origin)
 // The island channels also refuse a subframe of the app page: they change what the shell does outside the window.
 const fromAppMain = (e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent): boolean => fromApp(e) && e.senderFrame === e.sender.mainFrame
+// A popout's channels answer only its own main frame, on the server the main window is connected to.
+const fromPopout = (e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent): PopoutWindow | null => {
+  const p = popouts?.find(e.sender) ?? null
+  if (!p || !shell || p.origin !== shell.origin || !e.senderFrame || e.senderFrame !== e.sender.mainFrame) return null
+  return isSameOrigin(e.senderFrame.url, p.origin) ? p : null
+}
+
+/** The main window comes to the user's workspace and, on the app page, opens the chat the island or a popout named. */
+function openMainAt(t: IslandOpenTarget): void {
+  showMain('bring') // the island and popouts are how the user stays where they work
+  // Only the app page listens; a picker or error page in the window has no one to tell.
+  if (t.chatId && shell && !shell.win.isDestroyed() && shell.origin !== '' && isSameOrigin(shell.win.webContents.getURL(), shell.origin)) {
+    shell.win.webContents.send('desktop:islandOpen', t)
+  }
+}
 
 const islandSettings = (origin: string): IslandSettings => {
   const p = loadIslandPrefs(islandFile())
@@ -236,7 +255,9 @@ function launchPort(): number {
 
 async function launchLocal(): Promise<LocalServer> {
   // A WSL server gets only what wslLaunch forwards; the ClaudeBot data it would migrate is a Linux-only folder.
-  const env: NodeJS.ProcessEnv = inWsl ? { ...process.env } : { ...process.env, ZUMIBOT_MIGRATE_FROM: join(app.getPath('appData'), LEGACY_APP_DIR) }
+  const env: NodeJS.ProcessEnv = inWsl
+    ? { ...process.env }
+    : { ...process.env, ZUMIBOT_MIGRATE_FROM: join(app.getPath('appData'), LEGACY_APP_DIR) }
   if (app.isPackaged) env['NODE_ENV'] = 'production'
   // Never a random port: webhook URLs must stay the same between launches.
   env['ZUMIBOT_PORT'] = String(launchPort())
@@ -286,7 +307,13 @@ async function launchLocal(): Promise<LocalServer> {
   }
   const started = s
   // The local origin only, so no other server ever sees the secret.
-  await session.defaultSession.cookies.set({ url: started.origin, name: LOCAL_COOKIE, value: started.secret, httpOnly: true, sameSite: 'strict' })
+  await session.defaultSession.cookies.set({
+    url: started.origin,
+    name: LOCAL_COOKIE,
+    value: started.secret,
+    httpOnly: true,
+    sameSite: 'strict'
+  })
   busyTimer = setInterval(() => {
     void started.busy().then(
       (n) => (busyCount = n),
@@ -357,6 +384,7 @@ function newWindow(origin: string, mode: 'local' | 'vps'): ShellWindow {
   }
   clickRelay.reset()
   if (old) island?.setOrigin(null) // the replaced window's server is left
+  popouts?.closeAll() // their server is left too
   old?.dispose() // after the new one exists, so the app never has zero windows
   return next
 }
@@ -369,6 +397,7 @@ function windowFor(origin: string, mode: 'local' | 'vps'): ShellWindow {
 // The shell's own pages (file:) work in any window: the picker and error pages never get zumibotDesktop.
 function showPage(name: 'picker' | 'error', leaveQuiet = name === 'picker'): void {
   island?.setOrigin(null) // no server behind the window: the strip has nothing to show
+  popouts?.closeAll() // nor behind a popout
   const had = !!shell && !shell.win.isDestroyed()
   const wasQuiet = quiet && leaveQuiet
   if (wasQuiet) endQuiet(false) // before newWindow, so a new window shows itself
@@ -538,6 +567,39 @@ function registerIpc(): void {
     fromApp(e) && shell && typeof url === 'string' && typeof name === 'string' ? openAttachment(url, name, shell.origin) : false
   )
 
+  // Chat popouts: the main window asks for one; a popout pins itself, sends the user back to the main window, opens
+  // attachments and recolours its window buttons. Nothing else reaches the shell from a popout.
+  ipcMain.on('desktop:openChatWindow', (e, raw: unknown) => {
+    const chatId = cleanChatId(raw)
+    if (fromAppMain(e) && shell && chatId) popouts?.open(shell.origin, chatId)
+  })
+  ipcMain.handle('popout:pin', (e, on: unknown): boolean => {
+    const p = fromPopout(e)
+    if (!p || typeof on !== 'boolean') return false
+    p.win.setAlwaysOnTop(on, 'floating')
+    return p.win.isAlwaysOnTop()
+  })
+  // The popout names an app path (another chat, Settings, a workflow run) or nothing: the main window comes here and,
+  // on the app page, the page moves there itself (through its unsaved-changes guard, as Back does).
+  ipcMain.on('popout:openMain', (e, raw: unknown) => {
+    const path = raw === null ? null : safeOpenPath(raw)
+    if (!fromPopout(e) || (raw !== null && path === null)) return
+    showMain('bring')
+    if (path && shell && !shell.win.isDestroyed() && shell.origin !== '' && isSameOrigin(shell.win.webContents.getURL(), shell.origin)) {
+      shell.win.webContents.send('desktop:openPath', path)
+    }
+  })
+  ipcMain.handle('popout:openAttachment', (e, url: unknown, name: unknown) => {
+    const p = fromPopout(e)
+    return p && typeof url === 'string' && typeof name === 'string' ? openAttachment(url, name, p.origin) : false
+  })
+  ipcMain.on('popout:titleBar', (e, color: unknown, symbols: unknown) => {
+    const p = fromPopout(e)
+    const c = cleanHexColor(color)
+    const s = cleanHexColor(symbols)
+    if (p && c && s) setPopoutTitleBar(p.win, c, s)
+  })
+
   // The island's Settings controls: the strip's agents per server and the login entry.
   ipcMain.handle('desktop:islandGet', (e): IslandSettings => {
     if (!fromAppMain(e) || !shell) throw new Error('Not allowed.')
@@ -633,25 +695,19 @@ async function start(): Promise<void> {
     }
   })
   createNotifier()
+  popouts = createPopoutHost({
+    preload: join(__dirname, '../preload/index.js'),
+    stateFile: join(app.getPath('userData'), 'popout-state.json'),
+    zoomFile: join(app.getPath('userData'), 'zoom.json'),
+    anchor: () => (shell && !shell.win.isDestroyed() && shell.win.isVisible() && !shell.win.isMinimized() ? shell.win.getBounds() : null)
+  })
   registerIpc()
   island = createIslandHost({
     hitTest: process.platform === 'darwin' ? 'cursor' : 'shape',
     prefsFile: islandFile(),
     preload: join(__dirname, '../preload/index.js'),
     area: () => screen.getPrimaryDisplay().workArea,
-    openMain: (t) => {
-      showMain('bring') // the island is how the user stays where they work
-      // Only the app page listens; a picker or error page in the window has no one to tell.
-      if (
-        t.chatId &&
-        shell &&
-        !shell.win.isDestroyed() &&
-        shell.origin !== '' &&
-        isSameOrigin(shell.win.webContents.getURL(), shell.origin)
-      ) {
-        shell.win.webContents.send('desktop:islandOpen', t)
-      }
-    },
+    openMain: openMainAt,
     openAttachment,
     quitting: () => exiting
   })
@@ -743,6 +799,7 @@ app.on('will-quit', (e) => {
   voiceHotkey = null
   island?.dispose()
   island = null
+  popouts?.closeAll()
   tray?.destroy()
   tray = null
   try {

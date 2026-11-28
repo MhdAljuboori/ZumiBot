@@ -68,3 +68,24 @@ export function voiceFromPath(pathname: string, search: string): { start: boolea
   if (pathname !== VOICE) return null
   return { start: new URLSearchParams(search).get('start') === '1' }
 }
+
+export const LOGIN = '/login'
+const NEXT_MAX = 512
+
+/**
+ * The page a sign-in goes back to (`/login?next=`): a path on this site only, so the parameter can never send anyone
+ * elsewhere. No second slash or backslash at its start (`//host` and `/\\host` are other sites to a browser), no
+ * backslash or control character at all, and not the login page or the API.
+ */
+export function safeNextPath(raw: unknown): string | null {
+  if (typeof raw !== 'string' || raw.length > NEXT_MAX || !raw.startsWith('/')) return null
+  if (raw.startsWith('//') || raw.includes('\\') || /[\u0000-\u001f\u007f]/.test(raw)) return null
+  if (raw === LOGIN || raw.startsWith(LOGIN + '?') || raw.startsWith(LOGIN + '/') || raw.startsWith('/api/')) return null
+  return raw
+}
+
+/** The sign-in page, sending the user back to `next` afterwards when it is a safe path other than the root. */
+export function loginPath(next: string | null): string {
+  const n = safeNextPath(next)
+  return n === null || n === '/' ? LOGIN : `${LOGIN}?next=${encodeURIComponent(n)}`
+}

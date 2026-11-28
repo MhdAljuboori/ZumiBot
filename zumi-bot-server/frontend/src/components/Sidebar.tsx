@@ -1,13 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type DragEvent,
-  type MouseEvent,
-  type TouchEvent
-} from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent, type MouseEvent, type TouchEvent } from 'react'
 import { ARCHIVE_RUNNING } from '@zumibot/shared/archive'
 import { displayName } from '@zumibot/shared/frontmatter'
 import { agentKey, emptyLayout, groupKey, SECTION_NAME_MAX, type SidebarLayout, type SidebarSection } from '@zumibot/shared/sidebarLayout'
@@ -15,6 +6,7 @@ import { isGroup, type AgentSummary, type ChatMeta } from '@zumibot/shared/types
 import { SEARCH_QUERY_MAX, parseQuery, type SearchHit } from '@zumibot/shared/search'
 import { isUnread } from '@zumibot/shared/unread'
 import { agentHasPending } from '../state/approvals'
+import { popoutClick } from '../state/popout'
 import { engineTag } from '../state/agentEngine'
 import { agentIsWorking } from '../state/bot'
 import { FOLDER_SHOWN, FOLDER_STEP, folderKey, folderRows } from '../state/folderChats'
@@ -165,6 +157,8 @@ interface Props {
   onNewChat: (agentName: string, folder: NewChatFolder) => void
   onDeleteAgent: (filePath: string) => void
   onOpenChat: (chatId: string) => void
+  /** Ctrl/Cmd+click, middle click or the menu: the chat in a window of its own, the open view left as it is. */
+  onPopoutChat: (chatId: string) => void
   onRenameChat: (chatId: string, title: string) => void
   /** Opens the Clone room dialog for a group room. */
   onCloneRoom: (chat: ChatMeta) => void
@@ -355,15 +349,26 @@ export function Sidebar(p: Props) {
 
   const endPress = (): void => window.clearTimeout(press.current?.timer)
 
-  // What every chat and group row shares: click opens, right-click (or a long press) gives the chat menu.
+  // What every chat and group row shares: click opens, Ctrl/Cmd+click or a middle click pops it out, right-click (or a
+  // long press) gives the chat menu.
   const chatHandlers = (chat: ChatMeta) => ({
     'data-chat-id': chat.id,
-    onClick: () => {
+    onClick: (e: MouseEvent) => {
       if (press.current?.fired) {
         press.current = null
         return
       }
+      if (popoutClick(e)) return p.onPopoutChat(chat.id)
       p.onOpenChat(chat.id)
+    },
+    // A middle click fires no click: auxclick it is. Its mousedown would start autoscroll (or paste the X selection).
+    onMouseDown: (e: MouseEvent) => {
+      if (e.button === 1) e.preventDefault()
+    },
+    onAuxClick: (e: MouseEvent) => {
+      if (e.button !== 1) return
+      e.preventDefault()
+      p.onPopoutChat(chat.id)
     },
     onContextMenu: (e: MouseEvent) => {
       e.preventDefault()
@@ -1087,6 +1092,19 @@ export function Sidebar(p: Props) {
                 </button>
               )}
               {menu.chat.group && p.layout !== null && moveToItem(groupKey(menu.chat.id))}
+              <button
+                type="button"
+                role="menuitem"
+                data-testid="chat-menu-popout"
+                onClick={() => {
+                  const chat = menu.chat
+                  setMenu(null)
+                  p.onPopoutChat(chat.id)
+                }}
+              >
+                <MenuIcon name="popout" />
+                Open in new window
+              </button>
               <button
                 type="button"
                 role="menuitem"

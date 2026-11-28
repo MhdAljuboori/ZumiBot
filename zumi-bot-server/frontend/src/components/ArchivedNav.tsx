@@ -3,6 +3,7 @@ import { displayName } from '@zumibot/shared/frontmatter'
 import type { AgentSummary, ChatMeta } from '@zumibot/shared/types'
 import { archivedLabel, archivedRows, type ArchivedRow } from '../state/archive'
 import { NO_PICK, keepArchived, pickAll, pickRow, pickedShown } from '../state/archiveSelection'
+import { popoutClick } from '../state/popout'
 import { chatTitle } from '../state/sidebarTree'
 import { useDismiss } from '../useDismiss'
 import { useFitInViewport } from '../useFitInViewport'
@@ -26,6 +27,8 @@ interface Props {
   unread: boolean
   onBack: () => void
   onOpenChat: (chatId: string) => void
+  /** Ctrl/Cmd+click or a middle click: the chat in a window of its own. */
+  onPopoutChat: (chatId: string) => void
   onUnarchive: (chatIds: string[]) => void
   onDeleteChats: (chatIds: string[]) => void
   onExportChat: (chat: ChatMeta) => void
@@ -112,7 +115,16 @@ export function ArchivedNav(p: Props) {
         data-testid="archived-row"
         data-chat-id={chat.id}
         data-tip={chat.cwd}
-        onClick={() => p.onOpenChat(chat.id)}
+        onClick={(e) => (popoutClick(e) ? p.onPopoutChat(chat.id) : p.onOpenChat(chat.id))}
+        // A middle click fires no click, and its mousedown would start autoscroll (or paste the X selection).
+        onMouseDown={(e) => {
+          if (e.button === 1) e.preventDefault()
+        }}
+        onAuxClick={(e) => {
+          if (e.button !== 1) return
+          e.preventDefault()
+          p.onPopoutChat(chat.id)
+        }}
         onContextMenu={(e) => openMenu(e, chat)}
       >
         {/* One width for an agent's icon and a room's stack, so the titles line up. */}
@@ -284,6 +296,19 @@ export function ArchivedNav(p: Props) {
           >
             <MenuIcon name="unarchive" />
             Unarchive
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="archived-menu-popout"
+            onClick={() => {
+              const chat = menu.chat
+              setMenu(null)
+              p.onPopoutChat(chat.id)
+            }}
+          >
+            <MenuIcon name="popout" />
+            Open in new window
           </button>
           <button
             type="button"
