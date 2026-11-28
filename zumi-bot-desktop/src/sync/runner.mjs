@@ -16,13 +16,13 @@ process.on('disconnect', () => {
 // The local server takes its vault key path from these (backend/src/config.ts), so sync must find the same key.
 const VAULT_KEY_ENV = ['XDG_CONFIG_HOME', 'ZUMIBOT_VAULT_KEY_FILE']
 
-process.once('message', async ({ config, home }) => {
+process.once('message', async ({ config, home, chats }) => {
   const log = (line) => {
     if (process.connected) process.send({ type: 'log', line })
   }
   const keyEnv = Object.fromEntries(VAULT_KEY_ENV.filter((k) => process.env[k]).map((k) => [k, process.env[k]]))
   try {
-    process.exitCode = await sync({ env: { ...keyEnv, ...config, HOME: home }, log })
+    process.exitCode = await sync({ env: { ...keyEnv, ...config, HOME: home }, chats: chats === true, log })
   } catch (err) {
     log(err instanceof Error ? err.message : String(err))
     process.exitCode = 1

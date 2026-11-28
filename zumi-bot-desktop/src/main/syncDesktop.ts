@@ -65,7 +65,7 @@ export function createDesktopSync(o: Options) {
   }
 
   const flow = createSyncFlow({
-    async prepare() {
+    async prepare(chats) {
       validateSyncDataDir(process.env)
       const hadConfig = config !== null
       if (!config && !(await configure())) return false
@@ -74,16 +74,23 @@ export function createDesktopSync(o: Options) {
         const { response } = await dialog.showMessageBox(window, {
           type: 'question',
           title: 'Sync ZumiBot',
-          message: `Sync this PC with ${config.VPS_USER}@${config.VPS_HOST}?`,
-          detail:
-            'Chats and Claude data will be merged in both directions, with backups. The VPS will restart. Wait for active replies to finish first.',
+          message: chats
+            ? `Sync this PC with ${config.VPS_USER}@${config.VPS_HOST}?`
+            : `Sync agents, skills, memory and plugins with ${config.VPS_USER}@${config.VPS_HOST}?`,
+          detail: chats
+            ? 'Chats and Claude data will be merged in both directions, with backups. The VPS will restart. Wait for active replies to finish first.'
+            : 'They will be merged in both directions, with backups. Chats stay on each machine. Nothing restarts.',
           buttons: ['Cancel', 'Sync'],
           defaultId: 0,
           cancelId: 0
         })
         if (response !== 1) return false
       }
-      log(`Syncing with ${config.VPS_USER}@${config.VPS_HOST} (${config.VPS_DIR})...`)
+      log(
+        chats
+          ? `Syncing with ${config.VPS_USER}@${config.VPS_HOST} (${config.VPS_DIR})...`
+          : `Syncing agents, skills, memory and plugins with ${config.VPS_USER}@${config.VPS_HOST}...`
+      )
       return true
     },
     isDirty: o.isDirty,
@@ -93,12 +100,13 @@ export function createDesktopSync(o: Options) {
     pause: o.pause,
     restore: o.restore,
     log,
-    execute: () =>
+    execute: (chats) =>
       runSyncProcess({
         node: process.execPath,
         entry: app.isPackaged ? join(process.resourcesPath, 'sync/runner.mjs') : join(__dirname, 'sync/runner.mjs'),
         config: config!,
         home: process.env.HOME || homedir(),
+        chats,
         log
       })
   })
@@ -123,8 +131,9 @@ export function createDesktopSync(o: Options) {
   ipcMain.handle('sync:configure', async (e) => {
     if (trusted(e) && !active()) await configure().catch(error)
   })
-  ipcMain.handle('sync:start', async (e) => {
-    if (trusted(e) && !active() && o.available()) await flow.run()
+  // Only the mode comes from the page, as a strict boolean; the VPS settings never do.
+  ipcMain.handle('sync:start', async (e, opts: unknown) => {
+    if (trusted(e) && !active() && o.available()) await flow.run((opts as { chats?: unknown } | null)?.chats === true)
   })
 
   return {

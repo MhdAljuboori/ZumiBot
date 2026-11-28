@@ -45,23 +45,27 @@ describe('sync worker', () => {
   it('passes config through IPC, forwards logs, and resolves only after exit', async () => {
     const log: string[] = []
     const entry = worker(`process.once('message', m => {
-      if (m.config.VPS_HOST !== 'fake' || m.home !== '/tmp/fake-home' || process.env.ELECTRON_RUN_AS_NODE !== '1') process.exit(8)
+      if (m.config.VPS_HOST !== 'fake' || m.home !== '/tmp/fake-home' || m.chats !== true || process.env.ELECTRON_RUN_AS_NODE !== '1') process.exit(8)
       process.send({ type: 'log', line: 'Joining chats...' })
       process.disconnect()
       process.exitCode = 0
     })`)
-    expect(await runSyncProcess({ node: process.execPath, entry, config, home: '/tmp/fake-home', log: (line) => log.push(line) })).toBe(0)
+    expect(
+      await runSyncProcess({ node: process.execPath, entry, config, home: '/tmp/fake-home', chats: true, log: (line) => log.push(line) })
+    ).toBe(0)
     expect(log).toEqual(['Joining chats...'])
   })
   it('reports nonzero exits and stderr', async () => {
     const log: string[] = []
     const entry = worker("process.once('message', () => { console.error('failed to start'); process.exit(3) })")
-    expect(await runSyncProcess({ node: process.execPath, entry, config, home: '/tmp/fake-home', log: (line) => log.push(line) })).toBe(3)
+    expect(
+      await runSyncProcess({ node: process.execPath, entry, config, home: '/tmp/fake-home', chats: false, log: (line) => log.push(line) })
+    ).toBe(3)
     expect(log.join('\n')).toContain('failed to start')
   })
   it('rejects spawn errors without hanging', async () => {
     await expect(
-      runSyncProcess({ node: '/missing/node', entry: '/missing/runner', config, home: '/tmp/fake-home', log: () => {} })
+      runSyncProcess({ node: '/missing/node', entry: '/missing/runner', config, home: '/tmp/fake-home', chats: false, log: () => {} })
     ).rejects.toThrow()
   })
   // Process groups and /proc are POSIX; Windows has neither.
@@ -74,7 +78,9 @@ describe('sync worker', () => {
       process.send({ type: 'log', line: String(pgrp === process.pid) })
       process.disconnect()
     })`)
-    expect(await runSyncProcess({ node: process.execPath, entry, config, home: '/tmp/fake-home', log: (line) => log.push(line) })).toBe(0)
+    expect(
+      await runSyncProcess({ node: process.execPath, entry, config, home: '/tmp/fake-home', chats: true, log: (line) => log.push(line) })
+    ).toBe(0)
     expect(log).toEqual(['true'])
   })
 })
