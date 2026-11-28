@@ -20,6 +20,7 @@ import {
   panelOrder,
   pickChips,
   routeSend,
+  laterRefusal,
   sideTexts,
   sideThreads,
   threadCountText,
@@ -90,6 +91,20 @@ describe('routeSend', () => {
       expect(routeSend(text)).toEqual({ kind: 'workflow' })
     }
   )
+
+  it.each(['/later 9am check CI', '/later', '/later\nin 2h x'])('routes %j as a /later', (text) => {
+    expect(routeSend(text)).toEqual({ kind: 'later' })
+  })
+
+  it.each(['/laterx y', ' /later 9am x', 'hi /later 9am x'])('routes %j as a normal send, not a /later', (text) => {
+    expect(routeSend(text)).toEqual({ kind: 'send' })
+  })
+
+  it('refuses a typed /later only where a notice is given', () => {
+    expect(laterRefusal('/later 9am x', 'Start the chat first')).toBe('Start the chat first')
+    expect(laterRefusal('/later 9am x', undefined)).toBeNull()
+    expect(laterRefusal('hello', 'Start the chat first')).toBeNull()
+  })
 
   it.each(['/run-workflowx y', ' /run-workflow x', '/RUN-WORKFLOW x', 'hello\n/run-workflow x', 'a /run-workflow x'])(
     'routes %j as a normal send',

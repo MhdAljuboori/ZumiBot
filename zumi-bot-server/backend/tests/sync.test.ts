@@ -786,6 +786,19 @@ describe('mergeChats with versions', () => {
     for (const c of m.chats) expect(c).not.toHaveProperty('resume')
   })
 
+  it('mergeChats drops /later messages from every chat and counts each once, so no message goes twice', () => {
+    const f = files([u('x', 1)], [u('x', 1)])
+    const l = (id: string) => ({ id, at: 5000, text: 'check CI', createdAt: 1 })
+    const m = mergeChats(
+      [{ ...meta('c', 'T', 900), later: [l('a'), l('b')] }, meta('pc', 'P', 900)],
+      [{ ...meta('c', 'T', 100), later: [l('a')] }, { ...meta('vps', 'V', 900), later: [l('z')] }],
+      f.items,
+      f.versions
+    )
+    for (const c of m.chats) expect(c).not.toHaveProperty('later')
+    expect(m.droppedLater).toBe(3)
+  })
+
   it('both absent stays absent', () => {
     const f = files([u('x', 1)], [u('x', 1)])
     const m = mergeChats([meta('c', 'T', 900)], [meta('c', 'T', 100)], f.items, f.versions)

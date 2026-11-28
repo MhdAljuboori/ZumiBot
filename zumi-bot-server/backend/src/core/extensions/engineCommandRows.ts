@@ -11,7 +11,7 @@ export interface EngineCommandRow extends EngineCommand {
 // Same shape as the composer's `/name` rule, plus `:` for plugin-namespaced commands.
 const NAME = /^[A-Za-z0-9][A-Za-z0-9_:.-]*$/
 // Names ZumiBot answers itself, so an engine row of that name would never run.
-const RESERVED = new Set(['btw', 'todo', 'run-workflow'])
+const RESERVED = new Set(['btw', 'todo', 'run-workflow', 'later'])
 // A plugin named after the other engine (Claude Code's `codex:rescue`, `codex:review`…) hands the work to that engine: the
 // menu of one engine's chat shows only that engine's own commands.
 const OTHER_ENGINE: Record<'claude' | 'codex', string> = { claude: 'codex:', codex: 'claude:' }

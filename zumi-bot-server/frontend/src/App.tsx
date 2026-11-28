@@ -74,6 +74,7 @@ import { historyComplete, panelView } from './state/todosPanel'
 import { SidePanel } from './components/SidePanel'
 import { routeSend, sideThreads } from './state/sideQuestions'
 import { clearNotice, setNotice, startedNotice, type SendNotice } from './state/sendNotices'
+import { browserZone } from './state/later'
 import { useNotifications } from './useNotifications'
 import { useTalkShown, useVoiceStatus } from './useDictation'
 import { VoiceTalkView } from './components/VoiceTalkView'
@@ -373,6 +374,7 @@ export default function App() {
   const [processFocus, setProcessFocus] = useState<{ chatId: string; id: string; n: number } | null>(null)
   const askingSides = useRef(new Set<string>())
   const startingRuns = useRef(new Set<string>()) // chats with a /run-workflow on its way
+  const schedulingLater = useRef(new Set<string>()) // chats with a /later on its way
   // query: a search hit's, whose words the message lights (a search jump opens no tool runs).
   const [showRequest, setShowRequest] = useState<{ chatId: string; itemId: string; n: number; query?: string } | null>(null)
   // A search hit waiting for its chat's view to mount: a request already there when the list mounts reads as handled.
@@ -1601,6 +1603,24 @@ export default function App() {
     }
   }
 
+  // `/later <when> <message>`: the server reads the time in this browser's zone and stores the message on the chat, which
+  // shows it in the Later tray until it goes.
+  const scheduleLater = async (chatId: string, text: string): Promise<void> => {
+    if (schedulingLater.current.has(chatId)) return
+    schedulingLater.current.add(chatId)
+    setSendErrors(({ [chatId]: _cleared, ...rest }) => rest)
+    setSendNotices((prev) => clearNotice(prev, chatId))
+    try {
+      await api.chats.later(chatId, text, browserZone())
+      // A new draft typed while the call was in flight belongs to the next send.
+      setDrafts((prev) => (prev[chatId] === text ? { ...prev, [chatId]: '' } : prev))
+    } catch (e) {
+      failChat(chatId, errorMessage(e))
+    } finally {
+      schedulingLater.current.delete(chatId)
+    }
+  }
+
   // Only ordinary composers come here; edits, resends and queued tasks keep their plain text path.
   const sendFromComposer = async (
     chatId: string,
@@ -1617,6 +1637,10 @@ export default function App() {
     }
     if (route.kind === 'workflow') {
       await runWorkflowFromChat(chatId, text, workflowId)
+      return
+    }
+    if (route.kind === 'later') {
+      await scheduleLater(chatId, text)
       return
     }
     if (!sideParts(route.question) || askingSides.current.has(chatId)) return
@@ -1643,7 +1667,8 @@ export default function App() {
     const target = newChatTarget(draft, agents)
     const files = filesRef.current.new ?? emptyDraftFiles
     const route = routeSend(text)
-    if (route.kind === 'workflow') return // a workflow starts from a chat; the composer already refused with its notice
+    // A workflow starts from a chat, and a /later sends into one; the composer already refused either with its notice.
+    if (route.kind === 'workflow' || route.kind === 'later') return
     if (route.kind === 'btw' && !sideParts(route.question)) return
     if (!target || (draft.text.trim() === '' && readyIds(files).length === 0) || (isStaging(files) && route.kind !== 'btw')) return
     const chatId = await newChat(target.agentName, target.folder)
@@ -1676,7 +1701,8 @@ export default function App() {
     const target = newGroupTarget(draft, agents)
     const files = filesRef.current.new ?? emptyDraftFiles
     const route = routeSend(text)
-    if (route.kind === 'workflow') return // a workflow starts from a chat; the composer already refused with its notice
+    // A workflow starts from a chat, and a /later sends into one; the composer already refused either with its notice.
+    if (route.kind === 'workflow' || route.kind === 'later') return
     if (route.kind === 'btw' && !sideParts(route.question)) return
     if (
       !target ||
@@ -1755,6 +1781,16 @@ export default function App() {
   const resumeChat = (chatId: string): void => {
     api.chats.resume(chatId).catch((e: unknown) => failChat(chatId, errorMessage(e)))
   }
+
+  // The Later tray's actions: false on failure (the chat shows why), so the row's buttons wake again.
+  const laterAction = (chatId: string, call: Promise<void>): Promise<boolean> =>
+    call.then(
+      () => true,
+      (e: unknown) => {
+        failChat(chatId, errorMessage(e))
+        return false
+      }
+    )
 
   // Both resolve false on failure (the chat shows why), so the tray knows the row stays.
   const dropTask = (chatId: string, taskId: string): Promise<boolean> =>
@@ -2354,7 +2390,8 @@ export default function App() {
     const key = `island-new:${agentName}`
     const files = filesRef.current[key] ?? emptyDraftFiles
     const route = routeSend(text)
-    if (route.kind === 'workflow') return // a workflow starts from a chat; the composer already refused with its notice
+    // A workflow starts from a chat, and a /later sends into one; the composer already refused either with its notice.
+    if (route.kind === 'workflow' || route.kind === 'later') return
     if (route.kind === 'btw' && !sideParts(route.question)) return
     if ((text.trim() === '' && readyIds(files).length === 0) || (isStaging(files) && route.kind !== 'btw')) return
     let cwd: string
@@ -2472,6 +2509,8 @@ export default function App() {
       onExportReply: (itemId) => setExportTarget({ chat, item: itemId }),
       onDropTask: (taskId) => dropTask(id, taskId),
       onSendTask: (taskId) => sendTask(id, taskId),
+      onLaterCancel: (laterId) => laterAction(id, api.chats.laterCancel(id, laterId)),
+      onLaterNow: (laterId) => laterAction(id, api.chats.laterNow(id, laterId)),
       onCompact: (note, member) => void compactChat(id, note, member),
       onSetModel: (model) => void settled(id, api.chats.setModel(id, model)),
       onSetPermissionMode: (mode) => void settled(id, api.chats.setPermissionMode(id, mode)),

@@ -45,6 +45,8 @@ export function newChatTarget(draft: NewChatDraft, agents: readonly AgentSummary
 
 /** Shown for a typed `/run-workflow` on the new-chat screen: a workflow starts from a chat, and no chat is made for it. */
 export const NEW_CHAT_RUN_WORKFLOW_NOTICE = 'Open a chat first'
+/** Shown for a typed `/later` on the new-chat screen: it sends into a chat, and there is none yet. */
+export const NEW_CHAT_LATER_NOTICE = 'Start the chat first, then use /later in it'
 
 /** The folder a path sits in, shown next to its name in the folder menu. */
 export const parentPath = (cwd: string): string => cwd.replace(/\/+$/, '').replace(/\/[^/]*$/, '') || '/'

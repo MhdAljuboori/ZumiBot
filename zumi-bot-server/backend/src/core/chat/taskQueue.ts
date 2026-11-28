@@ -35,7 +35,9 @@ export const PAUSE_UNAVAILABLE = 'Pause is unavailable: the pause hook is missin
 // 'run': the result of a Run button's command, sent to the agent that wrote it. The user's own message in effect (not auto),
 // but it waits out a pause and a usage limit wait like a routine's, and ends neither. The user never sees its task, so it is
 // never held (`held`): nothing they can press would let it go.
-export type SendFrom = 'user' | 'routine' | 'process' | 'run'
+// 'later': the user's own /later message, going in at its time (agent-commands.md, /later). Their words (not auto), but they are not there to
+// see it go: like 'run' it waits out a pause and a usage limit wait and ends neither; unlike 'run' its task is visible.
+export type SendFrom = 'user' | 'routine' | 'process' | 'run' | 'later'
 
 /** Whether the message counts as unattended: only a routine's and a process's do. */
 export const autoFor = (from: SendFrom): true | undefined => (from === 'routine' || from === 'process' ? true : undefined)
@@ -83,26 +85,32 @@ const withTail = (call: (...tail: Tail) => Promise<void>, command?: SentCommand,
 // A room's post takes the workflow Chat step's sender in the slot after the to-do flag, then `auto` (a routine's or workflow's
 // message, not typed by the user: the room stays unattended until the user types into it).
 const withSent = (
-  call: (...tail: [command?: SentCommand, todo?: true, sent?: WorkflowSent, auto?: true, run?: RunMark]) => Promise<void>,
+  call: (...tail: [command?: SentCommand, todo?: true, sent?: WorkflowSent, auto?: true, run?: RunMark, later?: number]) => Promise<void>,
   command?: SentCommand,
   todo?: true,
   sent?: WorkflowSent,
   auto?: true,
-  run?: RunMark
+  run?: RunMark,
+  later?: number
 ): Promise<void> =>
-  run ? call(command, todo, sent, auto, run) : auto ? call(command, todo, sent, true) : sent ? call(command, todo, sent) : withTail(call, command, todo)
+  later !== undefined ? call(command, todo, sent, auto, run, later) : run ? call(command, todo, sent, auto, run) : auto ? call(command, todo, sent, true) : sent ? call(command, todo, sent) : withTail(call, command, todo)
 // A single chat's send takes `auto` in the slot after the to-do flag, the sender after it, then a card comment's context
-// (only set when there is one, so every other call keeps its exact arguments), then a Run result's mark likewise.
+// (only set when there is one, so every other call keeps its exact arguments), then a Run result's mark likewise, then a /later's.
 const withAuto = (
-  call: (...tail: [command?: SentCommand, todo?: true, auto?: true, sent?: WorkflowSent, cardAsk?: CardAsk, run?: RunMark]) => Promise<void>,
+  call: (
+    ...tail: [command?: SentCommand, todo?: true, auto?: true, sent?: WorkflowSent, cardAsk?: CardAsk, run?: RunMark, later?: number]
+  ) => Promise<void>,
   command?: SentCommand,
   todo?: true,
   auto?: true,
   sent?: WorkflowSent,
   cardAsk?: CardAsk,
-  run?: RunMark
+  run?: RunMark,
+  later?: number
 ): Promise<void> =>
-  run
+  later !== undefined
+    ? call(command, todo, auto, sent, cardAsk, run, later)
+    : run
     ? call(command, todo, auto, sent, cardAsk, run)
     : cardAsk
       ? call(command, todo, auto, sent, cardAsk)
@@ -160,6 +168,8 @@ export interface SubmitOptions {
   cardAsk?: CardAsk
   // The mark of a Run result (from 'run'): travels with the message onto the user item.
   run?: RunMark
+  // A /later message's time (from 'later'): travels with the message onto the user item, for the bubble's note.
+  later?: number
   // The composer's Enter: into the chat's running reply where one takes it (docs/architecture/mid-turn-messages.md), else as without.
   steer?: true
   committed?: (r: SendResult | 'duplicate') => void
@@ -210,7 +220,7 @@ export class TaskQueue {
       // message goes straight in and the tasks stay where they are. A Run result or a process's wake-up waits out a usage
       // limit itself: the wait's continue goes first, and it follows that turn.
       const waiting =
-        ((from === 'run' || from === 'process') && meta.resume !== undefined) ||
+        ((from === 'run' || from === 'process' || from === 'later') && meta.resume !== undefined) ||
         (!paused &&
           (meta.tasks?.length ?? 0) > 0 &&
           !meta.held &&
@@ -219,8 +229,8 @@ export class TaskQueue {
       const idle = !this.busy(chatId)
       if (this.down) throw new Error('Server is shutting down') // closed while this waited for the lock or the store
       // A new message, sent or queued, ends a usage limit wait; a Run result or a process's wake-up is not one the user
-      // wrote, so neither does.
-      if (from !== 'run' && from !== 'process') await this.newTurn(chatId)
+      // wrote, and a /later was written before the wait began, so none of them does.
+      if (from !== 'run' && from !== 'process' && from !== 'later') await this.newTurn(chatId)
       if (idle && !waiting && (!paused || from === 'user')) {
         const attachments = await files.commit(chatId, stagedIds)
         if (paused) {
@@ -228,7 +238,20 @@ export class TaskQueue {
           if (over) this.pushMeta(over)
         }
         if (opts?.once && messageId !== undefined) this.recent.add(messageId)
-        return this.launch(meta, text, attachments, replyTo, messageId, command, todo, autoFor(from), workflowSent, opts?.cardAsk, opts?.run)
+        return this.launch(
+          meta,
+          text,
+          attachments,
+          replyTo,
+          messageId,
+          command,
+          todo,
+          autoFor(from),
+          workflowSent,
+          opts?.cardAsk,
+          opts?.run,
+          opts?.later
+        )
       }
       // Before commit, so a send that is bound to fail moves no files. Unread steers wait too, so they count.
       if ((meta.tasks?.length ?? 0) + (meta.steering?.length ?? 0) >= TASKS_MAX)
@@ -246,6 +269,7 @@ export class TaskQueue {
         ...(workflowSent ? { workflowSent } : {}),
         ...(opts?.cardAsk ? { cardAsk: opts.cardAsk } : {}),
         ...(opts?.run ? { run: opts.run } : {}),
+        ...(opts?.later !== undefined ? { later: opts.later } : {}),
         ts: now()
       }
       // Only the user's own plain message goes into a running reply: a command or /todo is read only at a turn's start (a typed
@@ -664,7 +688,8 @@ export class TaskQueue {
       task.auto,
       task.workflowSent,
       task.cardAsk,
-      task.run
+      task.run,
+      task.later
     )
   }
 
@@ -679,7 +704,8 @@ export class TaskQueue {
     auto?: true,
     workflowSent?: WorkflowSent,
     cardAsk?: CardAsk,
-    run?: RunMark
+    run?: RunMark,
+    later?: number
   ): Started {
     const chatId = meta.id
     return this.begin(chatId, () =>
@@ -690,7 +716,8 @@ export class TaskQueue {
             todo,
             workflowSent,
             auto,
-            run
+            run,
+            later
           )
         : withAuto(
             (...tail) => this.d.chats.send(chatId, text, attachments, replyTo, messageId, ...tail),
@@ -699,7 +726,8 @@ export class TaskQueue {
             auto,
             workflowSent,
             cardAsk,
-            run
+            run,
+            later
           )
     )
   }

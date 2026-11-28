@@ -95,7 +95,7 @@ export function MessageEditor({
   const [active, setActive] = useState(0)
   const commands: CommandOption[] =
     commandAgents && slash
-      ? filterCommands(slash.query, commandAgents, { afterTodo: slash.afterTodo, todo: offersTodo(commandAgents), runWorkflow: false })
+      ? filterCommands(slash.query, commandAgents, { afterTodo: slash.afterTodo, todo: offersTodo(commandAgents), runWorkflow: false, later: false })
       : []
   const mentions: MentionOption[] = mentionMembers && query ? mentionOptions(query.query, mentionMembers, everyone) : []
   const commandOpen = typed && focused && slash !== null && slashClosedAt !== slash.from && commands.length > 0

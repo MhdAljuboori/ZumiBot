@@ -8,6 +8,7 @@ import type { AgentSummary } from '@zumibot/shared/types'
 import type { DraftFiles } from '../state/draftFiles'
 import { folderName } from '../state/sidebarTree'
 import { ISLAND_BTW_NOTICE, ISLAND_RUN_WORKFLOW_NOTICE, type IslandMarks } from '../state/island'
+import { NEW_CHAT_LATER_NOTICE } from '../state/newChat'
 import type { RecentRow } from '../state/islandView'
 import { useDismiss } from '../useDismiss'
 import { BotIcon } from './BotIcon'
@@ -363,6 +364,7 @@ export function IslandNewChat({
         noBtw={ISLAND_BTW_NOTICE}
         runWorkflow={false}
         noRunWorkflow={ISLAND_RUN_WORKFLOW_NOTICE}
+        noLater={NEW_CHAT_LATER_NOTICE}
         onDraftChange={onDraftChange}
         onSend={onSend}
         files={files}

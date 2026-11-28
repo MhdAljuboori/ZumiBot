@@ -15,6 +15,7 @@ import { GROUP_LABEL, GROUP_PLACEHOLDER, memberAgents, membersLabel } from '../s
 import { NO_FOLDER_LABEL } from '@zumibot/shared/scratch'
 import {
   NEW_CHAT_RUN_WORKFLOW_NOTICE,
+  NEW_CHAT_LATER_NOTICE,
   groupBlockedReason,
   newChatTarget,
   parentPath,
@@ -212,6 +213,7 @@ export function NewChatView({
         btw={engineCaps(engine).btw}
         runWorkflow={false}
         noRunWorkflow={NEW_CHAT_RUN_WORKFLOW_NOTICE}
+        noLater={NEW_CHAT_LATER_NOTICE}
         onDraftChange={(text) => onDraftChange({ ...draft, text })}
         onSend={onSend}
         files={files}

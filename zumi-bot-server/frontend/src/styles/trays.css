@@ -284,3 +284,19 @@
   cursor: default;
   opacity: 0.55;
 }
+/* A /later row: when it goes, where a queued row's dot is, then its text. */
+.later-when {
+  flex: none;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+/* Under the box while the text is a /later: when it would go, or why it cannot (not red: it may still be mid-typing). */
+.later-preview {
+  padding: 0 8px 6px;
+  color: var(--fg-muted);
+  font-size: 12.5px;
+}
+.later-preview[data-state='error'] {
+  color: var(--warning);
+}

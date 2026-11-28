@@ -1,6 +1,6 @@
 ---
 title: Slash commands
-description: Type / in the message box to run a saved prompt from your agent, ask a side question, or start a workflow.
+description: Type / in the message box to run a saved prompt from your agent, ask a side question, start a workflow, or send a message later.
 sidebar:
   order: 5
 ---
@@ -35,8 +35,32 @@ After you send, your message shows the command as a colored chip. Choose the chi
 | `/btw` | Ask on the side; the run keeps going. See [/btw side questions](/chatting/side-questions/). |
 | `/todo` | Put this reply's action items on the chat's to-do list. Type it, a space, and `/` again, and the menu reopens so you can add an agent command after it. |
 | `/run-workflow` | Start a workflow. After the command and a space, a **Workflows** list shows your workflows by name. Pick one, and the text after its name becomes its input. |
+| `/later` | Send a message into this chat at a set time. See [Send a message later](#send-a-message-later). |
 
 `/run-workflow` needs an open chat, so it is not offered on the new-chat screen. When the workflow starts, a "Started" notice appears with an **Open run** button.
+
+## Send a message later
+
+`/later 9am check CI on this PR` picks the same chat back up at 9:00: the chat gets "check CI on this PR" as if you had typed it then, and the agent gets to work. It is a one-off reminder for the agent, lighter than setting up a [routine](/automation/routines/).
+
+Write the time first, then the message. While you type, a line under the box says when it will go, such as "Sends tomorrow at 09:00".
+
+| You type | It goes |
+| --- | --- |
+| `9am`, `9:30pm`, `21:30`, `noon`, `midnight` | At that time today, or tomorrow if it has already passed |
+| `in 20m`, `in 2h`, `in 1h30m`, `in 1d` | That long from now |
+| `tomorrow 9am`, `mon 9am`, `friday 17:00` | On that day; a weekday means the next one |
+
+Times are read in your browser's time zone, even when ZumiBot runs on a server somewhere else. A message can wait up to 30 days, and a chat can hold up to 10.
+
+Waiting messages show in the **Later** list above the message box, each with its time. **Send now** sends it at once, and **×** cancels it. When it goes, it shows in the chat with "Sent by /later" under it.
+
+- Messages you send in the meantime do not cancel it.
+- If the agent is still replying at that time, it waits in the **Tasks** list and goes after the reply. In a paused chat it waits for **Resume**.
+- If ZumiBot was off at that time, the message goes as soon as it starts again.
+- It works in group rooms too: mention a member, such as `/later 9am @reviewer check the PR`, to ask that member.
+- It needs an open chat, so the new-chat screen does not offer it. A `/later` message carries text only, not files.
+- [Sync](/desktop/sync/) drops messages still waiting, since both machines would send them; it tells you how many, so you can type them again.
 
 ## Your agent's commands
 
@@ -48,7 +72,7 @@ If you type a `/name` that no command has, it is sent as typed.
 
 ## Commands from the agent's engine
 
-In a single chat (and on the new-chat screen), the menu also lists what the agent's own engine can run. A Claude agent shows its Claude Code commands: skills, plugin commands, your own commands and the built-ins that do something, such as `/goal`. A Codex agent shows its Codex skills. The menu lists your agent's own commands first, then ZumiBot's (`/btw`, `/todo`, `/run-workflow`), then the engine's skills, labelled `skill`, then the engine's other commands, labelled `claude` or `codex`. Pick one and send it like any other command; a Claude Code command is sent exactly as you typed it, and ZumiBot sends a Codex skill as `$name`.
+In a single chat (and on the new-chat screen), the menu also lists what the agent's own engine can run. A Claude agent shows its Claude Code commands: skills, plugin commands, your own commands and the built-ins that do something, such as `/goal`. A Codex agent shows its Codex skills. The menu lists your agent's own commands first, then ZumiBot's (`/btw`, `/todo`, `/run-workflow`, `/later`), then the engine's skills, labelled `skill`, then the engine's other commands, labelled `claude` or `codex`. Pick one and send it like any other command; a Claude Code command is sent exactly as you typed it, and ZumiBot sends a Codex skill as `$name`.
 
 Built-ins that only open a screen or change a setting, such as `/model` and `/usage`, are left out, since ZumiBot has its own controls for those. So are commands that hand the work to the other engine, such as a Claude Code plugin's `/codex:rescue`: a Claude chat lists only Claude's commands, and a Codex chat only Codex's. If you type the name yourself and the agent has its own command with it, the agent's command runs; pick the engine row from the menu to run the engine's. Group rooms do not list these. The list can take a few seconds the first time for a folder, and refreshes in the background. A skill, command or plugin you add outside ZumiBot, in your Claude Code folder (`~/.claude`) or in the chat folder's own `.claude` folder, joins the menu of open chats within a few seconds, with no restart.
 

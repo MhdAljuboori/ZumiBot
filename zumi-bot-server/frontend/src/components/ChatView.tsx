@@ -70,6 +70,7 @@ import { useEngineCommands } from '../net/useEngineCommands'
 import { coldNoticeShown } from '../state/contextMeter'
 import { chatCaps, cliMissing, missingFeaturesTitle, roomMissingFeaturesTitle } from '../state/agentEngine'
 import { TasksTray } from './TasksTray'
+import { LaterTray } from './LaterTray'
 import { ReplyOptions } from './ReplyOptions'
 import { PausingLine } from './PausingLine'
 
@@ -142,6 +143,9 @@ interface Props {
   onDropTask: (taskId: string) => Promise<boolean>
   /** Sends a queued message now; offered only while the queue holds its tasks (a paused group, or a held chat). */
   onSendTask: (taskId: string) => Promise<boolean>
+  /** The Later tray's × and Send now on a /later message; each resolves false when it failed. */
+  onLaterCancel: (id: string) => Promise<boolean>
+  onLaterNow: (id: string) => Promise<boolean>
   /** Compacts the agent's context (a room: the member's); a failure is shown through the chat's send error. */
   onCompact: (note: string, agent?: string) => void
   /** A single chat back on its agent's own model (a command had started it on another). */
@@ -341,6 +345,8 @@ export function ChatView({
   onExportReply,
   onDropTask,
   onSendTask,
+  onLaterCancel,
+  onLaterNow,
   onCompact,
   onSetModel,
   onSetPermissionMode,
@@ -617,6 +623,17 @@ export function ChatView({
     />
   )
 
+  // Over the tasks: those go next, these at their own times.
+  const laterTray = (chat.later?.length ?? 0) > 0 && (
+    <LaterTray
+      later={chat.later ?? []}
+      open={!collapsed.has('later')}
+      onToggle={() => toggleTray('later')}
+      onCancel={onLaterCancel}
+      onSendNow={!offline && cliFound ? onLaterNow : null}
+    />
+  )
+
   // Compacting is its own run: it waits for the reply, like an edit would not.
   const meter = (
     <ContextMeter
@@ -673,6 +690,7 @@ export function ChatView({
         {cold}
         {chat.pause === 'pausing' && chat.inFlight && <PausingLine running={runningAgents} />}
         {/* Right over the box: the queued messages read as what goes next from it. */}
+        {laterTray}
         {tasksTray}
         <Composer
           label={GROUP_LABEL}
@@ -729,6 +747,7 @@ export function ChatView({
       {list}
       {cold}
       {chat.pause === 'pausing' && chat.inFlight && <PausingLine running={runningAgents} />}
+      {laterTray}
       {tasksTray}
       <Composer
         label={`Message ${displayName(agent.name)}`}

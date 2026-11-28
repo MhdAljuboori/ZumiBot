@@ -94,7 +94,8 @@ const fakes = () => ({
         _auto?: true,
         _sent?: WorkflowSent,
         _cardAsk?: CardAsk,
-        _run?: RunMark
+        _run?: RunMark,
+        _later?: number
       ) => claim(chatId)
     ),
     rerun: vi.fn((chatId: string, _userId: string, _text: string | null) => {
@@ -2787,5 +2788,81 @@ describe('TaskQueue.rerun of a mid-turn message', () => {
     await expect(q.rerun(c.id, 's1', null)).rejects.toThrow(STEERED_ITEM_FIXED)
     expect(f.chats.stop).not.toHaveBeenCalled()
     expect(f.chats.rerun).not.toHaveBeenCalled()
+  })
+})
+
+describe('/later messages (from later)', () => {
+  const at = 1_800_000_000_000
+  const laterSubmit = (id: string, text: string, messageId: string) =>
+    q.submit(id, text, [], undefined, messageId, undefined, undefined, 'later', undefined, { later: at })
+
+  it('launches an idle chat with its mark after the run slot, and no auto', async () => {
+    const c = await single()
+    const p = laterSubmit(c.id, 'check CI', 'm1')
+    await flush()
+    expect(f.chats.send.mock.calls[0]).toEqual([c.id, 'check CI', [], undefined, 'm1', undefined, undefined, undefined, undefined, undefined, undefined, at])
+    turns[0]!.resolve()
+    await p
+  })
+
+  it('queues while the chat runs, keeping its mark, and never steers', async () => {
+    const c = await single()
+    const first = q.submit(c.id, 'go', [], undefined, 'm1')
+    await flush()
+    await expect(
+      q.submit(c.id, 'check CI', [], undefined, 'm2', undefined, undefined, 'later', undefined, { later: at, steer: true })
+    ).resolves.toBe('queued')
+    expect(f.chats.steer).not.toHaveBeenCalled()
+    const task = (await store.get(c.id))?.tasks?.[0]
+    expect(task).toMatchObject({ id: 'm2', later: at })
+    expect(task).not.toHaveProperty('auto')
+    turns[0]!.resolve()
+    await first
+    q.idle(c.id)
+    await flush()
+    expect(f.chats.send.mock.calls[1]?.[11]).toBe(at)
+  })
+
+  it('waits, held, in a paused chat and keeps the pause', async () => {
+    const c = await single()
+    await store.update(c.id, { pause: 'paused' })
+    await expect(laterSubmit(c.id, 'check CI', 'm1')).resolves.toBe('queued')
+    await flush()
+    expect(f.chats.send).not.toHaveBeenCalled()
+    expect(await store.get(c.id)).toMatchObject({ pause: 'paused', held: true, tasks: [{ id: 'm1', later: at }] })
+  })
+
+  it('queues behind a usage limit wait and does not end it', async () => {
+    const calls: string[] = []
+    q = new TaskQueue({
+      store: tracked(store),
+      chats: f.chats,
+      groups: f.groups,
+      files: f.files,
+      push: (p) => {
+        pushes.push(p)
+      },
+      now: () => 5000,
+      newId: () => `id-${++n}`,
+      onNewTurn: async (chatId) => {
+        calls.push(chatId)
+      }
+    })
+    const c = await single()
+    await store.update(c.id, { resume: { at: 9000, after: 'u1', waits: 1 } })
+    await expect(laterSubmit(c.id, 'check CI', 'm1')).resolves.toBe('queued')
+    await flush()
+    expect(calls).toEqual([])
+    expect(f.chats.send).not.toHaveBeenCalled()
+    expect((await store.get(c.id))?.resume).toBeDefined()
+  })
+
+  it('a room gets the mark after the run slot', async () => {
+    const g = await group()
+    const p = laterSubmit(g.id, '@ui check CI', 'm1')
+    await flush()
+    expect(f.groups.send.mock.calls[0]).toEqual([g.id, '@ui check CI', [], undefined, 'm1', undefined, undefined, undefined, undefined, undefined, at])
+    posts[0]!.resolve()
+    await p
   })
 })

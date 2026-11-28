@@ -418,3 +418,12 @@ button.command-chip:not(.broken):hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Under a message written ahead with /later: the user was not there when it went. */
+.later-note {
+  align-self: flex-end;
+  margin: -10px 4px 0 0;
+  padding: 0 4px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  line-height: 18px;
+}

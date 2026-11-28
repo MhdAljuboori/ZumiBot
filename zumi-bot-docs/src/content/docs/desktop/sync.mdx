@@ -57,6 +57,7 @@ The settings page can also start a sync from a browser. There, **Sync** shows an
 - **Backups.** Before anything changes, Sync copies the data it will replace to a folder named `zumibot-sync-backup` with the time, in your home folder on this computer and on the server. The log gives both names. Sync does not remove old ones, so delete them yourself when you no longer need them.
 - **A reply on the server blocks Sync.** The log says "N replies running on the VPS. Sync again once they finish." On this computer it says "N replies running on this PC. Wait for them to finish, then retry."
 - **You cannot quit while it runs.** Quitting is held until Sync ends.
+- **Messages waiting with `/later` are dropped,** since both machines would send them. The log says how many, so you can [type them again](/chatting/slash-commands/#send-a-message-later).
 - **Telegram and Slack bots.** Because channels arrive switched off on this computer, only the server runs your bots.
 - **Local mode and a server stay separate otherwise.** Sync is how they meet. See [Local mode and server mode](/desktop/local-vs-server/).
 

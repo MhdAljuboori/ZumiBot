@@ -38,7 +38,8 @@ export function isTimeZone(tz: string): boolean {
     return false
   }
 }
-function parts(ts: number, tz: string) {
+/** The wall clock in `tz` at `ts`. */
+export function wallClock(ts: number, tz: string) {
   const p = Object.fromEntries(
     formatter(tz)
       .formatToParts(ts)
@@ -47,15 +48,16 @@ function parts(ts: number, tz: string) {
   return { year: +p.year, month: +p.month, day: +p.day, hour: +p.hour, minute: +p.minute, second: +p.second }
 }
 function offsetAt(ts: number, tz: string): number {
-  const p = parts(ts, tz)
+  const p = wallClock(ts, tz)
   return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - Math.floor(ts / 1000) * 1000
 }
-function zonedToUtc(y: number, mo: number, d: number, h: number, mi: number, tz: string): number {
+/** The instant of a wall-clock minute in `tz`; a minute a DST gap skips gives the gap's first valid minute. */
+export function zonedToUtc(y: number, mo: number, d: number, h: number, mi: number, tz: string): number {
   const guess = Date.UTC(y, mo - 1, d, h, mi)
   const offsets = new Set([-86_400_000, 0, 86_400_000].map((delta) => offsetAt(guess + delta, tz)))
   const candidates = [...offsets].map((offset) => guess - offset).sort((a, b) => a - b)
   const matches = candidates.filter((t) => {
-    const p = parts(t, tz)
+    const p = wallClock(t, tz)
     return p.year === y && p.month === mo && p.day === d && p.hour === h && p.minute === mi
   })
   if (matches.length) return matches[0]
@@ -65,7 +67,7 @@ function zonedToUtc(y: number, mo: number, d: number, h: number, mi: number, tz:
   const first = candidates[0],
     last = candidates[candidates.length - 1]
   for (let t = first; t <= last; t += 60_000) {
-    const p = parts(t, tz)
+    const p = wallClock(t, tz)
     if (p.year === y && p.month === mo && p.day === d && p.hour * 60 + p.minute >= target) return t
   }
   return last
@@ -216,7 +218,7 @@ function findNextRun(s: Schedule, timeZone: string, after: number): number | nul
     return result > after ? result : null
   }
   const c = cronFor(s)
-  let local = parts(after, timeZone)
+  let local = wallClock(after, timeZone)
   let day = new Date(Date.UTC(local.year, local.month - 1, local.day))
   const limitYear = local.year + 8
   for (let i = 0; i <= 8 * 366; i++) {

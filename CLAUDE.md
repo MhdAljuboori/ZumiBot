@@ -66,7 +66,7 @@ Feature detail lives in `docs/architecture/`, one doc per area. Before changing 
 - [Edit, Resend, Fork](docs/architecture/edit-resend-fork.md): `versions.ts`, `fork.ts`, `sessionPoints.ts`, version switcher
 - [Mid-turn messages](docs/architecture/mid-turn-messages.md): `steer.ts`, `sendKeys.ts`
 - [Room clone](docs/architecture/room-clone.md): `roomClone.ts`, `roomSummary.ts`, `CloneRoomDialog.tsx`
-- [Agent commands](docs/architecture/agent-commands.md): `shared/src/commands.ts`, `commandResolver.ts`, `/` menu, `ModelPicker.tsx`
+- [Agent commands](docs/architecture/agent-commands.md): `shared/src/commands.ts`, `commandResolver.ts`, `/` menu, `ModelPicker.tsx`, `/later`
 - [Chat mode and effort](docs/architecture/chat-mode-and-effort.md): `shared/src/chatRun.ts`, `runPickers.ts`, `ChoicePicker.tsx`, Plan mode's approval
 - [`/btw` side questions](docs/architecture/side-questions.md): `core/btw/`, `SidePanel.tsx`, `SideThreadView.tsx`
 - [Thinking](docs/architecture/thinking.md): `thinkingDisplay.ts` (`--thinking-display`), `ThoughtRow.tsx`, `thought`, `thoughtBy`

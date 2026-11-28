@@ -158,6 +158,7 @@ export interface QueuedTask {
   auto?: true // a routine's or workflow's message, not typed by the user
   workflowSent?: WorkflowSent
   run?: RunMark // hidden from the user: the agent's result of a Run
+  later?: number // a /later message: the time it was set for
   ts: number
 }
 
@@ -201,6 +202,7 @@ export interface ChatMeta {
   voice?: true // made by a voice request: only the sidebar's mic mark reads it; absent = a plain chat
   channel?: import('./channels').ChatChannelMark // the chat is the current chat of a paired channel conversation (only the sidebar mark reads it); absent = none
   resume?: import('./limitResume').LimitResume // the usage limit stopped the last turn and it continues by itself at the reset; absent = no wait
+  later?: import('./later').LaterSend[] // messages the user wrote with /later, soonest first, each going in at its time (agent-commands.md, /later); absent = none
   worktree?: ChatWorktree // the git worktree the chat or room runs in (see worktree.ts); absent = a plain chat
   task?: TodoTaskLink // made by giving a to-do card to its agent (see todos.ts); absent = a plain chat
   cardComments?: TodoTaskLink // where an agent answers the comments that mention it on that card (one per card and agent)
@@ -469,6 +471,7 @@ export type ChatItem = (
       from?: string
       workflowSent?: WorkflowSent
       run?: RunMark // hidden from the user: the agent's result of a Run
+      later?: number // written with /later: the time it was set for (the bubble's note)
       engine?: 'ag-ui'
       ack?: string // ZumiBot's line on what the agent is about to do (acknowledge.ts), drawn as the reply's first bubble; no agent reads it
       steered?: true // sent into a running reply, which read it mid-turn: no Edit, Resend or Fork (it sits inside that reply)
@@ -700,6 +703,10 @@ export interface ZumiBotApi {
     setEffort(chatId: string, effort: Effort | null): Promise<void> // a single Claude chat's --effort from its next turn; null = Medium (DEFAULT_EFFORT)
     cancelResume(chatId: string): Promise<void> // Don't continue: the chat the usage limit stopped no longer continues by itself at the reset, and its queued tasks wait for the user
     continueNow(chatId: string): Promise<void> // Continue now: the usage limit wait's continue goes in at once, ahead of the queued tasks
+    // `/later <when> <message>`: `text` is the composer's text, read in the browser's `timeZone` (agent-commands.md, /later). Resolves with what was stored.
+    later(chatId: string, text: string, timeZone: string): Promise<import('./later').LaterSend>
+    laterCancel(chatId: string, id: string): Promise<void> // the Later tray's ×
+    laterNow(chatId: string, id: string): Promise<void> // the Later tray's Send now: it goes in as if its time had come
     stop(chatId: string): Promise<void>
     pause(chatId: string): Promise<void> // lets the reply wrap up and holds the next step until resume
     resume(chatId: string): Promise<void> // sends RESUME_TEXT to a paused chat

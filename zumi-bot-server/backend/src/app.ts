@@ -66,6 +66,8 @@ import { capEngines } from './core/caps/capEngines'
 import { SpendCaps } from './core/caps/spendCaps'
 import { RoutineRunner } from './core/routines/routineRunner'
 import { LimitResumes } from './core/chat/limitResumes'
+import { LaterSends } from './core/chat/laterSends'
+import { splitTodo } from '@zumibot/shared/todos'
 import { RoutineStore } from './core/routines/routineStore'
 import { createScheduler } from './core/routines/scheduler'
 import { routineEditing } from './core/routines/routineEditing'
@@ -1536,6 +1538,25 @@ export async function startServer(
         return extensions.engineCommands(folder, agent).catch(() => null)
       }
     })
+    // `/later` messages (agent-commands.md, /later): each goes in at its time as the user's own, resolved as a typed message would be then.
+    const laterSends = new LaterSends({
+      store: chats,
+      send: async (chatId, text, at, messageId) => {
+        const { todo, rest } = splitTodo(text)
+        const command = await commands.forSend(chatId, rest)
+        const asks = todo || command?.todos === true ? (true as const) : undefined
+        // Settles once the message is stored or queued, not when its turn ends; `once` under its own id, so one already in
+        // the chat (sent just before a crash) is not sent again.
+        await new Promise<void>((resolve, reject) => {
+          tasks
+            .submit(chatId, text, [], undefined, messageId, command, asks, 'later', undefined, { once: true, later: at, committed: () => resolve() })
+            .catch(reject)
+        })
+      },
+      push,
+      now: () => Date.now(),
+      newId: () => randomUUID()
+    })
     // Whether a routine's or workflow's spend cap can hold for its agents' engines: at save, and again where a run starts.
     const capEngineCheck = capEngines({ agents: () => agents.list(), chats })
     runner = new RoutineRunner({
@@ -2064,6 +2085,7 @@ export async function startServer(
       push,
       reads,
       limits,
+      later: laterSends,
       chatRemoved: (id) => notify.chatRemoved(id),
       attachments: files,
       snapshots,
@@ -2161,6 +2183,7 @@ export async function startServer(
       workflowScheduler.stop()
       stopWatchers()
       limits.stop()
+      laterSends.stop()
       tasks.shutdown()
       summaries.stopAll()
       keepWarm.stop()
@@ -2211,6 +2234,8 @@ export async function startServer(
     // A chat the usage limit stopped before the restart still continues at its reset (or now, when that passed). A
     // paused chat's wait sends nothing: it is dropped when it comes due.
     await step('recovering usage limit waits', () => limits.recover())
+    // A /later whose time passed while the server was off goes now.
+    await step('recovering /later messages', () => laterSends.recover())
     // Folders of chats deleted while the server was off (or of a copied-in data dir). Only the count is logged.
     await step('sweeping chat temp folders', async () => {
       const removed = await tmp.sweep((await chats.list()).map((c) => c.id))
@@ -2326,6 +2351,7 @@ export async function startServer(
         stopWatchers() // nor a file change or a new mail starting one
         runner.stop() // nor a usage-limit wait resuming; recover() arms it again at the next start
         limits.stop() // the same for a chat's own wait
+        laterSends.stop() // and for a /later message; recover() arms them again
         // No Wait or limit timer fires and no step result is written from here on; the runs stay as stored for recover().
         workflowRunner.stop()
         bare.stopAll() // after stop(): a call killed before it would be written as a failed visit and reported

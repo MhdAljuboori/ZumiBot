@@ -1,3 +1,4 @@
+import { LATER_ERRORS, LATER_NESTED } from '@zumibot/shared/later'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { promises as fs } from 'node:fs'
 import os from 'node:os'
@@ -126,6 +127,7 @@ let dispatchSvc: DispatchService
 let tasks: TaskQueue
 let cancelled: string[]
 let continued: string[]
+let laters: unknown[][] // calls to the /later service: [verb, ...args]
 let forSend: Mock<(...a: any[]) => Promise<unknown>>
 let forRerun: Mock<(...a: any[]) => Promise<unknown>>
 let pushed: ChatPush[]
@@ -244,6 +246,7 @@ beforeEach(async () => {
   tasks = new TaskQueue({ store, chats: svc, groups: {} as never, files, push: () => {}, now: () => 5000, newId: () => `t${++n}` })
   cancelled = []
   continued = []
+  laters = []
   suggested = []
   forSend = vi.fn(async () => undefined)
   forRerun = vi.fn(async () => undefined)
@@ -391,6 +394,18 @@ beforeEach(async () => {
         continued.push(id)
       }
     },
+    later: {
+      add: async (id, at, text) => {
+        laters.push(['add', id, at, text])
+        return { id: 'l1', at, text, createdAt: 1 }
+      },
+      cancel: async (id, laterId) => {
+        laters.push(['cancel', id, laterId])
+      },
+      sendNow: async (id, laterId) => {
+        laters.push(['now', id, laterId])
+      }
+    },
     attachments: files,
     snapshots,
     restoreFile: async (...args) => {
@@ -481,6 +496,9 @@ const KEPT = [
   'chats:setEffort',
   'chats:cancelResume',
   'chats:continueNow',
+  'chats:later',
+  'chats:laterCancel',
+  'chats:laterNow',
   'chats:answer',
   'chats:answerQuestions',
   'chats:answerPlan',
@@ -1906,7 +1924,10 @@ describe('createHandlers', () => {
       ['chats:setEffort', (c) => [c.id, 'high']],
       ['chats:pause', (c) => [c.id]],
       ['chats:resume', (c) => [c.id]],
-      ['chats:continueNow', (c) => [c.id]]
+      ['chats:continueNow', (c) => [c.id]],
+      ['chats:later', (c) => [c.id, '/later in 2h check CI', 'UTC']],
+      ['chats:laterCancel', (c) => [c.id, 'l1']],
+      ['chats:laterNow', (c) => [c.id, 'l1']]
     ]
     it.each(calls)('%s rejects and runs nothing', async (name, args) => {
       const c = await askedChat()
@@ -1921,6 +1942,7 @@ describe('createHandlers', () => {
       for (const spy of [submit, rerun, compact, pause, resume, ask]) expect(spy).not.toHaveBeenCalled()
       expect(await store.loadItems(c.id)).toHaveLength(1)
       expect(continued).toEqual([])
+      expect(laters).toEqual([])
     })
     it('btw:ask is still taken, while chats:send on the same chat is refused', async () => {
       const c = await askedChat()
@@ -2312,6 +2334,40 @@ describe('createHandlers', () => {
     const c = await store.create('alpha', dir)
     await h['chats:continueNow'](c.id)
     expect(continued).toEqual([c.id])
+  })
+
+  describe('/later', () => {
+    it('stores the message at the time read in the given zone', async () => {
+      const c = await store.create('alpha', dir)
+      const before = Date.now()
+      const out = await h['chats:later'](c.id, '/later in 2h check CI\non this PR', 'Europe/Berlin')
+      const [verb, id, at, text] = laters[0] as [string, string, number, string]
+      expect([verb, id, text]).toEqual(['add', c.id, 'check CI\non this PR'])
+      expect(at - before).toBeGreaterThanOrEqual(7_200_000)
+      expect(at - Date.now()).toBeLessThanOrEqual(7_200_000)
+      expect(out).toMatchObject({ id: 'l1', text: 'check CI\non this PR' })
+    })
+
+    it('refuses a bad zone, an unreadable time, no message and a nested command, storing nothing', async () => {
+      const c = await store.create('alpha', dir)
+      await expect(h['chats:later'](c.id, '/later in 2h x', 'Mars/Base')).rejects.toThrow(/timeZone must be a time zone/)
+      await expect(h['chats:later'](c.id, '/later soon x', 'UTC')).rejects.toThrow(LATER_ERRORS.noTime)
+      await expect(h['chats:later'](c.id, '/later 9am', 'UTC')).rejects.toThrow(LATER_ERRORS.noMessage)
+      await expect(h['chats:later'](c.id, '/later in 2h /btw why', 'UTC')).rejects.toThrow(LATER_NESTED)
+      await expect(h['chats:later'](c.id, '/later in 2h /later 9am x', 'UTC')).rejects.toThrow(LATER_NESTED)
+      expect(laters).toEqual([])
+    })
+
+    it('cancel and send now check their ids and reach the service', async () => {
+      const c = await store.create('alpha', dir)
+      await expect(h['chats:laterCancel'](c.id, 5)).rejects.toThrow(/id must be a string/)
+      await h['chats:laterCancel'](c.id, 'l1')
+      await h['chats:laterNow'](c.id, 'l2')
+      expect(laters).toEqual([
+        ['cancel', c.id, 'l1'],
+        ['now', c.id, 'l2']
+      ])
+    })
   })
 
   it("switchVersion rejects -1, 1.5 and '2'", async () => {

@@ -1,3 +1,4 @@
+import { LATER_DESCRIPTION } from '@zumibot/shared/later'
 import { describe, expect, it } from 'vitest'
 import type { CommandPick, CommandSummary } from '@zumibot/shared/commands'
 import type { AgentSummary } from '@zumibot/shared/types'
@@ -52,7 +53,7 @@ const ids = (options: readonly CommandOption[]): string[] =>
 
 describe('filterCommands btw option', () => {
   it('leaves out the btw built-in when btw is false, keeps todo and agent commands', () => {
-    expect(ids(filterCommands('', [wk], { btw: false }))).toEqual(['wk/check', 'wk/fix', 'builtin/todo', 'builtin/run-workflow'])
+    expect(ids(filterCommands('', [wk], { btw: false }))).toEqual(['wk/check', 'wk/fix', 'builtin/todo', 'builtin/run-workflow', 'builtin/later'])
     expect(ids(filterCommands('bt', [wk], { btw: false }))).toEqual([])
   })
   it('keeps btw by default and when btw is true', () => {
@@ -63,12 +64,12 @@ describe('filterCommands btw option', () => {
 
 describe('filterCommands todo option', () => {
   it('leaves out the todo built-in when todo is false, keeps btw and agent commands', () => {
-    expect(ids(filterCommands('', [wk], { todo: false }))).toEqual(['wk/check', 'wk/fix', 'builtin/btw', 'builtin/run-workflow'])
+    expect(ids(filterCommands('', [wk], { todo: false }))).toEqual(['wk/check', 'wk/fix', 'builtin/btw', 'builtin/run-workflow', 'builtin/later'])
     expect(ids(filterCommands('tod', [wk], { todo: false }))).toEqual([])
   })
   it('also leaves out an agent command that makes to-dos by itself: the server would refuse it', () => {
-    expect(ids(filterCommands('', [flagged], { todo: false, btw: false, runWorkflow: false }))).toEqual([])
-    expect(ids(filterCommands('', [flagged], { btw: false, runWorkflow: false }))).toEqual(['fl/my-day', 'builtin/todo'])
+    expect(ids(filterCommands('', [flagged], { todo: false, btw: false, runWorkflow: false, later: false }))).toEqual([])
+    expect(ids(filterCommands('', [flagged], { btw: false, runWorkflow: false, later: false }))).toEqual(['fl/my-day', 'builtin/todo'])
   })
   it('keeps todo by default and when todo is true', () => {
     expect(ids(filterCommands('tod', [wk]))).toEqual(['builtin/todo'])
@@ -84,7 +85,7 @@ describe('filterCommands run-workflow option', () => {
   it('is not offered after /todo, nor when runWorkflow is false', () => {
     expect(ids(filterCommands('run', [wk], { afterTodo: true }))).toEqual([])
     expect(ids(filterCommands('run', [wk], { runWorkflow: false }))).toEqual([])
-    expect(ids(filterCommands('', [wk], { runWorkflow: false }))).toEqual(['wk/check', 'wk/fix', 'builtin/btw', 'builtin/todo'])
+    expect(ids(filterCommands('', [wk], { runWorkflow: false }))).toEqual(['wk/check', 'wk/fix', 'builtin/btw', 'builtin/todo', 'builtin/later'])
   })
   it('hides an agent command of the same name', () => {
     const own = agent('own', [
@@ -92,6 +93,21 @@ describe('filterCommands run-workflow option', () => {
       { name: 'run-it', description: 'Other' }
     ])
     expect(ids(filterCommands('run', [own]))).toEqual(['own/run-it', 'builtin/run-workflow'])
+  })
+})
+
+describe('filterCommands later option', () => {
+  it('lists /later with its description by prefix, last among the built-ins', () => {
+    expect(filterCommands('lat', [wk])).toContainEqual({ builtin: 'later', description: LATER_DESCRIPTION })
+    expect(ids(filterCommands('', [wk], { btw: false, todo: false, runWorkflow: false }))).toEqual(['wk/check', 'wk/fix', 'builtin/later'])
+  })
+  it('is not offered after /todo, nor when later is false', () => {
+    expect(ids(filterCommands('lat', [wk], { afterTodo: true }))).toEqual([])
+    expect(ids(filterCommands('lat', [wk], { later: false }))).toEqual([])
+  })
+  it('hides an agent command of the same name', () => {
+    const own = agent('own', [{ name: 'later', description: 'Mine' }])
+    expect(ids(filterCommands('lat', [own]))).toEqual(['builtin/later'])
   })
 })
 
@@ -239,7 +255,7 @@ describe('insertCommandName', () => {
 
 describe('filterCommands', () => {
   it('lists /btw first, then every agent command in file order for an empty query', () => {
-    expect(ids(filterCommands('', [wk]))).toEqual(['wk/check', 'wk/fix', 'builtin/btw', 'builtin/todo', 'builtin/run-workflow'])
+    expect(ids(filterCommands('', [wk]))).toEqual(['wk/check', 'wk/fix', 'builtin/btw', 'builtin/todo', 'builtin/run-workflow', 'builtin/later'])
   })
   it('lists /todo after /btw with its description, and by prefix', () => {
     expect(filterCommands('to', [])).toEqual([{ builtin: 'todo', description: "Put this reply's action items on the chat's to-do list" }])
@@ -247,7 +263,7 @@ describe('filterCommands', () => {
     expect(ids(filterCommands('TO', [flagged]))).toEqual(['builtin/todo'])
   })
   it("hides an agent's own todo command like btw", () => {
-    expect(ids(filterCommands('', [flagged]))).toEqual(['fl/my-day', 'builtin/btw', 'builtin/todo', 'builtin/run-workflow'])
+    expect(ids(filterCommands('', [flagged]))).toEqual(['fl/my-day', 'builtin/btw', 'builtin/todo', 'builtin/run-workflow', 'builtin/later'])
   })
   it('after /todo lists agent commands only: no btw, no todo', () => {
     expect(ids(filterCommands('', [wk], { afterTodo: true }))).toEqual(['wk/check', 'wk/fix'])
@@ -269,7 +285,7 @@ describe('filterCommands', () => {
   })
   it('is empty when nothing matches and still offers the built-in for an agent without commands', () => {
     expect(filterCommands('zzz', [wk, rv])).toEqual([])
-    expect(ids(filterCommands('', [plain]))).toEqual(['builtin/btw', 'builtin/todo', 'builtin/run-workflow'])
+    expect(ids(filterCommands('', [plain]))).toEqual(['builtin/btw', 'builtin/todo', 'builtin/run-workflow', 'builtin/later'])
   })
   it("lists /btw first and hides an agent's own btw even for description matches", () => {
     const own = agent('own', [
@@ -282,7 +298,7 @@ describe('filterCommands', () => {
     expect(ids(filterCommands('BT', [own]))).toEqual(['own/btwin', 'builtin/btw'])
     expect(filterCommands('secret', [own])).toEqual([])
     expect(filterCommands('side', [])).toEqual([])
-    expect(ids(filterCommands('', []))).toEqual(['builtin/btw', 'builtin/todo', 'builtin/run-workflow'])
+    expect(ids(filterCommands('', []))).toEqual(['builtin/btw', 'builtin/todo', 'builtin/run-workflow', 'builtin/later'])
     expect(filterCommands('btwx', [own])).toEqual([])
   })
 })
@@ -399,6 +415,7 @@ describe('engine rows', () => {
       'builtin/btw',
       'builtin/todo',
       'builtin/run-workflow',
+      'builtin/later',
       'claude/superpowers:brainstorming',
       'claude/goal',
       'claude/review'

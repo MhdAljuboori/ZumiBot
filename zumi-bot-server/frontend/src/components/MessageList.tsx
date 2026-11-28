@@ -57,7 +57,7 @@ import { canViewMemory, memoryLine } from '../state/memoryLine'
 import { todoLines } from '../state/todoLine'
 import { findReplied, replySnippet } from '../state/reply'
 import { lineScroll } from '../state/unread'
-import { limitNoticeText, waitingErrors } from '../state/limitNotice'
+import { dayAt, limitNoticeText, waitingErrors } from '../state/limitNotice'
 import { senderText, workflowMessages } from '../state/workflowMessage'
 import { withoutRunItems } from '../state/runBlocks'
 import { AgentIntro } from './AgentIntro'
@@ -1198,7 +1198,19 @@ export function MessageList({
       : item.cardAsk
         ? cardAskPrompt(item.cardAsk, cardAskComment(item.cardAsk, item.text))
         : null
-    const footer = hasText && fullPrompt !== null && <FullPrompt prompt={fullPrompt} open={open} onToggle={flip} />
+    const promptFooter = hasText && fullPrompt !== null && <FullPrompt prompt={fullPrompt} open={open} onToggle={flip} />
+    // Written ahead with /later: the note says so, since the user was not there when it went.
+    const laterNote = item.later !== undefined && (
+      <div className="later-note" data-testid="later-note">
+        Sent by /later · set for {dayAt(item.later, Date.now(), Intl.DateTimeFormat().resolvedOptions().timeZone)}
+      </div>
+    )
+    const footer = (laterNote || promptFooter) && (
+      <>
+        {laterNote}
+        {promptFooter}
+      </>
+    )
     // Never reached the chat, or still on its way: dimmed with its warning, and nothing to do to it yet.
     if (failed[item.id] !== undefined || pendingIds.has(item.id)) {
       return (

@@ -313,6 +313,7 @@ export class GroupService {
   /** todo: the text began with /todo or used a command that makes to-dos; every member that answers it is asked for a list. */
   /** auto: no one typed the message (a routine's or workflow's); the room's member turns are unattended until the user types into it. */
   /** run: the message is the agent's copy of a Run's result: stored with the mark, and it never titles the room. */
+  /** later: the message was written with /later for this time: stored on the item for the bubble's note. */
   send(
     chatId: string,
     text: string,
@@ -323,9 +324,12 @@ export class GroupService {
     todo?: true,
     workflowSent?: WorkflowSent,
     auto?: true,
-    run?: RunMark
+    run?: RunMark,
+    later?: number
   ): Promise<void> {
-    return this.serial(chatId, () => this.post(chatId, text, attachments, replyTo, messageId, command, todo, workflowSent, auto, undefined, run))
+    return this.serial(chatId, () =>
+      this.post(chatId, text, attachments, replyTo, messageId, command, todo, workflowSent, auto, undefined, run, later)
+    )
   }
 
   /**
@@ -462,7 +466,8 @@ export class GroupService {
     workflowSent: WorkflowSent | undefined,
     auto: true | undefined,
     resume?: { saved: PausedRoom; since: number },
-    run?: RunMark
+    run?: RunMark,
+    later?: number
   ): Promise<void> {
     const { store, push, now, newId } = this.d
     if (text.trim() === '' && attachments.length === 0) throw new Error('Message is empty')
@@ -501,7 +506,8 @@ export class GroupService {
       ...(command ? { command } : {}),
       ...(todo ? { todo } : {}),
       ...(workflowSent ? { workflowSent } : {}),
-      ...(run ? { run } : {})
+      ...(run ? { run } : {}),
+      ...(later !== undefined ? { later } : {})
     }
     // A workflow room's (or a workflow-sent message's) <input> blocks are material, so an @mention inside one neither routes nor gets a notice.
     const missing = findMentions(routedText(text, run !== undefined, !!(meta.workflow || workflowSent)), members).filter(

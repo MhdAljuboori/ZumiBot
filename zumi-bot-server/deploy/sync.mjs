@@ -292,16 +292,19 @@ export function mergeChats(localChats, vpsChats, items, versions = () => null, n
     chats.push(v)
     fromVps.push(v.id)
   }
-  return { chats: chats.map(withoutWait), writes, versionWrites, copies, fromVps, forked }
+  // Counted from both sides by id: the same /later on both machines is one message the user wrote.
+  const laters = new Set([...localChats, ...vpsChats].flatMap((c) => (Array.isArray(c.later) ? c.later.map((l) => l?.id) : [])))
+  return { chats: chats.map(withoutWait), writes, versionWrites, copies, fromVps, forked, droppedLater: laters.size }
 }
 
 /**
  * A usage limit wait (`resume`) sends `continue` from whichever server holds it, and both sides get the same index:
- * kept, both machines would continue the chat. Dropped, the chat shows the limit and waits for the user.
+ * kept, both machines would continue the chat. Dropped, the chat shows the limit and waits for the user. A `/later`
+ * message (`later`) is the same: both servers would send it, so it is dropped and the sync says how many.
  */
 function withoutWait(meta) {
-  if (!('resume' in meta)) return meta
-  const { resume: _w, ...rest } = meta
+  if (!('resume' in meta) && !('later' in meta)) return meta
+  const { resume: _w, later: _l, ...rest } = meta
   return rest
 }
 
@@ -1146,6 +1149,8 @@ export async function sync({
     // 0600 like the server's: a subagent's tool results hold whatever it read.
     for (const [id, f] of dispatchWrites) writeAtomic(join(data, 'chats', `${id}.dispatch.json`), JSON.stringify(f), 0o600)
     writeAtomic(join(data, 'chats.json'), JSON.stringify({ chats: m.chats }, null, 2))
+    if (m.droppedLater > 0)
+      log(`  Dropped ${m.droppedLater} /later message${m.droppedLater === 1 ? '' : 's'} still waiting: both machines would send them. Type them again.`)
     for (const f of m.forked)
       log(`  "${f.title || f.id}" had new messages on both machines: kept ${f.local} items from this PC and ${f.vps} from the VPS.`)
     if (existsSync(join(vps, 'routines.json')))

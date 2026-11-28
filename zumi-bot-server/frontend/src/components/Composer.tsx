@@ -46,7 +46,11 @@ import { isStaging, readyIds, type DraftFiles } from '../state/draftFiles'
 import { newer, older, type Browse } from '../state/promptHistory'
 import { replySnippet } from '../state/reply'
 import { sendKeyAction, type SendHow } from '../state/sendKeys'
-import { btwRefusal, routeSend, workflowRefusal } from '../state/sideQuestions'
+import { btwRefusal, laterRefusal, routeSend, workflowRefusal } from '../state/sideQuestions'
+import { browserZone, laterPreview, laterSendError } from '../state/later'
+
+// A /later message is text alone: the files would have to wait in staging, which the server clears on restart.
+export const LATER_FILES = 'A /later message cannot carry files: send them now or remove them'
 import { spaceDictation } from '../state/voice'
 import { useDictation, useVoiceOn } from '../useDictation'
 import { DraftAttachments } from './Attachments'
@@ -101,6 +105,11 @@ interface Props {
   workflows?: readonly { id: string; name: string }[]
   /** A typed leading `/run-workflow` is not sent: this notice shows instead (no chat to run it from, or no way to open its run). */
   noRunWorkflow?: string
+  /**
+   * A typed leading `/later` is not sent: this notice shows instead (no chat yet to send it into). Absent: the `/` menu
+   * offers it, and a line under the box says when the message would go.
+   */
+  noLater?: string
   /** Files waiting to go with the next message. */
   files?: DraftFiles
   /** Files pasted from the clipboard (File objects). */
@@ -164,6 +173,7 @@ export function Composer({
   runWorkflow = true,
   workflows,
   noRunWorkflow,
+  noLater,
   files,
   onAddFiles,
   onPickFiles,
@@ -222,10 +232,17 @@ export function Composer({
   const suggested = suggestion !== undefined && latestText().trim() === '' && !dictating ? suggestion : null
   const shownPlaceholder = suggested ?? placeholder
   const canSend = ready && !empty
+  // Read on every render: each keystroke renders, and the minute it names moves with the clock only that rarely matters.
+  const laterLine = noLater === undefined ? laterPreview(latestText(), Date.now(), browserZone()) : null
   /** The send itself, with the box's latest text; a held send comes here directly, never through submit. */
   const submitText = (text: string): void => {
     if (!ready || (text.trim() === '' && !hasReady)) return
-    const refused = btwRefusal(text, noBtw) ?? workflowRefusal(text, noRunWorkflow)
+    const refused =
+      btwRefusal(text, noBtw) ??
+      workflowRefusal(text, noRunWorkflow) ??
+      laterRefusal(text, noLater) ??
+      laterSendError(text, Date.now(), browserZone()) ??
+      (hasReady && routeSend(text).kind === 'later' ? LATER_FILES : null)
     if (refused !== null) {
       setNotice(refused)
       return
@@ -287,6 +304,7 @@ export function Composer({
           btw,
           todo: offersTodo(commandAgents),
           runWorkflow,
+          later: noLater === undefined,
           engine: engineCommands
         })
       : []
@@ -592,6 +610,11 @@ export function Composer({
       {notice !== null && (
         <div className="attach-error" role="alert" data-testid="composer-notice">
           {notice}
+        </div>
+      )}
+      {laterLine && (
+        <div className="later-preview" data-testid="later-preview" data-state={laterLine.error ? 'error' : 'ok'} aria-live="polite">
+          {laterLine.text}
         </div>
       )}
       {files?.error && (

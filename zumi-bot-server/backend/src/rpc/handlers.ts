@@ -19,6 +19,9 @@ import type { CommandResolver } from '../core/chat/commandResolver'
 import type { GroupService } from '../core/chat/groupService'
 import type { ReadMarks } from '../core/chat/readMarks'
 import type { LimitResumes } from '../core/chat/limitResumes'
+import type { LaterSends } from '../core/chat/laterSends'
+import { laterNests, laterRest, parseLater, LATER_NESTED } from '@zumibot/shared/later'
+import { isTimeZone } from '@zumibot/shared/schedule'
 import type { TaskQueue } from '../core/chat/taskQueue'
 import { forkChat } from '../core/chat/fork'
 import { cloneRoom } from '../core/chat/roomClone'
@@ -290,6 +293,8 @@ export interface HandlerDeps {
   reads: Pick<ReadMarks, 'markUnread'>
   /** Chats the usage limit stopped, waiting to continue at the reset. */
   limits: Pick<LimitResumes, 'dontContinue' | 'continueNow'>
+  /** `/later` messages waiting on their chats (agent-commands.md, /later). */
+  later: Pick<LaterSends, 'add' | 'cancel' | 'sendNow'>
   /** After a chat is deleted: drops its held notifications and clears the ones on screen. */
   chatRemoved?(chatId: string): void
   attachments: AttachmentStore
@@ -1623,6 +1628,34 @@ export function createHandlers(d: HandlerDeps): Handlers {
       const id = str(chatId, 'chatId')
       await writable(id)
       return d.limits.continueNow(id)
+    },
+    // `text`: the composer's `/later <when> <message>` (the bare rest works too), read in the browser's zone. The message is
+    // checked now as a send would be (a /todo the agent cannot take, a command that no longer resolves), and resolved again
+    // when it goes, as typed then.
+    'chats:later': async (chatId, text, timeZone) => {
+      const id = str(chatId, 'chatId')
+      const body = str(text, 'text')
+      const zone = str(timeZone, 'timeZone')
+      if (!isTimeZone(zone)) throw new TypeError('timeZone must be a time zone')
+      await writable(id)
+      const parsed = parseLater(laterRest(body) ?? body.trim(), Date.now(), zone)
+      if ('error' in parsed) throw new Error(parsed.error)
+      if (laterNests(parsed.text)) throw new Error(LATER_NESTED)
+      const { todo, rest } = splitTodo(parsed.text)
+      if (todo) await refuseTodo(id)
+      const command = await commands.forSend(id, rest)
+      if (command?.todos === true) await refuseTodo(id)
+      return d.later.add(id, parsed.at, parsed.text)
+    },
+    'chats:laterCancel': async (chatId, laterId) => {
+      const id = str(chatId, 'chatId')
+      await writable(id)
+      return d.later.cancel(id, str(laterId, 'id'))
+    },
+    'chats:laterNow': async (chatId, laterId) => {
+      const id = str(chatId, 'chatId')
+      await writable(id)
+      return d.later.sendNow(id, str(laterId, 'id'))
     },
     'chats:sendTask': (chatId, taskId) => tasks.sendTask(str(chatId, 'chatId'), str(taskId, 'taskId')),
     'chats:dropTask': async (chatId, taskId) => {

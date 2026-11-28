@@ -13,6 +13,7 @@ import {
 import { COMMAND_PROMPT_MAX } from '@zumibot/shared/commands'
 import { displayName } from '@zumibot/shared/frontmatter'
 import { runWorkflowRest } from '@zumibot/shared/runWorkflow'
+import { laterRest } from '@zumibot/shared/later'
 import type { AgentSummary, ChatMeta } from '@zumibot/shared/types'
 import { mentionLabel } from './agentNames'
 
@@ -83,16 +84,22 @@ export function tooLong(texts: readonly string[]): boolean {
   return texts.some((t) => t.length > COMMAND_PROMPT_MAX)
 }
 
-export function routeSend(text: string): { kind: 'btw'; question: string } | { kind: 'workflow' } | { kind: 'send' } {
+export function routeSend(text: string): { kind: 'btw'; question: string } | { kind: 'workflow' } | { kind: 'later' } | { kind: 'send' } {
   const command = LEAD_BTW.exec(text)
   if (command) return { kind: 'btw', question: text.slice(command[0].length).trim() }
-  // The whole text goes to the server, which takes off the command and resolves the workflow's name, so nothing is cut here.
+  // The whole text goes to the server, which takes off the command (and reads the time or the workflow's name), so nothing is cut here.
+  if (laterRest(text) !== null) return { kind: 'later' }
   return runWorkflowRest(text) !== null ? { kind: 'workflow' } : { kind: 'send' }
 }
 
 /** The island has no side panel to show an answer in, so a typed leading `/btw` there is refused: the notice to show, else null. */
 export function btwRefusal(text: string, notice: string | undefined): string | null {
   return notice !== undefined && routeSend(text).kind === 'btw' ? notice : null
+}
+
+/** A place with no chat yet (the new-chat screen, the island's new chat) refuses a typed leading `/later`: the notice to show, else null. */
+export function laterRefusal(text: string, notice: string | undefined): string | null {
+  return notice !== undefined && routeSend(text).kind === 'later' ? notice : null
 }
 
 /** A place that cannot start a workflow (the island, the new-chat screen) refuses a typed leading `/run-workflow`: the notice to show, else null. */

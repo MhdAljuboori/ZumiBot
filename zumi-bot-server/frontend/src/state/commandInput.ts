@@ -7,6 +7,7 @@ import type { AgentSummary } from '@zumibot/shared/types'
 import { BTW_DESCRIPTION, BTW_NAME } from '@zumibot/shared/btw'
 import { RUN_WORKFLOW_DESCRIPTION, RUN_WORKFLOW_NAME, afterWorkflowName, runWorkflowRest } from '@zumibot/shared/runWorkflow'
 import { splitTodo, TODO_NAME } from '@zumibot/shared/todos'
+import { LATER_DESCRIPTION, LATER_NAME } from '@zumibot/shared/later'
 
 export interface AgentCommandOption {
   agent: AgentSummary
@@ -19,7 +20,7 @@ export interface EngineCommandOption {
   command: EngineCommand
 }
 
-export type CommandOption = AgentCommandOption | EngineCommandOption | { builtin: 'btw' | 'todo' | 'run-workflow'; description: string }
+export type CommandOption = AgentCommandOption | EngineCommandOption | { builtin: 'btw' | 'todo' | 'run-workflow' | 'later'; description: string }
 
 export const TODO_DESCRIPTION = "Put this reply's action items on the chat's to-do list"
 
@@ -71,7 +72,7 @@ const words = (text: string): string[] =>
 export function filterCommands(
   query: string,
   agents: readonly AgentSummary[],
-  opts: { afterTodo?: boolean; btw?: boolean; todo?: boolean; runWorkflow?: boolean; engine?: EngineCommands | null } = {}
+  opts: { afterTodo?: boolean; btw?: boolean; todo?: boolean; runWorkflow?: boolean; later?: boolean; engine?: EngineCommands | null } = {}
 ): CommandOption[] {
   const q = query.toLowerCase()
   // Built-ins only at the top level: after `/todo ` the menu is for the command the to-do list goes with.
@@ -82,13 +83,19 @@ export function filterCommands(
         ...(opts.todo !== false && TODO_NAME.startsWith(q) ? [{ builtin: 'todo' as const, description: TODO_DESCRIPTION }] : []),
         ...(opts.runWorkflow !== false && RUN_WORKFLOW_NAME.startsWith(q)
           ? [{ builtin: 'run-workflow' as const, description: RUN_WORKFLOW_DESCRIPTION }]
-          : [])
+          : []),
+        ...(opts.later !== false && LATER_NAME.startsWith(q) ? [{ builtin: 'later' as const, description: LATER_DESCRIPTION }] : [])
       ]
   const options = agents.flatMap((agent) => {
     if (agent.error !== null) return []
     // A command that makes to-dos is /todo's kin: hidden with it, since the server refuses both for an agent without the tools.
     const commands = (agent.commands ?? []).filter(
-      (c) => c.name !== BTW_NAME && c.name !== TODO_NAME && c.name !== RUN_WORKFLOW_NAME && !(opts.todo === false && c.todos === true)
+      (c) =>
+        c.name !== BTW_NAME &&
+        c.name !== TODO_NAME &&
+        c.name !== RUN_WORKFLOW_NAME &&
+        c.name !== LATER_NAME &&
+        !(opts.todo === false && c.todos === true)
     )
     const byName = commands.filter((c) => c.name.startsWith(q))
     const byWord = commands.filter((c) => !byName.includes(c) && words(c.description).some((w) => w.startsWith(q)))
@@ -200,7 +207,7 @@ export function commentCommandOptions(query: string, text: string, members: read
     text,
     members.map((m) => m.name)
   ).flatMap((n) => members.filter((m) => m.name === n))
-  return filterCommands(query, mentioned, { btw: false, runWorkflow: false }).filter((o): o is AgentCommandOption => !('builtin' in o) && !('engine' in o))
+  return filterCommands(query, mentioned, { btw: false, runWorkflow: false, later: false }).filter((o): o is AgentCommandOption => !('builtin' in o) && !('engine' in o))
 }
 
 /** A `/name` in a comment that runs: its range in the text and the agent it is tinted for (null: several own it). */

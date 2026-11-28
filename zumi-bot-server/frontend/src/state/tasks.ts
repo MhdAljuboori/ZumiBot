@@ -4,7 +4,7 @@ import { isSending, type PendingSend } from './pendingSends'
 
 /** Where the collapsed trays are remembered. */
 export const TRAYS_KEY = 'zumibot.collapsedTrays'
-export type TrayName = 'tasks'
+export type TrayName = 'tasks' | 'later'
 
 // Held, paused, or waiting out a usage limit, whose continue goes before them: the queue sends no task by itself.
 const holdsTasks = (chat: Pick<ChatMeta, 'held' | 'pause' | 'resume'>): boolean =>

@@ -1285,11 +1285,12 @@ export class ChatService {
     auto?: true,
     workflowSent?: WorkflowSent,
     cardAsk?: CardAsk,
-    run?: RunMark
+    run?: RunMark,
+    later?: number
   ): Promise<void> {
     try {
       const r = this.claim(chatId)
-      r.done = this.sendTurn(chatId, text, attachments, replyTo, messageId, command, todo, auto, workflowSent, cardAsk, run, r).finally(() =>
+      r.done = this.sendTurn(chatId, text, attachments, replyTo, messageId, command, todo, auto, workflowSent, cardAsk, run, later, r).finally(() =>
         this.endSingle(chatId, r)
       )
       return r.done
@@ -1610,6 +1611,7 @@ export class ChatService {
     workflowSent: WorkflowSent | undefined,
     cardAsk: CardAsk | undefined,
     run: RunMark | undefined,
+    later: number | undefined,
     r: Running
   ): Promise<void> {
     const { store, now, newId } = this.d
@@ -1628,7 +1630,8 @@ export class ChatService {
       ...(todo ? { todo } : {}),
       ...(workflowSent ? { workflowSent } : {}),
       ...(cardAsk ? { cardAsk } : {}),
-      ...(run ? { run } : {})
+      ...(run ? { run } : {}),
+      ...(later !== undefined ? { later } : {})
     }
     // A Run's result never titles the chat: the user did not write it.
     const title = meta.title === '' && !run ? { title: makeTitle(text.trim() ? text : (attachments[0]?.name ?? '')) } : {}
