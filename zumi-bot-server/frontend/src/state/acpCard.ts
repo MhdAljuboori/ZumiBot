@@ -27,6 +27,8 @@ export interface StudioCards {
   desktop: boolean
   /** The agent's browser profile, used only through ZumiBot's browser bridge. */
   browser: boolean
+  /** Hive recall's scope: its tools come through a ZumiBot bridge. */
+  recall: boolean
   acp: boolean
   /** A remote (AG-UI) agent's card: endpoint, auth key and header. */
   agui: boolean
@@ -47,6 +49,7 @@ export function studioCards(engine: Engine, caps: (e: Engine) => EngineCaps = en
     memory: c.memory,
     desktop: c.desktop,
     browser: c.bridges,
+    recall: c.bridges,
     acp: engine === 'acp',
     agui: engine === 'ag-ui',
     instructionsNote: engine === 'ag-ui' ? AGUI_STUDIO_TEXT.body : null

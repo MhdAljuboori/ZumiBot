@@ -37,6 +37,7 @@ describe('studioCards for a remote agent', () => {
       memory: false,
       desktop: false,
       browser: false,
+      recall: false,
       acp: false,
       agui: true,
       instructionsNote: AGUI_STUDIO_TEXT.body
@@ -47,6 +48,11 @@ describe('studioCards for a remote agent', () => {
       expect(studioCards(e)).toMatchObject({ agui: false, instructionsNote: null })
     }
     expect(studioCards('acp').acp).toBe(true)
+  })
+  it('the Recall card follows the bridges: Claude and Codex agents, never ACP or remote ones', () => {
+    expect(studioCards('claude').recall).toBe(true)
+    expect(studioCards('codex').recall).toBe(true)
+    expect(studioCards('acp').recall).toBe(false)
   })
 })
 

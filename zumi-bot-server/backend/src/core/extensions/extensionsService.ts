@@ -1,3 +1,4 @@
+import { RECALL_SERVER } from '@zumibot/shared/recall'
 import { createHash } from 'node:crypto'
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
@@ -208,7 +209,9 @@ function zumiBotAdds(agent: AgentSummary | null, engine: Engine): { servers: Loa
     'zumibot_todos',
     'zumibot_vault',
     isBot ? 'zumibot_automations' : 'zumibot_agents',
-    ...(desktop ? ['zumibot_desktop'] : [])
+    ...(desktop ? ['zumibot_desktop'] : []),
+    // Hive recall rides only on runs of an agent that has it on.
+    ...(agent?.recall ? [RECALL_SERVER] : [])
   ]
   const guardOn = VAULT_GUARD_ON[engine]
   const hooks = [

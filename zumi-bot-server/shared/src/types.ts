@@ -35,6 +35,7 @@ export interface AgentSummary {
   model?: string // the file's `model:` as written; absent = inherit
   autoCompactWindow?: number // tokens at which its session compacts; absent = the CLI's own (near the model's window)
   dailySpendCap?: number // USD the agent may spend a day (spendCaps.ts); absent = no cap
+  recall?: import('./recall').RecallScope // Hive recall scope (recall.ts); absent = off
   remoteHost?: string // a remote (AG-UI) agent's endpoint host (aguiHost), for its chip; absent = runs here, or no endpoint
 }
 

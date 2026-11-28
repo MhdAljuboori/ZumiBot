@@ -133,6 +133,9 @@ import type { AutomationTurn } from '../automations/automationIpc'
 import type { AutomationOwner } from '../automations/automationService'
 import type { ProcessOwner, ProcessTurn } from '../processes/processIpc'
 import { PROCESS_SYSTEM, RUN_SYSTEM } from '../processes/processPrompt'
+import type { RecallOwner, RecallTurn } from '../recall/recallIpc'
+import { recallSystem } from '../recall/recallPrompt'
+import { RECALL_TOOL_PREFIX, type RecallScope } from '@zumibot/shared/recall'
 import { PROCESS_START_TOOL, PROCESS_TOOL_PREFIX } from '../processes/processTools'
 import { PROCESS_REFUSALS } from '@zumibot/shared/processes'
 import { askedSystem, askSystem, QUESTIONS_DENIED } from '../asks/askPrompt'
@@ -196,6 +199,7 @@ export interface SideBase {
   desktop?: boolean // absent: the agent's runs had no desktop part (not even the unavailable prompt)
   asks: boolean // the run had the ask bridge, so a side run joins one too (sideBrowser)
   processes?: true // the run had the process bridge, so a side run joins one too, for the same tool definitions
+  recall?: true // the run had the recall bridge, likewise
   tmpDir: string | null // the main run's CLAUDE_CODE_TMPDIR: a side run must share it, or its tools would see other files
   active: boolean // retained spawn settings outlive the turn
   scrub?: ReadonlyMap<string, string> // the base agent's API key values and their labels: a side run's events and error pass through it
@@ -352,6 +356,9 @@ export interface ChatServiceDeps {
   // Background processes: on every main run of an agent whose engine has the `processes` cap (never Compact), and its side runs,
   // whose bridge refuses every call. `start` gets the card through the bridge's ask rule; the rest are this chat's own.
   processTurns?: { create(owner: ProcessOwner): ProcessTurn }
+  // Hive recall: only on runs of an agent whose `recall:` is on (read once per turn, by the spawned agent's name), and their side
+  // runs, whose bridge refuses every call. The scope is the bridge's to check per call; here it only decides the tools and the paragraph.
+  recallTurns?: { create(owner: RecallOwner): RecallTurn; scopeOf(agent: string): Promise<RecallScope | null> }
   // The agent's engine, read per turn, so a provider change applies from each chat's next message. Absent: every agent is Claude's.
   engineOf?(agent: string): Promise<Engine>
   // What each engine can do (default engineCaps). Rewinds, Compact, side questions, the Files panel and question cards read it, so
@@ -424,7 +431,9 @@ const PRIVATE_ENV = {
     'ZUMIBOT_ASKS_CAPABILITY',
     'ZUMIBOT_ASKS_IPC',
     'ZUMIBOT_AUTOMATIONS_CAPABILITY',
-    'ZUMIBOT_AUTOMATIONS_IPC'
+    'ZUMIBOT_AUTOMATIONS_IPC',
+    'ZUMIBOT_RECALL_CAPABILITY',
+    'ZUMIBOT_RECALL_IPC'
   ],
   desktop: ['ZUMIBOT_DESKTOP_CAPABILITY', 'ZUMIBOT_DESKTOP_IPC']
 } as const
@@ -945,7 +954,11 @@ export class ChatService {
     const proc = this.sideBases.get(`${chatId}\n${agent}`)?.processes
       ? this.processTurn({ chatId, agent: () => agent, turn: randomUUID(), side: true })
       : null
-    if (!todo && !vault && !ask && !automation && !proc) return browser
+    // Likewise only when the main run had one, last as there; it refuses every call.
+    const recall = this.sideBases.get(`${chatId}\n${agent}`)?.recall
+      ? this.recallTurn({ chatId, agent: () => agent, turn: randomUUID(), side: true })
+      : null
+    if (!todo && !vault && !ask && !automation && !proc && !recall) return browser
     return {
       args: [
         ...(browser?.args ?? []),
@@ -953,14 +966,16 @@ export class ChatService {
         ...(vault?.args ?? []),
         ...(ask?.args ?? []),
         ...(automation?.args ?? []),
-        ...(proc?.args ?? [])
+        ...(proc?.args ?? []),
+        ...(recall?.args ?? [])
       ],
       mcp: NO_MCP,
-      env: { ...browser?.env, ...todo?.env, ...vault?.env, ...ask?.env, ...automation?.env, ...proc?.env },
+      env: { ...browser?.env, ...todo?.env, ...vault?.env, ...ask?.env, ...automation?.env, ...proc?.env, ...recall?.env },
       prompt: browser?.prompt ?? '',
       // The merged turn's `mcp` is no bridge; a Codex side run takes these, in the main run's order, with the env above.
-      servers: [browser, todo, vault, ask, automation, proc].flatMap((t) => (t ? [t.mcp] : [])),
+      servers: [browser, todo, vault, ask, automation, proc, recall].flatMap((t) => (t ? [t.mcp] : [])),
       dispose: async () => {
+        recall?.dispose()
         proc?.dispose()
         automation?.dispose()
         if (ask) {
@@ -986,6 +1001,17 @@ export class ChatService {
       return this.d.todoTurns.create(owner)
     } catch {
       console.error('to-do tools unavailable for this run')
+      return null
+    }
+  }
+
+  /** One attempt's recall bridge, or null: an IPC that is gone (the server is stopping) only costs the run the tools. */
+  private recallTurn(owner: RecallOwner): RecallTurn | null {
+    if (!this.d.recallTurns) return null
+    try {
+      return this.d.recallTurns.create(owner)
+    } catch {
+      console.error('recall tools unavailable for this run')
       return null
     }
   }
@@ -2160,6 +2186,10 @@ export class ChatService {
     let runOff: readonly ConnectorId[] = []
     const isolationOf = (): IsolationLevel => this.d.isolation?.levelOf(ruleAgent()) ?? 'off'
     let processBridged = false // as todoBridged: only our own bridge's tools skip the card, and never start, which runs a command
+    // The spawned agent's recall scope, read once per turn with the system prompt; null = off (no bridge, no paragraph).
+    let recallScope: RecallScope | null = null
+    let recallBridged = false // as todoBridged: only our own bridge's tools skip the card
+    const ownRecall = (name: string) => recallBridged && name.startsWith(RECALL_TOOL_PREFIX)
     const ownProcess = (name: string) => processBridged && name.startsWith(PROCESS_TOOL_PREFIX) && name !== PROCESS_START_TOOL
     // A turn that started in Plan plans until its plan card is approved: no process starts before that.
     let planApproved = false
@@ -2731,6 +2761,12 @@ export class ChatService {
             tap?.decided(e.requestId, { kind: 'allowedByZumiBot', why: 'automation' })
             break
           }
+          // Recall only reads the chats the agent's own setting covers, which the user turned on: no card, rule or risk hint.
+          if (ownRecall(e.toolName)) {
+            reply(allowResponse(e.requestId, e.input))
+            tap?.decided(e.requestId, { kind: 'allowedByZumiBot', why: 'recall' })
+            break
+          }
           // list, logs, wait and stop touch only this chat's processes and start nothing: no card, rule or risk hint.
           if (ownProcess(e.toolName)) {
             reply(allowResponse(e.requestId, e.input))
@@ -3095,6 +3131,7 @@ export class ChatService {
       sandboxNet = null
       container = null
       processBridged = false
+      recallBridged = false
       runPrefixes = {}
       runOff = []
       blockedRounds = 0
@@ -3113,6 +3150,7 @@ export class ChatService {
       let ask: AskTurn | null = null
       let automation: AutomationTurn | null = null
       let proc: ProcessTurn | null = null
+      let recall: RecallTurn | null = null
       // One id for the browser turn and the vault's approvals: the fill call runs in the browser manager under it.
       const turnId = randomUUID()
       const vaultOpen = { value: true }
@@ -3220,6 +3258,11 @@ export class ChatService {
           proc = this.processTurn({ chatId, agent: ruleAgent, turn: todoKey, planning })
         processBridged = proc !== null
         for (const value of [proc?.env.ZUMIBOT_PROCESSES_CAPABILITY, proc?.env.ZUMIBOT_PROCESSES_IPC])
+          if (value) privateValues.set(value, '[private browser value]')
+        // On every attempt of a turn whose agent has recall on, a Compact too, so the tools match its other turns.
+        if (recallScope !== null && caps.bridges) recall = this.recallTurn({ chatId, agent: ruleAgent, turn: todoKey })
+        recallBridged = recall !== null
+        for (const value of [recall?.env.ZUMIBOT_RECALL_CAPABILITY, recall?.env.ZUMIBOT_RECALL_IPC])
           if (value) privateValues.set(value, '[private browser value]')
         // The agent's API keys: env for a main run only (a Compact runs no tools), but the values are scrubbed from a Compact's output too.
         const keys = this.vaultKeys(ruleAgent())
@@ -3344,13 +3387,14 @@ export class ChatService {
               bin,
               cwd,
               tmpDir,
-              browser: !!browser || todo !== null || vault !== null || ask !== null || automation !== null || proc !== null,
+              browser: !!browser || todo !== null || vault !== null || ask !== null || automation !== null || proc !== null || recall !== null,
               asks: ask !== null,
               desktop: !!desktop,
               active: true,
               live: null,
               start: resumeId === null ? null : start,
               ...(proc !== null ? { processes: true as const } : {}),
+              ...(recall !== null ? { recall: true as const } : {}),
               ...(scrub.size > 0 ? { scrub: new Map(scrub) } : {}),
               ...(ownEnv
                 ? { env: { ...ownEnv }, ownParts: { disallowedTools: own.disallowedTools.length, extraArgs: own.extraArgs.length } }
@@ -3380,11 +3424,12 @@ export class ChatService {
                 bin,
                 cwd,
                 tmpDir: null,
-                browser: !!browser || todo !== null || vault !== null || ask !== null,
+                browser: !!browser || todo !== null || vault !== null || ask !== null || recall !== null,
                 asks: ask !== null,
                 active: true,
                 live: null,
                 start: null,
+                ...(recall !== null ? { recall: true as const } : {}),
                 ...(scrub.size > 0 ? { scrub: new Map(scrub) } : {}),
                 args: {
                   agentName: spec.agentName,
@@ -3418,7 +3463,7 @@ export class ChatService {
         // socket, the temp folder, the pause flag, its own servers' Vault values); envNameError refuses such names on save, and a
         // sync join re-checks nothing.
         const envOf = (keys: Record<string, string> | undefined) =>
-          browser || todo || vault || ask || automation || proc || desktop || compactEnv || tmpEnv || pauseEnv || ownEnv || keys
+          browser || todo || vault || ask || automation || proc || recall || desktop || compactEnv || tmpEnv || pauseEnv || ownEnv || keys
             ? {
                 ...keys,
                 ...ownEnv,
@@ -3428,6 +3473,7 @@ export class ChatService {
                 ...ask?.env,
                 ...automation?.env,
                 ...proc?.env,
+                ...recall?.env,
                 ...desktop?.env,
                 ...compactEnv,
                 ...tmpEnv,
@@ -3493,7 +3539,7 @@ export class ChatService {
               ...(codexCompactAt !== null ? { autoCompactTokenLimit: codexCompactAt } : {}),
               baseInstructions: [def?.body ?? '', system, browser?.prompt].filter(Boolean).join('\n\n'),
               // The same order as the Claude run's --mcp-config flags. Automations never apply: Zumi Bot is a Claude agent.
-              mcpServers: codexServers([browser?.mcp, todo?.mcp, vault?.mcp, ask?.mcp]),
+              mcpServers: codexServers([browser?.mcp, todo?.mcp, vault?.mcp, ask?.mcp, recall?.mcp]),
               ...(guarded ? { hooks: codexHooks } : {})
             }
           })
@@ -3518,6 +3564,7 @@ export class ChatService {
               ...(ask?.args ?? []),
               ...(automation?.args ?? []),
               ...(proc?.args ?? []),
+              ...(recall?.args ?? []),
               ...(desktop?.args ?? []),
               ...(claudePause ? ['--settings', claudePause.settings] : []),
               ...allowArgs,
@@ -3659,6 +3706,7 @@ export class ChatService {
         vault?.dispose()
         automation?.dispose()
         proc?.dispose()
+        recall?.dispose()
         // Ends a vault approval still waiting (Stop, the turn over): the card must not stay pending.
         unregisterVault?.()
         vaultOpen.value = false
@@ -3808,6 +3856,9 @@ export class ChatService {
         // Fixed text, last so the earlier parts keep their order; side runs (sideBase) inherit it. The list's state goes in the note.
         // The ask roster after it: it changes only when the agents do.
         const asks = askable ? await this.askRoster(spawnedName) : ''
+        // Per turn, so an Agent Studio change applies from the next message; a failed read only costs the turn its recall.
+        recallScope =
+          this.d.recallTurns && caps.bridges ? await this.d.recallTurns.scopeOf(spawnedName).catch(() => null) : null
         // The bridge paragraphs only with the bridges (an ACP agent gets none of either).
         const system = [
           spec.systemPrompt ?? '',
@@ -3816,6 +3867,7 @@ export class ChatService {
           this.d.todoTurns && caps.bridges ? TODO_SYSTEM : '',
           this.d.vaultTurns && caps.bridges ? VAULT_SYSTEM : '',
           this.d.processTurns && caps.processes && caps.bridges && isolationOf() === 'off' ? PROCESS_SYSTEM : '',
+          recallScope !== null ? recallSystem(recallScope) : '',
           !caps.remote ? RUN_SYSTEM : '',
           asks
         ]

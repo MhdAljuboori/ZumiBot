@@ -141,6 +141,8 @@ import { SearchIndex } from './core/search/searchIndex'
 import { serveTodoIpc } from './core/todos/todoIpc'
 import { ProcessService, type RunEndEvent } from './core/processes/processService'
 import { serveProcessIpc } from './core/processes/processIpc'
+import { serveRecallIpc } from './core/recall/recallIpc'
+import { RecallService } from './core/recall/recallService'
 import { ProcessWakes } from './core/processes/processWakes'
 import { RunResults } from './core/processes/runResults'
 import { runAuditRecord } from './core/audit/runAudit'
@@ -836,6 +838,10 @@ export async function startServer(
     undo.push(() => processIpc.close())
     const vaultIpc = await serveVaultIpc({ items: (agent) => vault.agentItems(agent) })
     undo.push(() => vaultIpc.close())
+    // Hive recall: an agent's `recall:` read fresh on every turn and every call, so turning it off stops a running turn's next call.
+    const recallScopeOf = async (agent: string) => (await agents.list()).find((a) => a.name === agent && a.error === null)?.recall ?? null
+    const recallIpc = await serveRecallIpc({ service: new RecallService({ index: search, store: chats, scopeOf: recallScopeOf }) })
+    undo.push(() => recallIpc.close())
     // Suggested replies: a chat gone idle on a reply that asks the user gets their likely next messages (replyOptions.ts).
     const replyOptions = new ReplyOptions({
       store: chats,
@@ -1103,6 +1109,7 @@ export async function startServer(
       askEnd: (turn) => asks.endTurn(turn),
       automationTurns: { create: (owner, o) => automationIpc.createAutomationTurn(owner, o) },
       processTurns: { create: (owner) => processIpc.createProcessTurn(owner) },
+      recallTurns: { create: (owner) => recallIpc.createRecallTurn(owner), scopeOf: recallScopeOf },
       onRunCost: (e) => {
         usage.recordRun(e)
         workflowRunner.chatCost(e.chatId, e.cost.totalUsd) // an Agent step's turn: its run shows what it cost

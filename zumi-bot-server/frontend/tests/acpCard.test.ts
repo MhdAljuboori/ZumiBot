@@ -33,6 +33,7 @@ describe('studioCards', () => {
       memory: false,
       desktop: false,
       browser: false,
+      recall: false,
       acp: true,
       agui: false,
       instructionsNote: null
@@ -48,6 +49,7 @@ describe('studioCards', () => {
       memory: true,
       desktop: true,
       browser: true,
+      recall: true,
       acp: false,
       agui: false,
       instructionsNote: null

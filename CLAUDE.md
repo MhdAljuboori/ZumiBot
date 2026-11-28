@@ -51,7 +51,7 @@ E2E suites, probes and the Codex smoke run: [docs/architecture/e2e.md](docs/arch
 
 ## Docs by area
 
-Feature detail lives in `docs/architecture/`, one doc per area. Before changing an area, read its doc; a folder that belongs to one area has a `CLAUDE.md` pointing to it. When a change lands, update that doc in the same change. A new area gets a new doc, an index line here, and a pointer `CLAUDE.md` if it has a folder of its own. Never put feature detail in this file: it stays under 16 KB, and `zumi-bot-server/shared/tests/repoDocs.test.ts` fails past that. Frontend files have no pointers: match the area by name prefix (`Workflow*`, `Routine*`, `Vault*`, `Todo*`, `Inbox*`, `Island*`), or run `grep -l <FileName> docs/architecture/*.md`.
+Feature detail lives in `docs/architecture/`, one doc per area. Before changing an area, read its doc; a folder that belongs to one area has a `CLAUDE.md` pointing to it. When a change lands, update that doc in the same change. A new area gets a new doc, an index line here, and a pointer `CLAUDE.md` if it has a folder of its own. Never put feature detail here: `shared/tests/repoDocs.test.ts` fails past 16 KB. Frontend files have no pointers: match the area by name prefix (`Workflow*`, `Routine*`, `Vault*`, `Todo*`, `Inbox*`, `Island*`), or run `grep -l <FileName> docs/architecture/*.md`.
 
 - [Engines](docs/architecture/engines.md): `core/engines/`, `shared/src/engine.ts`
 - [Protocol engines](docs/architecture/protocol-engines.md): ACP and AG-UI, `core/acp/`, `core/agui/`
@@ -89,6 +89,7 @@ Feature detail lives in `docs/architecture/`, one doc per area. Before changing 
 - [Usage limit waits](docs/architecture/usage-limit-waits.md): `limitResumes.ts`, `limitNotice.ts`
 - [Unread markers and Archive](docs/architecture/unread-and-archive.md): `readMarks.ts`, `unread.ts`, `archive.ts`, `ArchivedNav.tsx`
 - [Message search](docs/architecture/message-search.md): `core/search/`, `shared/src/search.ts`, `MessageHits.tsx`
+- [Hive recall](docs/architecture/recall.md): `core/recall/`, `shared/src/recall.ts`
 - [Chat export](docs/architecture/chat-export.md): `core/export/`, `chatExport.ts`, `ExportDialog.tsx`
 - [To-dos, cards and the task board](docs/architecture/todos.md): `core/todos/`, `shared/src/todos.ts`, `Todo*.tsx`
 - [Inbox](docs/architecture/inbox.md): `Inbox*.tsx`, `state/inbox.ts`, `workflowMessages.ts`
@@ -110,7 +111,7 @@ Feature detail lives in `docs/architecture/`, one doc per area. Before changing 
 
 ## Testing notes
 
-- All vitest projects use the `node` environment. Frontend tests cover only the pure modules in `src/state/` and `src/net/` (there are no component/DOM tests), so keep logic out of components where you can.
+- All vitest projects use the `node` environment. Frontend tests cover only the pure modules in `src/state/` and `src/net/`, so keep logic out of components where you can.
 - The backend's HTTP/WebSocket tests use `tests/http/helpers.ts`. The frontend's socket tests use `tests/net/fakeSocket.ts`.
 
 ## Conventions
