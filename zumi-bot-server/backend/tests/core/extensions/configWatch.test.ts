@@ -77,6 +77,9 @@ describe('watchClaudeConfig', () => {
 
   it('fires for a commands folder made after the watch started, and for a command added in it', async () => {
     start()
+    // The folder is made only once, and the top watch is not recursive, so retried writes inside it never reach that
+    // watch: on macOS a mkdir before the FSEvents stream runs is lost for good. An event first proves the stream runs.
+    await firesOn(() => put('settings.json', '{}'))
     await firesOn(() => put('commands/check.md', 'Check it'))
     await firesOn(() => put('commands/nested/deep.md', 'Deep'))
   })
